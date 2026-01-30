@@ -69,7 +69,7 @@
 
     <include layout="@layout/divider" />
 
-    <android.support.v7.widget.RecyclerView
+    <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_account"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -138,7 +138,7 @@
     </RelativeLayout>
 
 
-    <android.support.v7.widget.RecyclerView
+    <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_notebook"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -179,7 +179,7 @@
             android:padding="8dp" />
     </RelativeLayout>
 
-    <android.support.v7.widget.RecyclerView
+    <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_tag"
         android:layout_width="240dp"
         android:layout_height="wrap_content"

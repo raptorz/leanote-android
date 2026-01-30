@@ -41,11 +41,8 @@ public class SignInActivity extends BaseActivity implements TextWatcher {
     private static final String EXTRA_ACCOUNT_LOCAL_ID = "extra.account.LocalId";
     private static final String TAG = "SignInActivity:";
 
-    private static final String LEANOTE_HOST = "https://leanote.com";
     private static final String FIND_PASSWORD = "/findPassword";
-    private static final String EXT_IS_CUSTOM_HOST = "ext_is_custom_host";
     private static final String EXT_HOST = "ext_host";
-    private static final String EXT_ACTION_PANEL_OFFSET_Y = "ext_host_et_height";
 
     @BindView(R.id.et_email)
     EditText mEmailEt;
@@ -55,8 +52,6 @@ public class SignInActivity extends BaseActivity implements TextWatcher {
     View mSignInBtn;
     @BindView(R.id.tv_sign_up)
     View mSignUpBtn;
-    @BindView(R.id.tv_custom_host)
-    TextView mCustomHostBtn;
     @BindView(R.id.et_custom_host)
     EditText mHostEt;
     @BindView(R.id.ll_action)
@@ -67,8 +62,6 @@ public class SignInActivity extends BaseActivity implements TextWatcher {
     ProgressBar mSignUpProgress;
     @BindView(R.id.rl_sign_up)
     View mSignUpPanel;
-    @BindView(R.id.tv_example)
-    TextView mExampleTv;
 
     /**
      * @param data
@@ -90,45 +83,18 @@ public class SignInActivity extends BaseActivity implements TextWatcher {
         ButterKnife.bind(this);
         mEmailEt.addTextChangedListener(this);
         mPasswordEt.addTextChangedListener(this);
-        mHostEt.setPivotY(0);
 
-        int actionPanelOffsetY = 0;
-        boolean isCustomHost = false;
         String host = "";
         if (savedInstanceState != null) {
-            isCustomHost = savedInstanceState.getBoolean(EXT_IS_CUSTOM_HOST);
-            actionPanelOffsetY = savedInstanceState.getInt(EXT_ACTION_PANEL_OFFSET_Y);
             host = savedInstanceState.getString(EXT_HOST);
         }
-        mCustomHostBtn.setTag(isCustomHost);
-        mActionPanel.setTag(actionPanelOffsetY);
-        mActionPanel.setY(actionPanelOffsetY);
-        mHostEt.setScaleY(isCustomHost ? 1 : 0);
         mHostEt.setText(host);
-        mHostEt.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-                mExampleTv.setText(String.format(Locale.US, getString(R.string.host_example), s.toString()));
-            }
-        });
     }
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
-        outState.putBoolean(EXT_IS_CUSTOM_HOST, (Boolean) mCustomHostBtn.getTag());
         outState.putString(EXT_HOST, mHostEt.getText().toString());
-        outState.putInt(EXT_ACTION_PANEL_OFFSET_Y, (Integer) mActionPanel.getTag());
     }
 
     @OnClick(R.id.tv_forgot_password)
@@ -137,52 +103,8 @@ public class SignInActivity extends BaseActivity implements TextWatcher {
         OpenUtils.openUrl(this, url);
     }
 
-    @OnClick(R.id.tv_custom_host)
-    void switchHost() {
-        boolean isCustomHost = !(boolean) mCustomHostBtn.getTag();
-        mCustomHostBtn.setTag(isCustomHost);
-        mExampleTv.setVisibility(isCustomHost ? View.VISIBLE : View.GONE);
-        if (isCustomHost) {
-            mCustomHostBtn.setText(R.string.use_leanote_host);
-            mHostEt.animate()
-                    .scaleY(1)
-                    .setDuration(200)
-                    .setInterpolator(new AccelerateDecelerateInterpolator())
-                    .start();
-            mActionPanel.animate()
-                    .yBy(mHostEt.getHeight())
-                    .setDuration(200)
-                    .setInterpolator(new AccelerateDecelerateInterpolator())
-                    .withEndAction(new Runnable() {
-                        @Override
-                        public void run() {
-                            mActionPanel.setTag(mHostEt.getHeight());
-                        }
-                    })
-                    .start();
-        } else {
-            mCustomHostBtn.setText(R.string.use_custom_host);
-            mHostEt.animate()
-                    .scaleY(0)
-                    .setDuration(200)
-                    .setInterpolator(new AccelerateDecelerateInterpolator())
-                    .start();
-            mActionPanel.animate()
-                    .yBy(-mHostEt.getHeight())
-                    .setDuration(200)
-                    .setInterpolator(new AccelerateDecelerateInterpolator())
-                    .withEndAction(new Runnable() {
-                        @Override
-                        public void run() {
-                            mActionPanel.setTag(0);
-                        }
-                    })
-                    .start();
-        }
-    }
-
     private String getHost() {
-        return (boolean) mCustomHostBtn.getTag() ? mHostEt.getText().toString().trim() : LEANOTE_HOST;
+        return mHostEt.getText().toString().trim();
     }
 
     @OnClick(R.id.tv_sign_in)

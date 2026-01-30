@@ -562,8 +562,8 @@ public class Navigation {
         void onClickAbout();
     }
 
-    @OnClick(R.id.rl_blog)
-    void clickedMyBlog() {
+    @OnClick(R.id.rl_explore)
+    void clickedExplore() {
         Account current = Account.getCurrent();
         String host = current.getHost();
         if (host == null || host.equals("")) {
@@ -572,10 +572,5 @@ public class Navigation {
 
         host = host.replace("https://", "http://");
         OpenUtils.openUrl(mActivity, host + "/blog/" + current.getUserId());
-    }
-
-    @OnClick(R.id.rl_explore)
-    void clickedExplore() {
-        OpenUtils.openUrl(mActivity, "http://lea.leanote.com");
     }
 }

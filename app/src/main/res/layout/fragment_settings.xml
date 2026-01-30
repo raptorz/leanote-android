@@ -71,7 +71,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/tags" />
 
-            <android.support.v7.widget.AppCompatMultiAutoCompleteTextView
+            <androidx.appcompat.widget.AppCompatMultiAutoCompleteTextView
                 android:id="@+id/et_tags"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

@@ -22,7 +22,7 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
 def dbflow_version = "4.2.4"
-def ciName = isEmpty(System.getenv("TRAVIS_TAG")) ? "Staging" : System.getenv("TRAVIS_TAG")
+def ciName = isEmpty(System.getenv("TRAVIS_TAG")) ? "1.0.0" : System.getenv("TRAVIS_TAG")
 def ciCode = isEmpty(System.getenv("TRAVIS_BUILD_NUMBER")) ? 1000 : Integer.valueOf(System.getenv("TRAVIS_BUILD_NUMBER"))
 def buglyPrdKey = isEmpty(System.getenv('BUGLY_PRD')) ? "" : System.getenv('BUGLY_PRD')
 def isEmpty(String str) {
