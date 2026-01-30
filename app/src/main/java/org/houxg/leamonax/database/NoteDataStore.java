@@ -28,7 +28,26 @@ import java.util.Set;
 public class NoteDataStore {
     public static List<Note> searchByTitle(String keyword) {
         keyword = String.format(Locale.US, "%%%s%%", keyword);
-        return SQLite.select()
+        return SQLite.select(
+                Note_Table.id,
+                Note_Table.noteId,
+                Note_Table.notebookId,
+                Note_Table.userId,
+                Note_Table.title,
+                Note_Table.isMarkDown,
+                Note_Table.isTrash,
+                Note_Table.isDeleted,
+                Note_Table.isBlog,
+                Note_Table.usn,
+                Note_Table.desc,
+                Note_Table.noteAbstract,
+                Note_Table.isDirty,
+                Note_Table.isUploading,
+                Note_Table.createdTime,
+                Note_Table.updatedTime,
+                Note_Table.publicTime,
+                Note_Table.tags
+        )
                 .from(Note.class)
                 .where(Note_Table.userId.eq(Account.getCurrent().getUserId()))
                 .and(Note_Table.title.like(keyword))
@@ -104,7 +123,26 @@ public class NoteDataStore {
         }
         cursor.close();
 
-        return SQLite.select()
+        return SQLite.select(
+                Note_Table.id,
+                Note_Table.noteId,
+                Note_Table.notebookId,
+                Note_Table.userId,
+                Note_Table.title,
+                Note_Table.isMarkDown,
+                Note_Table.isTrash,
+                Note_Table.isDeleted,
+                Note_Table.isBlog,
+                Note_Table.usn,
+                Note_Table.desc,
+                Note_Table.noteAbstract,
+                Note_Table.isDirty,
+                Note_Table.isUploading,
+                Note_Table.createdTime,
+                Note_Table.updatedTime,
+                Note_Table.publicTime,
+                Note_Table.tags
+        )
                 .from(Note.class)
                 .where(Note_Table.id.in(set))
                 .queryList();
@@ -126,7 +164,26 @@ public class NoteDataStore {
     }
 
     public static List<Note> getAllNotes(String userId) {
-        return SQLite.select()
+        return SQLite.select(
+                Note_Table.id,
+                Note_Table.noteId,
+                Note_Table.notebookId,
+                Note_Table.userId,
+                Note_Table.title,
+                Note_Table.isMarkDown,
+                Note_Table.isTrash,
+                Note_Table.isDeleted,
+                Note_Table.isBlog,
+                Note_Table.usn,
+                Note_Table.desc,
+                Note_Table.noteAbstract,
+                Note_Table.isDirty,
+                Note_Table.isUploading,
+                Note_Table.createdTime,
+                Note_Table.updatedTime,
+                Note_Table.publicTime,
+                Note_Table.tags
+        )
                 .from(Note.class)
                 .where(Note_Table.userId.eq(userId))
                 .and(Note_Table.isDeleted.eq(false))
@@ -135,7 +192,27 @@ public class NoteDataStore {
     }
 
     public static List<Note> getAllDirtyNotes(String userId) {
-        return SQLite.select()
+        return SQLite.select(
+                Note_Table.id,
+                Note_Table.noteId,
+                Note_Table.notebookId,
+                Note_Table.userId,
+                Note_Table.title,
+                Note_Table.content,
+                Note_Table.isMarkDown,
+                Note_Table.isTrash,
+                Note_Table.isDeleted,
+                Note_Table.isBlog,
+                Note_Table.usn,
+                Note_Table.desc,
+                Note_Table.noteAbstract,
+                Note_Table.isDirty,
+                Note_Table.isUploading,
+                Note_Table.createdTime,
+                Note_Table.updatedTime,
+                Note_Table.publicTime,
+                Note_Table.tags
+        )
                 .from(Note.class)
                 .where(Note_Table.userId.eq(userId))
                 .and(Note_Table.isDeleted.eq(false))
@@ -148,7 +225,26 @@ public class NoteDataStore {
         if (notebook == null) {
             return new ArrayList<>();
         }
-        return SQLite.select()
+        return SQLite.select(
+                Note_Table.id,
+                Note_Table.noteId,
+                Note_Table.notebookId,
+                Note_Table.userId,
+                Note_Table.title,
+                Note_Table.isMarkDown,
+                Note_Table.isTrash,
+                Note_Table.isDeleted,
+                Note_Table.isBlog,
+                Note_Table.usn,
+                Note_Table.desc,
+                Note_Table.noteAbstract,
+                Note_Table.isDirty,
+                Note_Table.isUploading,
+                Note_Table.createdTime,
+                Note_Table.updatedTime,
+                Note_Table.publicTime,
+                Note_Table.tags
+        )
                 .from(Note.class)
                 .where(Note_Table.notebookId.eq(notebook.getNotebookId()))
                 .and(Note_Table.userId.eq(userId))
