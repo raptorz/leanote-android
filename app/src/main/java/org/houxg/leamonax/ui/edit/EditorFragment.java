@@ -9,11 +9,11 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.app.Fragment;
-import android.support.v4.content.ContextCompat;
-import android.support.v4.view.GravityCompat;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
+import androidx.core.content.ContextCompat;
+import androidx.core.view.GravityCompat;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -200,21 +200,9 @@ public class EditorFragment extends Fragment implements Editor.EditorListener {
     }
 
     private void openImageSelector(boolean supportSelfie) {
-        ISListConfig config = new ISListConfig.Builder()
-                .multiSelect(false)
-                .rememberSelected(false)
-                .btnBgColor(Color.GRAY)
-                .btnTextColor(Color.BLUE)
-                .statusBarColor(Color.parseColor("#3F51B5"))
-                .backResId(R.drawable.ic_arrow_back_white)
-                .title(getString(R.string.webview_select_picture))
-                .titleColor(Color.WHITE)
-                .titleBgColor(Color.parseColor("#3F51B5"))
-                .needScaleCrop(true)
-                .needCamera(supportSelfie)
-                .maxNum(9)
-                .build();
-        ISNav.getInstance().toListActivity(this, config, REQ_SELECT_IMAGE);
+        Intent intent = new Intent(Intent.ACTION_PICK);
+        intent.setType("image/*");
+        startActivityForResult(intent, REQ_SELECT_IMAGE);
     }
 
     @OnClick(R.id.btn_link)
@@ -317,16 +305,32 @@ public class EditorFragment extends Fragment implements Editor.EditorListener {
                 && resultCode == Activity.RESULT_OK
                 && data != null
                 && mListener != null) {
-            List<String> pathList = data.getStringArrayListExtra(ISListActivity.INTENT_RESULT);
-            if (CollectionUtils.isNotEmpty(pathList)) {
-                String path = pathList.get(0);
-                XLog.i(TAG + "path=" + path);
-                //create ImageObject
-                Uri imageUri = mListener.createImage(path);
-                //insert to note
-                mEditor.insertImage("untitled", imageUri.toString());
+            Uri uri = data.getData();
+            if (uri != null) {
+                String path = getRealPathFromUri(uri);
+                if (path != null) {
+                    Uri imageUri = mListener.createImage(path);
+                    mEditor.insertImage("untitled", imageUri.toString());
+                }
             }
         }
+    }
+
+    private String getRealPathFromUri(Uri uri) {
+        String[] projection = { android.provider.MediaStore.Images.Media.DATA };
+        android.database.Cursor cursor = null;
+        try {
+            cursor = getActivity().getContentResolver().query(uri, projection, null, null, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                int index = cursor.getColumnIndexOrThrow(android.provider.MediaStore.Images.Media.DATA);
+                return cursor.getString(index);
+            }
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+        return null;
     }
 
     @OnClick(R.id.btn_order_list)

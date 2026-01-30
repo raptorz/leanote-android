@@ -170,7 +170,6 @@ public class Tag extends BaseModel{
                 .from(RelationshipOfNoteTag.class)
                 .where(RelationshipOfNoteTag_Table.userId.eq(userId))
                 .and(RelationshipOfNoteTag_Table.noteLocalId.eq(noteLocalId))
-                .and(RelationshipOfNoteTag_Table.id.notIn(firstReservedId, reservedIds))
                 .async()
                 .execute();
     }

@@ -5,14 +5,13 @@ import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.net.Uri;
 import android.os.Bundle;
-import android.support.v7.widget.Toolbar;
+import androidx.appcompat.widget.Toolbar;
 import android.text.TextUtils;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 
 import com.elvishew.xlog.XLog;
-import com.tencent.bugly.crashreport.CrashReport;
 
 import org.houxg.leamonax.BuildConfig;
 import org.houxg.leamonax.R;
@@ -62,7 +61,6 @@ public class NotePreviewActivity extends BaseActivity implements EditorFragment.
         mNote = NoteDataStore.getByLocalId(noteLocalId);
         if (mNote == null) {
             ToastUtils.show(this, R.string.note_not_found);
-            CrashReport.postCatchedException(new IllegalStateException("Note not found while preview, localId=" + noteLocalId));
             finish();
             return;
         }

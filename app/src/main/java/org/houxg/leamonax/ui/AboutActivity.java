@@ -1,13 +1,13 @@
 package org.houxg.leamonax.ui;
 
 import android.os.Bundle;
-import android.support.v7.widget.Toolbar;
+import androidx.appcompat.widget.Toolbar;
 import android.view.View;
 import android.widget.TextView;
 
 import com.raizlabs.android.dbflow.config.FlowManager;
-import com.raizlabs.android.dbflow.structure.database.transaction.ProcessModelTransaction;
 import com.raizlabs.android.dbflow.structure.database.transaction.Transaction;
+import com.raizlabs.android.dbflow.structure.database.transaction.FastStoreModelTransaction;
 
 import org.bson.types.ObjectId;
 import org.houxg.leamonax.BuildConfig;
@@ -57,21 +57,16 @@ public class AboutActivity extends BaseActivity {
                         String userId = Account.getCurrent().getUserId();
                         SecureRandom random = new SecureRandom();
                         String notebookId = new ObjectId().toString();
-                        List<Note> notes = new ArrayList<>(8000);
+                        List<Note> notes = new ArrayList(8000);
                         for (int i = 0; i < 5000; i++) {
                             Note note = TestUtils.randomNote(random, notebookId, userId);
                             notes.add(note);
                         }
-                        ProcessModelTransaction<Note> processModelTransaction = new ProcessModelTransaction.Builder<>(
-                                new ProcessModelTransaction.ProcessModel<Note>() {
-                                    @Override
-                                    public void processModel(Note note) {
-                                        note.save();
-                                    }
-                                })
+                        FastStoreModelTransaction fastStore = FastStoreModelTransaction
+                                .insertBuilder(FlowManager.getModelAdapter(Note.class))
                                 .addAll(notes)
                                 .build();
-                        Transaction transaction = FlowManager.getDatabase(AppDataBase.class).beginTransactionAsync(processModelTransaction).build();
+                        Transaction transaction = FlowManager.getDatabase(AppDataBase.class).beginTransactionAsync(fastStore).build();
                         transaction.execute();
                     }
                 }).subscribeOn(Schedulers.io())

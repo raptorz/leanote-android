@@ -5,7 +5,7 @@ import android.app.Activity;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
-import android.support.annotation.MenuRes;
+import androidx.annotation.MenuRes;
 import android.view.ActionMode;
 import android.view.Menu;
 import android.view.MenuItem;

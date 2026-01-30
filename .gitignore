@@ -9,3 +9,6 @@
 .externalNativeBuild
 /.idea
 leanote-android-new.jks
+debug.keystore
+.vscode
+app/release

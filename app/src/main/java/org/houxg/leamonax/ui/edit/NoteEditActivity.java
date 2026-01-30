@@ -4,16 +4,15 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentPagerAdapter;
-import android.support.v7.widget.Toolbar;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentPagerAdapter;
+import androidx.appcompat.widget.Toolbar;
 import android.text.TextUtils;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.ViewGroup;
 
 import com.elvishew.xlog.XLog;
-import com.tencent.bugly.crashreport.CrashReport;
 
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
@@ -117,9 +116,6 @@ public class NoteEditActivity extends BaseActivity implements EditorFragment.Edi
         notebook = NotebookDataStore.getRecentNoteBook(account.getUserId());
         if (notebook != null) {
             newNote.setNoteBookId(notebook.getNotebookId());
-        } else {
-            Exception exception = new IllegalStateException("notebook is null");
-            CrashReport.postCatchedException(exception);
         }
         newNote.setIsMarkDown(account.getDefaultEditor() == Account.EDITOR_MARKDOWN);
         newNote.save();
@@ -391,7 +387,7 @@ public class NoteEditActivity extends BaseActivity implements EditorFragment.Edi
     private class SectionAdapter extends FragmentPagerAdapter {
 
 
-        public SectionAdapter(android.support.v4.app.FragmentManager fm) {
+        public SectionAdapter(androidx.fragment.app.FragmentManager fm) {
             super(fm);
         }
 

@@ -7,7 +7,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 
-import com.github.piasy.biv.view.BigImageView;
+import com.bumptech.glide.Glide;
 
 import org.houxg.leamonax.R;
 
@@ -21,7 +21,7 @@ public class PictureViewerActivity extends BaseActivity {
     private static final String EXTRA_FILE_PATH = "extra.filePath";
 
     @BindView(R.id.big_image)
-    BigImageView mBigImageView;
+    android.widget.ImageView mBigImageView;
 
 
     @Override
@@ -39,7 +39,7 @@ public class PictureViewerActivity extends BaseActivity {
             return;
         }
         Uri uri = Uri.fromFile(new File(path));
-        mBigImageView.showImage(uri);
+        Glide.with(this).load(uri).into(mBigImageView);
     }
 
     public static Intent getOpenIntent(Context context, String path) {

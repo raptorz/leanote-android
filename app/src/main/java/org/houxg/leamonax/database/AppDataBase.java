@@ -100,7 +100,7 @@ public class AppDataBase {
                 int id = cursor.getInt(idIndex);
                 Account account = SQLite.select()
                         .from(Account.class)
-                        .where(Account_Table.id.eq(id))
+                        .where(Account_Table.id.eq((long) id))
                         .querySingle(database);
                 if (account != null) {
                     SQLite.update(Account.class)
@@ -144,7 +144,7 @@ public class AppDataBase {
                 int id = cursor.getInt(idIndex);
                 Account account = SQLite.select()
                         .from(Account.class)
-                        .where(Account_Table.id.eq(id))
+                        .where(Account_Table.id.eq((long) id))
                         .querySingle(database);
                 if (account != null) {
                     account.updateLastUseTime();

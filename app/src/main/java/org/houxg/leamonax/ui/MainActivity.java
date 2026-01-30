@@ -4,16 +4,15 @@ package org.houxg.leamonax.ui;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.annotation.Nullable;
-import android.support.v4.widget.SwipeRefreshLayout;
-import android.support.v7.widget.Toolbar;
+import androidx.annotation.Nullable;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+import androidx.appcompat.widget.Toolbar;
 import android.text.TextUtils;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 
 import com.elvishew.xlog.XLog;
-import com.tencent.bugly.crashreport.CrashReport;
 
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
@@ -63,7 +62,6 @@ public class MainActivity extends BaseActivity implements Navigation.Callback {
         initToolBar((Toolbar) findViewById(R.id.toolbar));
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         getSupportActionBar().setHomeAsUpIndicator(R.drawable.ic_menu_white);
-        CrashReport.setUserId(Account.getCurrent().getUserId());
 
         mNavigation = new Navigation(this);
         mNavigation.init(this, mNavigationView);
@@ -155,10 +153,6 @@ public class MainActivity extends BaseActivity implements Navigation.Callback {
         }
         if (notebook != null) {
             newNote.setNoteBookId(notebook.getNotebookId());
-        } else {
-            Exception exception = new IllegalStateException(
-                    String.format(Locale.US, "notebook is null, mode:%s, notebookLocalId:%d", currentMode, currentMode.notebookId));
-            CrashReport.postCatchedException(exception);
         }
         newNote.setIsMarkDown(account.getDefaultEditor() == Account.EDITOR_MARKDOWN);
         newNote.save();

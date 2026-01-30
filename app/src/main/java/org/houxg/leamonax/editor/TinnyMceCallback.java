@@ -1,6 +1,6 @@
 package org.houxg.leamonax.editor;
 
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 import android.webkit.JavascriptInterface;
 
 import com.elvishew.xlog.XLog;

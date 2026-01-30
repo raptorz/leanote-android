@@ -1,8 +1,8 @@
 package org.houxg.leamonax.adapter;
 
 
-import android.support.annotation.Nullable;
-import android.support.v7.widget.RecyclerView;
+import androidx.annotation.Nullable;
+import androidx.recyclerview.widget.RecyclerView;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -70,7 +70,7 @@ public class AccountAdapter extends RecyclerView.Adapter<AccountAdapter.AccountH
                 Glide.with(holder.avatarIv.getContext())
                         .load(account.getAvatar())
                         .centerCrop()
-                        .bitmapTransform(new CropCircleTransformation(holder.avatarIv.getContext()))
+                        .transform(new CropCircleTransformation())
                         .into(holder.avatarIv);
             } else {
                 holder.mAlphabetDrawable.setAlphabet(account.getEmail());

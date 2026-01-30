@@ -2,7 +2,7 @@ package org.houxg.leamonax.widget;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
-import android.support.v7.widget.ListPopupWindow;
+import android.widget.ListPopupWindow;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -49,7 +49,6 @@ public class SelectPopupWindow extends ListPopupWindow {
         setHeight(ViewGroup.LayoutParams.WRAP_CONTENT);
         setDropDownGravity(Gravity.END);
         setAnchorView(anchorView);
-        setOverlapAnchor(true);
         setModal(true);
         setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override

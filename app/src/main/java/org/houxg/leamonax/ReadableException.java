@@ -1,7 +1,7 @@
 package org.houxg.leamonax;
 
 
-import android.support.annotation.StringRes;
+import androidx.annotation.StringRes;
 
 public class ReadableException extends IllegalStateException {
     public enum Error {

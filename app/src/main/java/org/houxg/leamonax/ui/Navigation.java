@@ -8,10 +8,10 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
-import android.support.v4.view.GravityCompat;
-import android.support.v4.widget.DrawerLayout;
-import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
+import androidx.core.view.GravityCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -22,7 +22,6 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.bumptech.glide.Glide;
-import com.tencent.bugly.crashreport.CrashReport;
 import com.weiwangcn.betterspinner.library.material.MaterialBetterSpinner;
 
 import org.houxg.leamonax.R;
@@ -169,7 +168,6 @@ public class Navigation {
     private void animateChangeAccount(View v, final Account account) {
         ImageView itemAvatar = (ImageView) v.findViewById(R.id.iv_avatar);
         if (itemAvatar.getDrawable() == null) {
-            CrashReport.postCatchedException(new IllegalStateException("account item's drawable is null"));
             changeAccount(account);
             return;
         }
@@ -314,7 +312,7 @@ public class Navigation {
                     }
                 };
                 spinner.setAdapter(adapter);
-                spinner.setText(rootNoteBook.getTitle());
+                spinner.setSelection(0);
                 new AlertDialog.Builder(mActivity)
                         .setTitle(R.string.add_notebook)
                         .setView(view)
@@ -322,7 +320,8 @@ public class Navigation {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
                                 dialog.dismiss();
-                                addNotebook(mEdit.getText().toString(), getNotebookId(tempNotebooks, spinner.getText().toString()));
+                                Notebook selected = tempNotebooks.get(spinner.getSelectedItemPosition());
+                                addNotebook(mEdit.getText().toString(), selected.getNotebookId());
                             }
                         })
                         .show();
@@ -445,7 +444,7 @@ public class Navigation {
                     .load(account.getAvatar())
                     .centerCrop()
                     .placeholder(mAlphabetDrawable)
-                    .bitmapTransform(new CropCircleTransformation(mActivity))
+                    .transform(new CropCircleTransformation())
                     .into(mAvatarIv);
         } else {
             mAlphabetDrawable.setAlphabet(account.getEmail());
