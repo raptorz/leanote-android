@@ -31,7 +31,7 @@
                     style="@style/SettingsStatus"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    tools:text="https://leanote.com" />
+                    tools:text="https://example.com" />
 
             </LinearLayout>
 

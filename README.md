@@ -1,33 +1,33 @@
-# New Leanote Android (Leamonax)
+# Gemsnote Android
 
-[![Build Status](https://travis-ci.org/leanote/leanote-android.svg?branch=master)](https://travis-ci.org/leanote/leanote-android?branch=master)
-
-**It's still in developing.** Be careful when you using it and make sure you have an backup.
+Gemsnote（珠玑笔记）安卓客户端，基于原 [Leanote Android](https://github.com/leanote/leanote-android)（Leamonax）修改开发，与 Gemsnote 服务端及 Gemsnote Desktop 功能对齐。
 
 # 中文README
 [README_ZH](README-zh.md)
 
-# Screenshot
-<img src="screenshot/MainActivity.png" alt="MainActivity" width="250" height="446">&ensp; &ensp;<img src="screenshot/Navigation.png" alt="Navigation" width="250" height="446">&ensp; &ensp;<img src="screenshot/RichText.png" alt="RichText" width="250" height="446"> <br>
+# 功能
 
-<img src="screenshot/Markdown.png" alt="Markdown" width="250" height="446">&ensp; &ensp;<img src="screenshot/Search.png" alt="Search" width="250" height="446">&ensp; &ensp;<img src="screenshot/AppWidget.png" alt="AppWidget" width="250" height="446"> <br>
+- [x] 登录 / 注册，多账户切换，自定义服务器地址
+- [x] 笔记本、笔记增量同步（USN）
+- [x] Markdown 与富文本编辑器
+- [x] 标签：随同步自动更新，支持按标签筛选，长按删除标签
+- [x] 回收站：查看已删除笔记、还原、彻底删除
+- [x] 历史版本：在线读取服务端版本列表（保留最近 20 份），离线时回退到本地内容快照，可随时回看与还原
+- [x] 附件：查看笔记附件列表，下载并打开
+- [x] 标题搜索与全文搜索（FTS）
+- [x] 桌面小组件
 
+# 构建
 
-# Download
-- [Git Release](https://github.com/leanote/leanote-android/releases/latest)
-- [Pgyer](https://www.pgyer.com/Leanote)
+```bash
+./gradlew assembleDebug
+```
 
-# Features
-- [x] Sign in/up
-- [x] Sync and view your notes/notebooks
-- [x] RichText support
-- [x] Markdown support
-- [x] Custom host
-- [x] Search by note's title
-- [x] appWidget
+默认 applicationId 为 `com.github.gemsnote`，应用名称为 `Gemsnote`（中文环境显示「珠玑笔记」）。
 
-# TODO
-- [ ] Searching for full-text fields
+# 服务端
+
+需要连接 Gemsnote 服务端（或兼容 Leanote API 的私有部署）。登录时填写服务器地址，例如 `https://your-server.com`。
 
 # Contributors
 

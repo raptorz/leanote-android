@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">蚂蚁笔记</string>
+    <string name="app_name">珠玑笔记</string>
+    <string name="web_version">网页版</string>
     <string name="add_notebook">添加笔记本</string>
     <string name="apply">应用</string>
     <string name="are_you_sure_to_delete_all_data_in_this_account">你确定要删除该账户所有的数据吗？</string>
@@ -69,7 +70,6 @@
     <string name="title">标题</string>
     <string name="untitled">未命名</string>
     <string name="use_custom_host">使用自定义服务器</string>
-    <string name="use_leanote_host">使用Leanote.com</string>
     <string name="user_name">用户名</string>
     <string name="version">版本</string>
     <string name="yes">是</string>
@@ -104,11 +104,8 @@
     <string name="view_type">视图类型</string>
     <string name="add_account">添加账户</string>
     <string name="generate_random_note">生成随机笔记</string>
-    <string name="leanote">蚂蚁笔记</string>
     <string name="conflict_occurs">糟糕，笔记冲突</string>
     <string name="host_example">登录接口地址将会是:\n%s/api/auth/login</string>
-    <string name="my_blog">我的博客</string>
-    <string name="explore">蚂蚁笔记探索</string>
     <string name="toast_notebook_title_not_empty">笔记本的名称不能为空</string>
     <string name="update_notebook_title">修改笔记本的名称</string>
     <string name="notebook_choose_notebook_hint">选择该笔记本所在的上一级笔记本目录</string>
@@ -119,7 +116,7 @@
     <string name="permission_get_description">我们需要一些权限来启动应用，请给予我们这些应用。请放心，我们保证只会申请必要的权限，并保证绝不泄露用户隐私信息</string>
     <string name="permission_get">权限申请</string>
     <string name="allow">允许</string>
-    <string name="lea_api_error_need_upgrade_account">需要升级蚂蚁笔记账户</string>
+    <string name="lea_api_error_need_upgrade_account">需要升级珠玑笔记账户</string>
     <string name="webview_select_picture">选择图片</string>
     <string name="note_not_load_completed">笔记未加载完，不能保存</string>
     <string name="full_text_search">全文搜索</string>
@@ -127,4 +124,18 @@
     <string name="full_text_search_index_rebuild_success">索引构建成功</string>
     <string name="full_text_search_rebuild_index_msg">这是一个很耗时的操作,你确定要重新构建索引么(默认情况下我们不推荐用户使用此功能)?</string>
     <string name="progress_dialog_loading_msg">Processing&#8230;</string>
+    <string name="trash">回收站</string>
+    <string name="restore_note">还原</string>
+    <string name="restore_note_failed">还原失败</string>
+    <string name="delete_forever">彻底删除</string>
+    <string name="are_you_sure_to_delete_forever">将彻底删除这些笔记？此操作无法撤销。</string>
+    <string name="note_history">历史版本</string>
+    <string name="no_history">暂无历史版本</string>
+    <string name="restore_this_version">还原此版本</string>
+    <string name="are_you_sure_to_restore_history">将笔记还原到此版本？保存后将同步变更。</string>
+    <string name="attachments">附件</string>
+    <string name="no_attachments">暂无附件</string>
+    <string name="download">下载</string>
+    <string name="download_finished_open">下载完成，是否打开？</string>
+    <string name="no_app_to_open_file">没有可以打开此文件的应用</string>
 </resources>

@@ -24,14 +24,14 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textSize="14sp"
-            tools:text="test@leanote.com"/>
+            tools:text="test@example.com"/>
 
         <TextView
             android:id="@+id/tv_host"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="@color/hint_text_light"
-            tools:text="https://leanote.com"/>
+            tools:text="https://example.com"/>
     </LinearLayout>
 
 

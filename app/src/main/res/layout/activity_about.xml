@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    tools:context="org.houxg.leamonax.ui.AboutActivity">
+    tools:context="com.github.gemsnote.ui.AboutActivity">
 
     <include layout="@layout/toolbar" />
 
@@ -94,7 +94,7 @@
                     style="@style/SettingsStatus"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="https://github.com/houxg/Leamonax" />
+                    android:text="https://github.com/gemsnote/gemsnote" />
 
                 <TextView
                     style="@style/SettingsStatus"

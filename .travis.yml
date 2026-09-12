@@ -19,17 +19,17 @@ env:
   - secure: UQu3MAB6fFitLlsJW1q1YnirByLR7iXIQlijqUdArU12F4ke1XvRLBR7qWj77S/dvT/LtSNdP0N4aftR10So2LvtFbTA8nOxtY6hES2QdfMjjFxOAXWImEmLRgeteTm+I2XoLbsgTGhep9plux+WIBFPW2hXAdnt3JPVR1wGvX7QzdB246RMuUJA6AMQlPTOhkJD2NNuXQlmcBnwDlPLnhYLvFkyB6KrT+d/npIqVxFpXQfS1kKkw0nATsFysDynXeVGg//Xr4LTPmbeFUvNiL7Zj+zXpCzvHrpSeHBdE/w/K8PNrBBZoRxySsqXGDt8x2XC4UmTwILDmpjmQYMJQ0zvfvNM2vnO1GZcsaA5v83XcGHg89h0eol3ZTvlmBMkiVOtYyLxzHKkwviRcIgfY348bXt0wzTzjLjVxYqljAkn+DCVGjjWdf0VpKnE6kgRxvAnqIOT+SziPL4ZXQFGdyKPyG78ke+oVu8lPXeClGB320i1uCOs95YAdjRFYmY6eVfzgrPjl1e3uZd5Ucli/IUDGUd3C3N4ZWRb/krw8lea5V6XU8hf85wpM3bti7cw93rSTaEl2gZQi38ijze0QXBbPa2iGs3TRIOqIuk1TgpNjVXduODPQDyYyum8cBIWwIAgW8Jl/DE4YGk6OhPGU/fF+jp0AMM5y/V1Fxk3d9s=
   - secure: cd+9puGTrBOxJbL8wJmGsq6HhE7AfBbwIDo5ZqbOFJzFDbhiwaAZMiMOwxIABhQTDIwX+ipIJlGqosgu4OlhSRFf8HPhnoGkjafgU/G/3zu8OeWgGP1afh/MuqgaGWhn+ieQdt9MDbF/8s4OariuCVwB2DKGk8hTXxI9iu9O6FL5st5357BoFYy7LTqqz/MLjq+9Fp3lN65HnPq3TpfBp6kkcJJSBORMt9SDkSvlvIYPGsKmvMbTzxKAKZ8keXWuJvjL+/hbwZ0mrC2T/lVAwRQXbguXm2CznL5y16AtzvasaWTpvIPZCHfFSv+5xSFCo3C+lb1IWRiwhcor7ih4C+JlghGhd+5CUxfAptTMN9qpm5z1kN1p/WhNU2oGCy/7wR8+LLTVKtb+v5EWK1LJg4ufHInxqU7gCh7DQ9tBM8PdDOxt5EO1Ob7DH44jiYHJDpDt0oJVQBJjMs85NzSN6cgVPDiMTCxv2ePV8B7mIE/29O1Xg4gbUrm3pL6gTlf7Qr58Sc4VNKoFKmXtpWXlkt9Z/f1ysLgaRdIs725r38OhZdebVTT3LHb9NOV9vyTGVsG6r/NDJPXd68JKkB9dW2YP1MlbeKhWgJiA5si46K03LkIzb0GuCckuIrwH9Tyy8RgCbPN23ZpU9SHbE1qsm+u/WyqTqAksNlJpAWoMoI0=
 before_install:
-- openssl aes-256-cbc -K $encrypted_5399b58e49a3_key -iv $encrypted_5399b58e49a3_iv -in leanote-android-new.jks.enc -out leanote-android-new.jks -d
+- openssl aes-256-cbc -K $encrypted_5399b58e49a3_key -iv $encrypted_5399b58e49a3_iv -in gemsnote.jks.enc -out gemsnote.jks -d
 script:
 - "./gradlew assembleRelease"
 before_deploy:
-- mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/Leanote.apk
+- mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/Gemsnote.apk
 deploy:
   provider: releases
   api_key:
     secure: Wleh7ixPa196mNHED/Cf5hJytw86aMjFbnDZxFo72OSalCy0nS8pgzjR6y8j/lLv3wG49yyKQfTfo1QIY5xottJKjFYFiAATVGuz3VBjAJ9djHLOv9V890SjtNOX/GMy+momXVlTfwgoCNrWY6PwmJh/5C/USY/MMPcps0ESEx7NYWBbD8auRQ6b/Wz6fTuRCjg/9hcDMRxJ/i140uZtUaFAiljvSPN7iCYnV0EmHFMY85cpZzD9OavQTM8I0Lo7w40CxKB6N7mnhJMYPS1BVboO10+qAdn4l6qFwENtIXRx4b8Mm7Yb/kivWueRFpcoUcEFs8M/kS3+/yjivoYHKActLoBBNrw+djxwqChcnqTjOo/hVsgDw9EqCnlccbba7wfBb2eyyPuc/Dr8+ixQd+myjR8uEqARB4IWi9+tihUoV416A12AUdGXQ0RX9H+qD0Gc0ZTG4pqBKTu5q+YofLz8eYao7jijLtprxvCgtihuxEc4PzerN58MuZ5FyqA+l7t4o+PNziCVOj6c7FwTAZJxWhLYsPnkHXvse7DEH5IahJH3qXPem8ZSewyrhVIK2hFtomgTtavwMQeVa6dkFL7OOfgaFRoaR0/lKFfxd0tEH4VfZe/kkThB4acO7qvLzzawb3D/MSuc1cKGB9WtZ8HROja7dYa4nxFPZq+xzK4=
-  file: app/build/outputs/apk/release/Leanote.apk
+  file: app/build/outputs/apk/release/Gemsnote.apk
   skip_cleanup: true
   on:
-    repo: leanote/leanote-android
+    repo: gemsnote/gemsnote
     tags: true

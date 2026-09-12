@@ -1,0 +1,529 @@
+package com.github.gemsnote.ui;
+
+
+import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.os.Bundle;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.appcompat.widget.Toolbar;
+import android.text.TextUtils;
+import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.AdapterView;
+
+import com.github.gemsnote.Gemsnote;
+import com.github.gemsnote.R;
+import com.github.gemsnote.adapter.NoteAdapter;
+import com.github.gemsnote.database.NoteDataStore;
+import com.github.gemsnote.model.Account;
+import com.github.gemsnote.model.Note;
+import com.github.gemsnote.service.NoteService;
+import com.github.gemsnote.utils.ActionModeHandler;
+import com.github.gemsnote.utils.CollectionUtils;
+import com.github.gemsnote.utils.NetworkUtils;
+import com.github.gemsnote.utils.SharedPreferenceUtils;
+import com.github.gemsnote.utils.ToastUtils;
+import com.github.gemsnote.widget.NoteList;
+import com.github.gemsnote.widget.SelectPopupWindow;
+
+import org.greenrobot.eventbus.EventBus;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+
+import butterknife.BindView;
+import butterknife.ButterKnife;
+import rx.Observable;
+import rx.Observer;
+import rx.Subscriber;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.functions.Func1;
+import rx.schedulers.Schedulers;
+
+import static com.github.gemsnote.R.menu.note;
+
+public class NoteFragment extends Fragment implements NoteAdapter.NoteAdapterListener, ActionModeHandler.Callback<Note> {
+
+    private static final String EXT_SCROLL_POSITION = "ext_scroll_position";
+    private static final String SP_VIEW_TYPE = "sp_viewType";
+
+    @BindView(R.id.recycler_view)
+    RecyclerView mNoteListView;
+
+    List<Note> mNotes;
+    ActionModeHandler<Note> mActionModeHandler;
+    NoteList mNoteList;
+    Mode mCurrentMode;
+    OnSearchFinishListener mOnSearchFinishListener;
+    private int mSortType = -1;
+
+    public void setOnSearchFinishListener(OnSearchFinishListener onSearchFinishListener) {
+        this.mOnSearchFinishListener = onSearchFinishListener;
+    }
+
+    public NoteFragment() {
+    }
+
+    public static NoteFragment newInstance() {
+        return new NoteFragment();
+    }
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        mSortType = SharedPreferenceUtils.read(SharedPreferenceUtils.CONFIG, SelectPopupWindow.SP_SORT_TYPE, -1);
+        setHasOptionsMenu(true);
+    }
+
+    @Override
+    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+        super.onCreateOptionsMenu(menu, inflater);
+        inflater.inflate(note, menu);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == R.id.action_view_type) {
+            mNoteList.toggleType();
+            SharedPreferenceUtils.write(SharedPreferenceUtils.CONFIG, SP_VIEW_TYPE, mNoteList.getType());
+        } else if (item.getItemId() == R.id.action_view_more) {
+            final SelectPopupWindow popupWindow = new SelectPopupWindow(getContext());
+            if (getActivity() instanceof BaseActivity) {
+                Toolbar toolbar = ((BaseActivity) getActivity()).getToolbar();
+                popupWindow.setOnItemClickListener(new SelectPopupWindow.OnItemClickListener() {
+                    @Override
+                    public void onItemClick(AdapterView<?> parent, View view, int value) {
+                        mSortType = value;
+                        renderNotes();
+                        popupWindow.dismiss();
+                    }
+                });
+                popupWindow.showPopWindow(toolbar);
+            }
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+
+
+    @Nullable
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.fragment_note, container, false);
+        ButterKnife.bind(this, view);
+        mNoteList = new NoteList(container.getContext(), view, this);
+        mNoteList.setType(SharedPreferenceUtils.read(SharedPreferenceUtils.CONFIG, SP_VIEW_TYPE, NoteList.DEFAULT_TYPE));
+        return view;
+    }
+
+    @Override
+    public void onActivityCreated(Bundle savedInstanceState) {
+        super.onActivityCreated(savedInstanceState);
+        if (savedInstanceState != null) {
+            mNoteList.setScrollPosition(savedInstanceState.getInt(EXT_SCROLL_POSITION, 0));
+        }
+        mActionModeHandler = new ActionModeHandler<>(getActivity(), this, R.menu.delete);
+    }
+
+    @Override
+    public void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putInt(EXT_SCROLL_POSITION, mNoteList.getScrollPosition());
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        EventBus.getDefault().unregister(this);
+    }
+
+    public void setMode(Mode mode) {
+        mCurrentMode = mode;
+        List<Note> notes;
+        mNoteList.setHighlight("");
+        switch (mode) {
+            case RECENT_NOTES:
+                notes = NoteDataStore.getAllNotes(Account.getCurrent().getUserId());
+                break;
+            case NOTEBOOK:
+                notes = NoteDataStore.getNotesFromNotebook(Account.getCurrent().getUserId(), mode.notebookId);
+                break;
+            case TAG:
+                notes = NoteDataStore.getByTagText(mode.tagText, Account.getCurrent().getUserId());
+                break;
+            case TRASH:
+                notes = NoteDataStore.getAllTrashNotes(Account.getCurrent().getUserId());
+                break;
+            case SEARCH:
+                notes = NoteDataStore.searchByKeyword(mode.keywords);
+                mNoteList.setHighlight(mode.keywords);
+                break;
+            default:
+                notes = new ArrayList<>();
+        }
+        mNotes = notes;
+        renderNotes();
+    }
+
+    private void renderNotes() {
+        Collections.sort(mNotes, getComparatorBySortType(mSortType));
+        mNoteList.render(mNotes);
+        if (mNotes.size() == 0 && mOnSearchFinishListener != null) {
+            mOnSearchFinishListener.doSearchFinish();
+        }
+    }
+
+    private Comparator<Note> getComparatorBySortType(int sortType) {
+        switch (sortType) {
+            case 1:
+                return new Note.CreateTimeAscComparetor();
+            case 2:
+                return new Note.CreateTimeDescComparetor();
+            case 3:
+                return new Note.UpdateTimeAscComparetor();
+            case 4:
+                return new Note.UpdateTimeDescComparetor();
+            case 5:
+                return new Note.TitleAscComparetor();
+            case 6:
+                return new Note.TitleDescComparetor();
+            default:
+                return new Note.UpdateTimeDescComparetor();
+        }
+
+    }
+
+
+    @Override
+    public void onClickNote(Note note) {
+        if (mActionModeHandler.isActionMode()) {
+            boolean isSelected = mActionModeHandler.chooseItem(note);
+            mNoteList.setSelected(note, isSelected);
+        } else if (mCurrentMode == Mode.TRASH) {
+            showTrashNoteDialog(note);
+        } else {
+            startActivity(NotePreviewActivity.getOpenIntent(getActivity(), note.getId()));
+        }
+    }
+
+    private void showTrashNoteDialog(final Note note) {
+        CharSequence[] actions = new CharSequence[]{
+                getString(R.string.restore_note),
+                getString(R.string.delete_forever)
+        };
+        new AlertDialog.Builder(getActivity())
+                .setTitle(TextUtils.isEmpty(note.getTitle()) ? getString(R.string.untitled) : note.getTitle())
+                .setItems(actions, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.dismiss();
+                        if (which == 0) {
+                            restoreNotes(new ArrayList<>(Collections.singletonList(note)));
+                        } else {
+                            confirmDeleteForever(new ArrayList<>(Collections.singletonList(note)));
+                        }
+                    }
+                })
+                .show();
+    }
+
+    private void confirmDeleteForever(final List<Note> notes) {
+        new AlertDialog.Builder(getActivity())
+                .setTitle(R.string.delete_forever)
+                .setMessage(R.string.are_you_sure_to_delete_forever)
+                .setCancelable(true)
+                .setPositiveButton(R.string.yes, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.dismiss();
+                        mActionModeHandler.getPendingItems().clear();
+                        mActionModeHandler.dismiss();
+                        deleteNotesForever(notes);
+                    }
+                })
+                .setNegativeButton(R.string.no, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.dismiss();
+                    }
+                })
+                .show();
+    }
+
+    @Override
+    public void onLongClickNote(final Note note) {
+        boolean isSelected = mActionModeHandler.chooseItem(note);
+        mNoteList.setSelected(note, isSelected);
+    }
+
+    private void deleteNote(List<Note> notes) {
+        Observable.from(notes)
+                .flatMap(new Func1<Note, rx.Observable<Note>>() {
+                    @Override
+                    public rx.Observable<Note> call(final Note note) {
+                        return Observable.create(new Observable.OnSubscribe<Note>() {
+                            @Override
+                            public void call(Subscriber<? super Note> subscriber) {
+                                if (!subscriber.isUnsubscribed()) {
+                                    NoteService.trashNotesOnLocal(note);
+                                    subscriber.onNext(note);
+                                    subscriber.onCompleted();
+                                }
+                            }
+                        });
+                    }
+                })
+                .buffer(notes.size())
+                .flatMap(new Func1<List<Note>, Observable<Note>>() {
+                    @Override
+                    public Observable<Note> call(List<Note> notes) {
+                        NetworkUtils.checkNetwork();
+                        return Observable.from(notes);
+                    }
+                })
+                .flatMap(new Func1<Note, Observable<Note>>() {
+                    @Override
+                    public Observable<Note> call(final Note note) {
+                        return Observable.create(new Observable.OnSubscribe<Note>() {
+                            @Override
+                            public void call(Subscriber<? super Note> subscriber) {
+                                if (!subscriber.isUnsubscribed()) {
+                                    NoteService.saveNote(note.getId());
+                                    subscriber.onNext(note);
+                                    subscriber.onCompleted();
+                                }
+                            }
+                        });
+                    }
+                })
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Observer<Note>() {
+                    @Override
+                    public void onCompleted() {
+
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        if (e instanceof NetworkUtils.NetworkUnavailableException) {
+                            ToastUtils.show(Gemsnote.getContext(), R.string.delete_network_error);
+                        } else {
+                            ToastUtils.show(Gemsnote.getContext(), R.string.delete_note_failed);
+                        }
+                        refresh();
+                    }
+
+                    @Override
+                    public void onNext(Note note) {
+                        mNoteList.remove(note);
+                    }
+                });
+    }
+
+    private void restoreNotes(List<Note> notes) {
+        Observable.from(notes)
+                .flatMap(new Func1<Note, rx.Observable<Note>>() {
+                    @Override
+                    public rx.Observable<Note> call(final Note note) {
+                        return Observable.create(new Observable.OnSubscribe<Note>() {
+                            @Override
+                            public void call(Subscriber<? super Note> subscriber) {
+                                if (!subscriber.isUnsubscribed()) {
+                                    NoteService.restoreNotesOnLocal(note);
+                                    subscriber.onNext(note);
+                                    subscriber.onCompleted();
+                                }
+                            }
+                        });
+                    }
+                })
+                .buffer(notes.size())
+                .flatMap(new Func1<List<Note>, Observable<Note>>() {
+                    @Override
+                    public Observable<Note> call(List<Note> notes) {
+                        NetworkUtils.checkNetwork();
+                        return Observable.from(notes);
+                    }
+                })
+                .flatMap(new Func1<Note, Observable<Note>>() {
+                    @Override
+                    public Observable<Note> call(final Note note) {
+                        return Observable.create(new Observable.OnSubscribe<Note>() {
+                            @Override
+                            public void call(Subscriber<? super Note> subscriber) {
+                                if (!subscriber.isUnsubscribed()) {
+                                    NoteService.saveNote(note.getId());
+                                    subscriber.onNext(note);
+                                    subscriber.onCompleted();
+                                }
+                            }
+                        });
+                    }
+                })
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Observer<Note>() {
+                    @Override
+                    public void onCompleted() {
+
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        if (e instanceof NetworkUtils.NetworkUnavailableException) {
+                            ToastUtils.show(Gemsnote.getContext(), R.string.delete_network_error);
+                        } else {
+                            ToastUtils.show(Gemsnote.getContext(), R.string.restore_note_failed);
+                        }
+                        refresh();
+                    }
+
+                    @Override
+                    public void onNext(Note note) {
+                        mNoteList.remove(note);
+                    }
+                });
+    }
+
+    private void deleteNotesForever(List<Note> notes) {
+        Observable.from(notes)
+                .flatMap(new Func1<Note, Observable<Note>>() {
+                    @Override
+                    public Observable<Note> call(final Note note) {
+                        NetworkUtils.checkNetwork();
+                        return Observable.create(new Observable.OnSubscribe<Note>() {
+                            @Override
+                            public void call(Subscriber<? super Note> subscriber) {
+                                if (!subscriber.isUnsubscribed()) {
+                                    NoteService.deleteNote(note);
+                                    subscriber.onNext(note);
+                                    subscriber.onCompleted();
+                                }
+                            }
+                        });
+                    }
+                })
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Observer<Note>() {
+                    @Override
+                    public void onCompleted() {
+
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        if (e instanceof NetworkUtils.NetworkUnavailableException) {
+                            ToastUtils.show(Gemsnote.getContext(), R.string.delete_network_error);
+                        } else {
+                            ToastUtils.show(Gemsnote.getContext(), R.string.delete_note_failed);
+                        }
+                        refresh();
+                    }
+
+                    @Override
+                    public void onNext(Note note) {
+                        mNoteList.remove(note);
+                    }
+                });
+    }
+
+    private void refresh() {
+        setMode(mCurrentMode);
+    }
+
+    @Override
+    public boolean onAction(int actionId, List<Note> pendingItems) {
+        if (CollectionUtils.isEmpty(pendingItems)) {
+            ToastUtils.show(getActivity(), R.string.no_note_was_selected);
+            return false;
+        }
+        final List<Note> waitToDelete = new ArrayList<>();
+        for (int i = 0; i < pendingItems.size(); i++) {
+            waitToDelete.add(pendingItems.get(i));
+        }
+        if (mCurrentMode == Mode.TRASH) {
+            confirmDeleteForever(waitToDelete);
+            return true;
+        }
+        new AlertDialog.Builder(getActivity())
+                .setTitle(R.string.delete_note)
+                .setMessage(R.string.are_you_sure_to_delete_note)
+                .setCancelable(true)
+                .setPositiveButton(R.string.yes, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.dismiss();
+                        mActionModeHandler.getPendingItems().clear();
+                        mActionModeHandler.dismiss();
+                        deleteNote(waitToDelete);
+                    }
+                })
+                .setNegativeButton(R.string.no, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.dismiss();
+                    }
+                })
+                .show();
+        return true;
+    }
+
+    @Override
+    public void onDestroy(List<Note> pendingItems) {
+        if (CollectionUtils.isNotEmpty(pendingItems)) {
+            mNoteList.invalidateAllSelected();
+        }
+    }
+
+    public enum Mode {
+        RECENT_NOTES,
+        NOTEBOOK,
+        TAG,
+        TRASH,
+        SEARCH;
+
+        long notebookId;
+        String tagText;
+        String keywords;
+
+        public void setNotebookId(long notebookId) {
+            this.notebookId = notebookId;
+        }
+
+        public void setTagText(String tagText) {
+            this.tagText = tagText;
+        }
+
+        public void setKeywords(String keywords) {
+            this.keywords = keywords;
+        }
+
+        @Override
+        public String toString() {
+            return name() + "{" +
+                    "notebookId=" + notebookId +
+                    ", tagText='" + tagText + '\'' +
+                    '}';
+        }
+    }
+
+    public interface OnSearchFinishListener {
+        void doSearchFinish();
+    }
+
+}

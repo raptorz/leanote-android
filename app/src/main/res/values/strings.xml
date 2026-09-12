@@ -1,5 +1,6 @@
 <resources>
-    <string name="app_name">Leanote</string>
+    <string name="app_name">Gemsnote</string>
+    <string name="web_version">Web version</string>
     <string name="network_is_unavailable">Network is unavailable</string>
     <string name="save_note_failed">Save note failed</string>
     <string name="sync_notes_failed">Sync notes failed</string>
@@ -34,7 +35,6 @@
     <string name="network_error">Network error</string>
     <string name="untitled">Untitled</string>
     <string name="time_yesterday">Yesterday %s</string>
-    <string name="use_leanote_host">Use Leanote.com</string>
     <string name="use_custom_host">Use custom host</string>
     <string name="public_note">Public note</string>
     <string name="notebook">Notebook</string>
@@ -102,15 +102,12 @@
     <string name="delete">Delete</string>
     <string name="no_note_was_selected">No note was selected</string>
     <string name="add_account">Add account</string>
-    <string name="leanote">Leanote</string>
     <string name="https_material_io_icons" translatable="false">https://material.io/icons/</string>
     <string name="gnu_general_public_license_v3" translatable="false">GNU GENERAL PUBLIC LICENSE V3</string>
     <string name="github" translatable="false">Github</string>
     <string name="generate_random_note">Generate random note</string>
     <string name="conflict_occurs">Oops! Conflicts occurs</string>
     <string name="host_example">For example, login api will be:\n%s/api/auth/login</string>
-    <string name="my_blog">My Blog</string>
-    <string name="explore">Leanote Explore</string>
     <string name="toast_notebook_title_not_empty">the notebook title can\'t empty</string>
     <string name="update_notebook_title">Update notebook title</string>
     <string name="notebook_choose_notebook_hint">选择该笔记本所在的上一级笔记本目录 Choose current Notebook \'s parentNotebook directory</string>
@@ -121,7 +118,7 @@
     <string name="permission_get_description">We need some permission to start the application</string>
     <string name="permission_get">Permission request</string>
     <string name="allow">allow</string>
-    <string name="lea_api_error_need_upgrade_account">need upgrade Leanote account</string>
+    <string name="lea_api_error_need_upgrade_account">need upgrade Gemsnote account</string>
     <string name="webview_select_picture">Select Picture</string>
     <string name="note_not_load_completed">Notes are not loaded and cannot be saved</string>
     <string name="full_text_search">Full text search</string>
@@ -129,4 +126,18 @@
     <string name="full_text_search_index_rebuild_success">Index build succeeded</string>
     <string name="full_text_search_rebuild_index_msg">This is a time-consuming operation. Are you sure you want to rebuild the index(We don\'t recommend users to use this feature by default)?</string>
     <string name="progress_dialog_loading_msg">Loading&#8230;</string>
+    <string name="trash">Trash</string>
+    <string name="restore_note">Restore</string>
+    <string name="restore_note_failed">Restore failed</string>
+    <string name="delete_forever">Delete forever</string>
+    <string name="are_you_sure_to_delete_forever">Permanently delete these notes? This cannot be undone.</string>
+    <string name="note_history">Note history</string>
+    <string name="no_history">No history yet</string>
+    <string name="restore_this_version">Restore this version</string>
+    <string name="are_you_sure_to_restore_history">Restore the note to this version? The change will be synced after saving.</string>
+    <string name="attachments">Attachments</string>
+    <string name="no_attachments">No attachments</string>
+    <string name="download">Download</string>
+    <string name="download_finished_open">Download finished, open it?</string>
+    <string name="no_app_to_open_file">No app can open this file</string>
 </resources>

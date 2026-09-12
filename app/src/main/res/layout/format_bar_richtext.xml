@@ -21,37 +21,37 @@
             style="@style/FormatButton"
             android:src="@drawable/ic_redo_black_disable" />
 
-        <org.houxg.leamonax.widget.ToggleImageButton
+        <com.github.gemsnote.widget.ToggleImageButton
             android:id="@+id/btn_bold"
             style="@style/FormatButton"
             app:checkedDrawable="@drawable/ic_format_bold_black_enable"
             app:uncheckedDrawable="@drawable/ic_format_bold_black_disable" />
 
-        <org.houxg.leamonax.widget.ToggleImageButton
+        <com.github.gemsnote.widget.ToggleImageButton
             android:id="@+id/btn_italic"
             style="@style/FormatButton"
             app:checkedDrawable="@drawable/ic_format_italic_black_enable"
             app:uncheckedDrawable="@drawable/ic_format_italic_black_disable" />
 
-        <org.houxg.leamonax.widget.ToggleImageButton
+        <com.github.gemsnote.widget.ToggleImageButton
             android:id="@+id/btn_quote"
             style="@style/FormatButton"
             app:checkedDrawable="@drawable/ic_format_quote_enable"
             app:uncheckedDrawable="@drawable/ic_format_quote_disable" />
 
-        <org.houxg.leamonax.widget.ToggleImageButton
+        <com.github.gemsnote.widget.ToggleImageButton
             android:id="@+id/btn_heading"
             style="@style/FormatButton"
             app:checkedDrawable="@drawable/ic_header_richtext_enable"
             app:uncheckedDrawable="@drawable/ic_header_richtext_disable" />
 
-        <org.houxg.leamonax.widget.ToggleImageButton
+        <com.github.gemsnote.widget.ToggleImageButton
             android:id="@+id/btn_unorder_list"
             style="@style/FormatButton"
             app:checkedDrawable="@drawable/ic_format_list_bulleted_black_enable"
             app:uncheckedDrawable="@drawable/ic_format_list_bulleted_black_disable" />
 
-        <org.houxg.leamonax.widget.ToggleImageButton
+        <com.github.gemsnote.widget.ToggleImageButton
             android:id="@+id/btn_order_list"
             style="@style/FormatButton"
             app:checkedDrawable="@drawable/ic_format_list_numbered_black_enable"
@@ -62,7 +62,7 @@
             style="@style/FormatButton"
             android:src="@drawable/ic_insert_photo_black_disable" />
 
-        <org.houxg.leamonax.widget.ToggleImageButton
+        <com.github.gemsnote.widget.ToggleImageButton
             android:id="@+id/btn_link"
             style="@style/FormatButton"
             app:checkedDrawable="@drawable/ic_insert_link_black_enable"

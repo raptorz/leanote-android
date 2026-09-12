@@ -30,7 +30,7 @@ def isEmpty(String str) {
 }
 
 android {
-    namespace 'org.houxg.leamonax'
+    namespace 'com.github.gemsnote'
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
@@ -48,9 +48,9 @@ android {
     }
     compileSdkVersion 34
 
-    namespace 'org.houxg.leamonax'
+    namespace 'com.github.gemsnote'
     defaultConfig {
-        applicationId "com.leanote.android"
+        applicationId "com.github.gemsnote"
         minSdkVersion 23
         targetSdkVersion 32
         versionCode ciCode

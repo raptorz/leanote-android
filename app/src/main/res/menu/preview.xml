@@ -13,6 +13,16 @@
         android:title="@string/edit"/>
 
     <item
+        android:id="@+id/action_history"
+        app:showAsAction="never"
+        android:title="@string/note_history"/>
+
+    <item
+        android:id="@+id/action_attachments"
+        app:showAsAction="never"
+        android:title="@string/attachments"/>
+
+    <item
         android:id="@+id/action_print"
         app:showAsAction="never"
         android:title="Print"/>
