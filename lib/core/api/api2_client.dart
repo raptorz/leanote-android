@@ -1,0 +1,205 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import '../../domain/models/account.dart';
+import '../../domain/models/note.dart';
+import '../../domain/models/notebook.dart';
+import 'api_exception.dart';
+
+class LoginResult {
+  const LoginResult({
+    required this.token,
+    required this.account,
+    required this.serverVersion,
+    required this.minimumClientVersion,
+  });
+
+  final String token;
+  final Account account;
+  final String serverVersion;
+  final String minimumClientVersion;
+}
+
+class Api2Client {
+  Api2Client({http.Client? httpClient}) : _http = httpClient ?? http.Client();
+
+  static const clientVersion = '1.0.0';
+  final http.Client _http;
+
+  Future<LoginResult> login({
+    required Uri server,
+    required String identity,
+    required String password,
+  }) async {
+    final data = await _requestJson(
+      server: server,
+      path: '/api2/auth/login',
+      method: 'POST',
+      body: <String, Object?>{'email': identity, 'pwd': password},
+    );
+    final token = _string(data, 'Token');
+    final user = _map(data['User']);
+    final version = _map(data['Server']);
+    if (_string(version, 'Name').toLowerCase() != 'gemsnote') {
+      throw const ApiException('serverMigrationRequired');
+    }
+    return LoginResult(
+      token: token,
+      account: Account.fromJson(user, server: server),
+      serverVersion: _string(version, 'Version'),
+      minimumClientVersion: version['MinVersion']?.toString() ?? '',
+    );
+  }
+
+  Future<List<Notebook>> getNotebooks({
+    required Uri server,
+    required String token,
+    required int afterUsn,
+    int maxEntry = 100,
+  }) async {
+    final data = await _requestList(
+      server: server,
+      path: '/api2/notebook/getSyncNotebooks',
+      token: token,
+      query: {'afterUsn': '$afterUsn', 'maxEntry': '$maxEntry'},
+    );
+    return data.map(Notebook.fromJson).toList(growable: false);
+  }
+
+  Future<List<Note>> getNotesWithContent({
+    required Uri server,
+    required String token,
+    required int afterUsn,
+    int maxEntry = 50,
+  }) async {
+    final data = await _requestList(
+      server: server,
+      path: '/api2/note/getSyncNotesWithContent',
+      token: token,
+      query: {'afterUsn': '$afterUsn', 'maxEntry': '$maxEntry'},
+    );
+    return data.map(Note.fromJson).toList(growable: false);
+  }
+
+  Future<List<Map<String, Object?>>> getTags({
+    required Uri server,
+    required String token,
+    required int afterUsn,
+    int maxEntry = 100,
+  }) {
+    return _requestList(
+      server: server,
+      path: '/api2/tag/getSyncTags',
+      token: token,
+      query: {'afterUsn': '$afterUsn', 'maxEntry': '$maxEntry'},
+    );
+  }
+
+  Future<void> logout({required Uri server, required String token}) async {
+    await _requestJson(
+      server: server,
+      path: '/api2/auth/logout',
+      method: 'POST',
+      token: token,
+      body: const <String, Object?>{},
+    );
+  }
+
+  Future<List<Map<String, Object?>>> _requestList({
+    required Uri server,
+    required String path,
+    required String token,
+    Map<String, String> query = const {},
+  }) async {
+    final value = await _request(
+      server: server,
+      path: path,
+      method: 'GET',
+      token: token,
+      query: query,
+    );
+    if (value is! List) throw const ApiException('invalidResponse');
+    return value.map((item) => _map(item)).toList(growable: false);
+  }
+
+  Future<Map<String, Object?>> _requestJson({
+    required Uri server,
+    required String path,
+    required String method,
+    String? token,
+    Map<String, String> query = const {},
+    Object? body,
+  }) async {
+    final value = await _request(
+      server: server,
+      path: path,
+      method: method,
+      token: token,
+      query: query,
+      body: body,
+    );
+    return _map(value);
+  }
+
+  Future<Object?> _request({
+    required Uri server,
+    required String path,
+    required String method,
+    String? token,
+    Map<String, String> query = const {},
+    Object? body,
+  }) async {
+    final parameters = <String, String>{
+      ...query,
+      'token': ?token,
+      'v': 'mobile_$clientVersion',
+    };
+    final uri = server.resolve(path).replace(queryParameters: parameters);
+    late http.Response response;
+    try {
+      response = method == 'POST'
+          ? await _http
+                .post(
+                  uri,
+                  headers: const {'Content-Type': 'application/json'},
+                  body: jsonEncode(body),
+                )
+                .timeout(const Duration(seconds: 60))
+          : await _http.get(uri).timeout(const Duration(seconds: 60));
+    } on Exception {
+      throw const ApiException('networkUnavailable');
+    }
+    Object? decoded;
+    try {
+      decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    } on FormatException {
+      throw ApiException('invalidJSON', statusCode: response.statusCode);
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final data = decoded is Map ? _map(decoded) : const <String, Object?>{};
+      throw ApiException(
+        data['Msg']?.toString() ?? 'http${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    }
+    if (decoded is Map) {
+      final data = _map(decoded);
+      if (data['Ok'] == false) {
+        throw ApiException(data['Msg']?.toString() ?? 'requestFailed');
+      }
+    }
+    return decoded;
+  }
+
+  static Map<String, Object?> _map(Object? value) {
+    if (value is! Map) throw const ApiException('invalidResponse');
+    return value.map((key, item) => MapEntry(key.toString(), item));
+  }
+
+  static String _string(Map<String, Object?> value, String key) {
+    final result = value[key]?.toString() ?? '';
+    if (result.isEmpty) throw const ApiException('invalidResponse');
+    return result;
+  }
+}

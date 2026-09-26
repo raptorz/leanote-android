@@ -1,38 +1,19 @@
-# Gemsnote Android
+# Gemsnote Mobile
 
-Gemsnote（珠玑笔记）安卓客户端，基于原 [Leanote Android](https://github.com/leanote/leanote-android)（Leamonax）修改开发，与 Gemsnote 服务端及 Gemsnote Desktop 功能对齐。
+珠玑笔记移动客户端，使用 Flutter 重构，同时支持 Android 和 iOS。客户端只使用已经定稿的 Gemsnote API2 v1.0.0；首次登录会从服务端建立新的 SQLite 离线缓存，不迁移旧 Android 客户端的本地数据库。
 
-# 中文README
-[README_ZH](README-zh.md)
+当前迁移基础已经完成：
 
-# 功能
+- 旧 Android 工程完整归档到 `legacy-android/`
+- 创建 Flutter Android/iOS 双平台工程
+- API2 登录、服务端与最低客户端版本校验
+- 笔记本、笔记正文和标签的首次全量下载
+- 按“服务端地址 + 用户 ID”隔离的 SQLite 离线缓存
+- token 安全存储和离线恢复登录状态
+- 移动端登录、笔记本和笔记列表基础界面
 
-- [x] 登录 / 注册，多账户切换，自定义服务器地址
-- [x] 笔记本、笔记增量同步（USN）
-- [x] Markdown 与富文本编辑器
-- [x] 标签：随同步自动更新，支持按标签筛选，长按删除标签
-- [x] 回收站：查看已删除笔记、还原、彻底删除
-- [x] 历史版本：在线读取服务端版本列表（保留最近 20 份），离线时回退到本地内容快照，可随时回看与还原
-- [x] 附件：查看笔记附件列表，下载并打开
-- [x] 标题搜索与全文搜索（FTS）
-- [x] 桌面小组件
+迁移路线和当前边界见 [docs/MIGRATION.md](docs/MIGRATION.md)，开发环境与验证命令见 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)。
 
-# 构建
+旧版代码只作为功能和交互参考，不再继续开发，说明见 [legacy-android/README.md](legacy-android/README.md)。
 
-```bash
-./gradlew assembleDebug
-```
-
-默认 applicationId 为 `com.github.gemsnote`，应用名称为 `Gemsnote`（中文环境显示「珠玑笔记」）。
-
-# 服务端
-
-需要连接 Gemsnote 服务端（或兼容 Leanote API 的私有部署）。登录时填写服务器地址，例如 `https://your-server.com`。
-
-# Contributors
-
-- [houxg](https://github.com/houxg)
-- [xingstarx](https://github.com/xingstarx)
-- [nicacol](https://github.com/nicacol)
-- [Ericwyn](https://github.com/Ericwyn)
-- [binsheng](https://github.com/binsheng)
+本项目源自 Leanote Android 客户端，但网络、存储和界面层将由 Flutter 版本重新实现。
