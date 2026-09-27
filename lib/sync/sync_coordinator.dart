@@ -16,12 +16,25 @@ class SyncProgress {
 typedef SyncProgressCallback = void Function(SyncProgress progress);
 
 class SyncCoordinator {
-  const SyncCoordinator(this._api, this._database);
+  SyncCoordinator(this._api, this._database);
 
   final Api2Client _api;
   final AppDatabase _database;
+  Future<void>? _running;
 
   Future<void> synchronize({
+    required Account account,
+    required String token,
+    SyncProgressCallback? onProgress,
+  }) {
+    return _running ??= _synchronize(
+      account: account,
+      token: token,
+      onProgress: onProgress,
+    ).whenComplete(() => _running = null);
+  }
+
+  Future<void> _synchronize({
     required Account account,
     required String token,
     SyncProgressCallback? onProgress,

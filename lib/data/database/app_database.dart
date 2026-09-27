@@ -59,6 +59,32 @@ class AppDatabase {
     return rows.isEmpty ? 0 : rows.single['last_sync_usn']! as int;
   }
 
+  Future<bool> hasAccountCache(String accountId) async => (await raw.query(
+    'accounts',
+    columns: ['account_id'],
+    where: 'account_id = ?',
+    whereArgs: [accountId],
+    limit: 1,
+  )).isNotEmpty;
+
+  Future<void> activateCachedAccount(Account account) async {
+    await raw.transaction((txn) async {
+      await txn.update('accounts', {'is_active': 0});
+      final changed = await txn.update(
+        'accounts',
+        {
+          'is_active': 1,
+          'username': account.username,
+          'email': account.email,
+          'logo': account.logo,
+        },
+        where: 'account_id = ?',
+        whereArgs: [account.cacheKey],
+      );
+      if (changed != 1) throw StateError('accountCacheMissing');
+    });
+  }
+
   Future<void> replaceSnapshot({
     required Account account,
     required List<Notebook> notebooks,
@@ -67,6 +93,14 @@ class AppDatabase {
     required int lastSyncUsn,
   }) async {
     await raw.transaction((txn) async {
+      final pending = await txn.query(
+        'notes',
+        columns: ['server_id'],
+        where: 'account_id = ? AND is_dirty = 1',
+        whereArgs: [account.cacheKey],
+        limit: 1,
+      );
+      if (pending.isNotEmpty) throw StateError('unsyncedChanges');
       final batch = txn.batch();
       batch.update('accounts', {'is_active': 0});
       batch.insert('accounts', {
@@ -138,6 +172,18 @@ class AppDatabase {
     required int lastSyncUsn,
   }) async {
     await raw.transaction((txn) async {
+      // New edits may have been saved while the network requests were running.
+      // Keep the cursor unchanged so this remote page is retried next time.
+      for (final note in notes) {
+        final pending = await txn.query(
+          'notes',
+          columns: ['server_id'],
+          where: 'account_id = ? AND server_id = ? AND is_dirty = 1',
+          whereArgs: [account.cacheKey, note.noteId],
+          limit: 1,
+        );
+        if (pending.isNotEmpty) throw StateError('localChangesDuringSync');
+      }
       final batch = txn.batch();
       for (final notebook in notebooks) {
         if (notebook.isDeleted) {
@@ -305,18 +351,39 @@ class AppDatabase {
     Note local,
     Note remote,
   ) async {
-    await _writeNote(
-      accountId,
-      local.copyWith(
-        noteId: remote.noteId,
-        usn: remote.usn,
-        updatedTime: remote.updatedTime.isEmpty
-            ? local.updatedTime
-            : remote.updatedTime,
-      ),
-      isDirty: false,
-      isNew: false,
-    );
+    if (remote.noteId != local.noteId || remote.usn <= 0) {
+      throw StateError('invalidUploadResponse');
+    }
+    await raw.transaction((txn) async {
+      final rows = await txn.query(
+        'notes',
+        where: 'account_id = ? AND server_id = ?',
+        whereArgs: [accountId, local.noteId],
+      );
+      if (rows.isEmpty) throw StateError('localNoteMissing');
+      final current = _noteFromRow(rows.single);
+      final unchanged =
+          current.title == local.title &&
+          current.content == local.content &&
+          current.notebookId == local.notebookId &&
+          jsonEncode(current.tags) == jsonEncode(local.tags) &&
+          current.isStarred == local.isStarred &&
+          current.isTrash == local.isTrash &&
+          current.isMarkdown == local.isMarkdown &&
+          current.updatedTime == local.updatedTime;
+      await txn.update(
+        'notes',
+        {
+          'usn': remote.usn,
+          'local_is_new': 0,
+          'is_dirty': unchanged ? 0 : 1,
+          if (unchanged && remote.updatedTime.isNotEmpty)
+            'updated_time': remote.updatedTime,
+        },
+        where: 'account_id = ? AND server_id = ?',
+        whereArgs: [accountId, local.noteId],
+      );
+    });
   }
 
   Future<void> _writeNote(

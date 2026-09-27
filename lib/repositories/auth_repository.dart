@@ -43,12 +43,16 @@ class AuthRepository {
       password: password,
     );
     _validateCompatibility(result);
-    await _sync.downloadFreshSnapshot(
-      account: result.account,
-      token: result.token,
-      onProgress: onProgress,
-    );
+    final cached = await _database.hasAccountCache(result.account.cacheKey);
+    if (!cached) {
+      await _sync.downloadFreshSnapshot(
+        account: result.account,
+        token: result.token,
+        onProgress: onProgress,
+      );
+    }
     await _sessions.write(result.account.cacheKey, result.token);
+    await _database.activateCachedAccount(result.account);
     return StoredSession(account: result.account, token: result.token);
   }
 

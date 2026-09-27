@@ -75,6 +75,29 @@ void main() {
     expect(dirty, hasLength(1));
     expect(dirty.single.noteId, hasLength(24));
     expect(dirty.single.title, '离线草稿');
+    await expectLater(
+      database.replaceSnapshot(
+        account: account,
+        notebooks: [],
+        notes: [],
+        tags: [],
+        lastSyncUsn: 20,
+      ),
+      throwsStateError,
+    );
+    expect((await database.dirtyNotes(account.cacheKey)).single.title, '离线草稿');
+    await expectLater(
+      database.markNoteUploaded(
+        account.cacheKey,
+        draft,
+        draft.copyWith(noteId: 'wrong-id', usn: 4),
+      ),
+      throwsStateError,
+    );
+    expect(
+      (await database.dirtyNotes(account.cacheKey)).single.noteId,
+      draft.noteId,
+    );
 
     await database.saveLocalNote(
       account.cacheKey,
@@ -93,6 +116,43 @@ void main() {
     );
     final trash = await database.notes(account.cacheKey, trashOnly: true);
     expect(trash.single.noteId, draft.noteId);
+
+    // A download must not overwrite edits made while sync was running.
+    await expectLater(
+      database.mergeChanges(
+        account: account,
+        notebooks: const [],
+        notes: [note.copyWith(title: 'Remote', usn: 8)],
+        tags: const [],
+        lastSyncUsn: 8,
+      ),
+      throwsStateError,
+    );
+    expect(await database.lastSyncUsn(account.cacheKey), 3);
+
+    // A successful upload acknowledges only the submitted revision.
+    final submitted = (await database.dirtyNotes(account.cacheKey))
+        .firstWhere((item) => item.noteId == note.noteId);
+    await database.saveLocalNote(
+      account.cacheKey,
+      submitted.copyWith(content: 'New edit during upload'),
+    );
+    await database.markNoteUploaded(
+      account.cacheKey,
+      submitted,
+      submitted.copyWith(usn: 6),
+    );
+    final edited = (await database.dirtyNotes(account.cacheKey))
+        .firstWhere((item) => item.noteId == note.noteId);
+    expect(edited.content, 'New edit during upload');
+    expect(edited.usn, 6);
+    for (final pending in await database.dirtyNotes(account.cacheKey)) {
+      await database.markNoteUploaded(
+        account.cacheKey,
+        pending,
+        pending.copyWith(usn: 7),
+      );
+    }
 
     await database.mergeChanges(
       account: account,
