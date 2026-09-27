@@ -70,6 +70,19 @@ class AuthRepository {
   Future<List<Notebook>> notebooks(String accountId) =>
       _database.notebooks(accountId);
 
+  Future<void> restoreHistory(
+    StoredSession session,
+    String noteId,
+    String historyId,
+  ) async {
+    final content = await historyContent(session, noteId, historyId);
+    await _database.restoreHistoryContent(
+      session.account.cacheKey,
+      noteId,
+      content,
+    );
+  }
+
   Future<List<NoteHistory>> histories(StoredSession session, String noteId) =>
       _api.getHistories(
         server: session.account.server,

@@ -350,6 +350,26 @@ class AppDatabase {
   Future<void> saveLocalNote(String accountId, Note note) =>
       _writeNote(accountId, note, isDirty: true, isNew: note.usn == 0);
 
+  Future<void> restoreHistoryContent(
+    String accountId,
+    String noteId,
+    String content,
+  ) async {
+    // Patch only the body of the latest cached row; the reader may hold an old
+    // snapshot whose metadata or USN changed while the history was downloaded.
+    final changed = await raw.update(
+      'notes',
+      {
+        'content': content,
+        'updated_time': DateTime.now().toUtc().toIso8601String(),
+        'is_dirty': 1,
+      },
+      where: 'account_id = ? AND server_id = ? AND local_is_deleted = 0',
+      whereArgs: [accountId, noteId],
+    );
+    if (changed != 1) throw StateError('localNoteMissing');
+  }
+
   Future<List<Note>> dirtyNotes(String accountId) async {
     final rows = await raw.query(
       'notes',

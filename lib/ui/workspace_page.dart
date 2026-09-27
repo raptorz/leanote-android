@@ -115,8 +115,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
           onHistory: note.usn == 0
               ? null
               : () async {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute<void>(
+                  final restored = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute<bool>(
                       builder: (_) => NoteHistoryPage(
                         repository: widget.repository,
                         session: widget.session,
@@ -124,6 +124,12 @@ class _WorkspacePageState extends State<WorkspacePage> {
                       ),
                     ),
                   );
+                  if (restored == true && mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('历史正文已恢复到本地，待同步')),
+                    );
+                  }
+                  return restored == true;
                 },
           onEdit: () => _editNote(note),
           onToggleStar: () => _toggleStar(note),

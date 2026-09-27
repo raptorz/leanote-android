@@ -20,7 +20,7 @@ class NoteReaderPage extends StatefulWidget {
   final Future<void> Function()? onToggleStar;
   final Future<void> Function()? onMove;
   final Future<void> Function()? onTrashToggle;
-  final Future<void> Function()? onHistory;
+  final Future<bool> Function()? onHistory;
   final bool readOnly;
 
   @override
@@ -62,7 +62,10 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
                   onSelected: (value) async {
                     switch (value) {
                       case 'history':
-                        await widget.onHistory?.call();
+                        final restored = await widget.onHistory?.call();
+                        if (restored == true && context.mounted) {
+                          Navigator.of(context).pop();
+                        }
                         return;
                       case 'star':
                         await widget.onToggleStar?.call();

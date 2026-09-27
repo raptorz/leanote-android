@@ -32,6 +32,46 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
   Future<List<NoteHistory>> _load() =>
       widget.repository.histories(widget.session, widget.note.noteId);
 
+  Future<void> _restore(NoteHistory history) async {
+    if (_loading != null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('恢复历史正文'),
+        content: const Text(
+          '将替换当前本地正文，包括尚未同步的正文修改。标题、标签、笔记本和星标保持不变。恢复后需要同步到服务器。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('恢复'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _loading = history.id;
+      _error = null;
+    });
+    try {
+      await widget.repository.restoreHistory(
+        widget.session,
+        widget.note.noteId,
+        history.id,
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (error) {
+      if (mounted) setState(() => _error = '恢复失败：$error');
+    } finally {
+      if (mounted) setState(() => _loading = null);
+    }
+  }
+
   Future<void> _open(NoteHistory history) async {
     if (_loading != null) return;
     setState(() {
@@ -114,7 +154,16 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
                             height: 24,
                             child: CircularProgressIndicator(),
                           )
-                        : const Icon(Icons.chevron_right),
+                        : PopupMenuButton<String>(
+                            enabled: _loading == null,
+                            onSelected: (_) => _restore(history),
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(
+                                value: 'restore',
+                                child: Text('恢复此版本正文'),
+                              ),
+                            ],
+                          ),
                     onTap: _loading == null ? () => _open(history) : null,
                   );
                 },
