@@ -155,11 +155,47 @@ class Api2Client {
     required String token,
     required Note note,
   }) async {
+    // The server treats Files as the complete retained attachment list.
+    // Until mobile attachment editing is implemented, preserve the current
+    // remote references, guarded by the same USN used for the update.
+    final current = await _requestJson(
+      server: server,
+      path: '/api2/note/getNote',
+      method: 'GET',
+      token: token,
+      query: {'noteId': note.noteId},
+    );
+    if (current['NoteId'] != note.noteId || current['Usn'] is! num) {
+      throw const ApiException('invalidResponse');
+    }
+    if (current['Usn'] != note.usn) throw const ApiException('conflict');
+    if (!current.containsKey('Files') ||
+        (current['Files'] != null && current['Files'] is! List)) {
+      throw const ApiException('invalidResponse');
+    }
+    final fields = _noteFields(note, isNew: false);
+    final files = current['Files'] as List? ?? const [];
+    for (var index = 0; index < files.length; index++) {
+      final file = _map(files[index]);
+      final id = _string(file, 'FileId');
+      if (!RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(id) ||
+          file['IsAttach'] is! bool) {
+        throw const ApiException('invalidResponse');
+      }
+      fields.addAll({
+        'Files[$index][FileId]': id,
+        'Files[$index][LocalFileId]': id,
+        'Files[$index][IsAttach]': '${file['IsAttach']}',
+        'Files[$index][HasBody]': 'false',
+        'Files[$index][Type]': file['Type']?.toString() ?? '',
+        'Files[$index][Title]': file['Title']?.toString() ?? '',
+      });
+    }
     final data = await _requestFormJson(
       server: server,
       path: '/api2/client/note/update',
       token: token,
-      fields: _noteFields(note, isNew: false),
+      fields: fields,
     );
     return Note.fromJson(data);
   }

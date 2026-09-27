@@ -96,6 +96,34 @@ void main() {
     late http.Request captured;
     final client = Api2Client(
       httpClient: MockClient((request) async {
+        if (request.method == 'GET') {
+          expect(request.url.path, '/api2/note/getNote');
+          expect(
+            request.url.queryParameters['noteId'],
+            '507f1f77bcf86cd799439013',
+          );
+          return http.Response(
+            jsonEncode({
+              'NoteId': '507f1f77bcf86cd799439013',
+              'Usn': 7,
+              'Files': [
+                {
+                  'FileId': '507f1f77bcf86cd799439099',
+                  'IsAttach': true,
+                  'Type': 'pdf',
+                  'Title': 'keep.pdf',
+                },
+                {
+                  'FileId': '507f1f77bcf86cd799439098',
+                  'IsAttach': false,
+                  'Type': 'png',
+                  'Title': 'image.png',
+                },
+              ],
+            }),
+            200,
+          );
+        }
         captured = request;
         return http.Response(
           '{"NoteId":"507f1f77bcf86cd799439013","NotebookId":"507f1f77bcf86cd799439099","UserId":"507f1f77bcf86cd799439011","Title":"Moved","Usn":8,"IsStar":true}',
@@ -131,6 +159,10 @@ void main() {
     expect(fields['NotebookId'], note.notebookId);
     expect(fields['Usn'], '7');
     expect(fields['IsStar'], 'true');
+    expect(fields['Files[0][FileId]'], '507f1f77bcf86cd799439099');
+    expect(fields['Files[0][IsAttach]'], 'true');
+    expect(fields['Files[0][HasBody]'], 'false');
+    expect(fields['Files[1][IsAttach]'], 'false');
   });
 
   test('login rejects a non-Gemsnote server response', () async {
