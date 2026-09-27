@@ -69,6 +69,24 @@ class AuthRepository {
   Future<List<Notebook>> notebooks(String accountId) =>
       _database.notebooks(accountId);
 
+  Future<void> saveNotebook(
+    StoredSession session, {
+    required String title,
+    Notebook? existing,
+    String parentNotebookId = '',
+  }) async {
+    final trimmed = title.trim();
+    if (trimmed.isEmpty) throw const FormatException('请输入笔记本名称');
+    final notebook = await _api.saveNotebook(
+      server: session.account.server,
+      token: session.token,
+      title: trimmed,
+      existing: existing,
+      parentNotebookId: parentNotebookId,
+    );
+    await _database.cacheNotebook(session.account.cacheKey, notebook);
+  }
+
   Future<List<Note>> notes(
     String accountId, {
     String? notebookId,

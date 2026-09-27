@@ -120,6 +120,36 @@ class Api2Client {
     return Note.fromJson(data);
   }
 
+  Future<Notebook> saveNotebook({
+    required Uri server,
+    required String token,
+    required String title,
+    String parentNotebookId = '',
+    Notebook? existing,
+  }) async {
+    final data = await _requestFormJson(
+      server: server,
+      path: existing == null
+          ? '/api2/client/notebook/add'
+          : '/api2/client/notebook/update',
+      token: token,
+      fields: {
+        'title': title,
+        'parentNotebookId': existing?.parentNotebookId ?? parentNotebookId,
+        'seq': '${existing?.sequence ?? 0}',
+        if (existing != null) 'notebookId': existing.notebookId,
+        if (existing != null) 'usn': '${existing.usn}',
+      },
+    );
+    final notebook = Notebook.fromJson(data);
+    if (!RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(notebook.notebookId) ||
+        notebook.usn <= 0 ||
+        (existing != null && notebook.notebookId != existing.notebookId)) {
+      throw const ApiException('invalidResponse');
+    }
+    return notebook;
+  }
+
   Future<Note> updateNote({
     required Uri server,
     required String token,

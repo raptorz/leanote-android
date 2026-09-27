@@ -6,6 +6,7 @@ import '../repositories/auth_repository.dart';
 import 'note_editor_page.dart';
 import 'note_reader_page.dart';
 import 'note_search_page.dart';
+import 'notebook_dialog.dart';
 
 class WorkspacePage extends StatefulWidget {
   const WorkspacePage({
@@ -256,6 +257,26 @@ class _WorkspacePageState extends State<WorkspacePage> {
     if (mounted) widget.onSignedOut();
   }
 
+  Future<void> _editNotebook({Notebook? existing, String parentId = ''}) async {
+    final saved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => NotebookDialog(
+        repository: widget.repository,
+        session: widget.session,
+        existing: existing,
+        parentNotebookId: parentId,
+      ),
+    );
+    if (saved == true && mounted) {
+      setState(
+        () => _notebooks = widget.repository.notebooks(
+          widget.session.account.cacheKey,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_selectedNotebook != null || _showingStarred || _showingTrash) {
@@ -273,6 +294,11 @@ class _WorkspacePageState extends State<WorkspacePage> {
         backgroundColor: const Color(0xff173d38),
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            tooltip: '新建笔记本',
+            onPressed: () => _editNotebook(),
+            icon: const Icon(Icons.create_new_folder_outlined),
+          ),
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'sync') _sync();
@@ -311,7 +337,26 @@ class _WorkspacePageState extends State<WorkspacePage> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                trailing: Text('${notebook.numberNotes}'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('${notebook.numberNotes}'),
+                    PopupMenuButton<String>(
+                      onSelected: (action) {
+                        if (action == 'rename') {
+                          _editNotebook(existing: notebook);
+                        }
+                        if (action == 'child') {
+                          _editNotebook(parentId: notebook.notebookId);
+                        }
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'rename', child: Text('重命名')),
+                        PopupMenuItem(value: 'child', child: Text('新增子笔记本')),
+                      ],
+                    ),
+                  ],
+                ),
                 onTap: () => _openNotebook(notebook),
               );
             },

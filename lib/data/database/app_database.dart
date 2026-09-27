@@ -270,6 +270,20 @@ class AppDatabase {
         .toList(growable: false);
   }
 
+  Future<void> cacheNotebook(String accountId, Notebook notebook) async {
+    // Do not advance the global cursor: other remote changes may precede this
+    // write and still need to be downloaded by the next sync.
+    await raw.insert('notebooks', {
+      'account_id': accountId,
+      'server_id': notebook.notebookId,
+      'parent_server_id': notebook.parentNotebookId,
+      'title': notebook.title,
+      'sequence': notebook.sequence,
+      'usn': notebook.usn,
+      'number_notes': notebook.numberNotes,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
   Future<List<Note>> notes(
     String accountId, {
     String? notebookId,
