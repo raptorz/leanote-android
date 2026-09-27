@@ -224,18 +224,40 @@ class AppDatabase {
         .toList(growable: false);
   }
 
-  Future<List<Note>> notes(String accountId, {String? notebookId}) async {
-    final clauses = <String>['account_id = ?', 'is_trash = 0'];
+  Future<List<Note>> notes(
+    String accountId, {
+    String? notebookId,
+    bool starredOnly = false,
+    bool trashOnly = false,
+  }) async {
+    final clauses = <String>[
+      'account_id = ?',
+      trashOnly ? 'is_trash = 1' : 'is_trash = 0',
+    ];
     final arguments = <Object?>[accountId];
     if (notebookId != null) {
       clauses.add('notebook_server_id = ?');
       arguments.add(notebookId);
     }
+    if (starredOnly) clauses.add('is_starred = 1');
     final rows = await raw.query(
       'notes',
       where: clauses.join(' AND '),
       whereArgs: arguments,
       orderBy: 'updated_time DESC, server_id',
+    );
+    return rows.map(_noteFromRow).toList(growable: false);
+  }
+
+  Future<List<Note>> searchNotes(String accountId, String query) async {
+    final pattern = '%${query.replaceAll('%', r'\%').replaceAll('_', r'\_')}%';
+    final rows = await raw.query(
+      'notes',
+      where: '''account_id = ? AND is_trash = 0 AND local_is_deleted = 0
+        AND (title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\')''',
+      whereArgs: [accountId, pattern, pattern],
+      orderBy: 'updated_time DESC, server_id',
+      limit: 100,
     );
     return rows.map(_noteFromRow).toList(growable: false);
   }

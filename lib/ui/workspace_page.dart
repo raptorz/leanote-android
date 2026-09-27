@@ -5,6 +5,7 @@ import '../domain/models/notebook.dart';
 import '../repositories/auth_repository.dart';
 import 'note_editor_page.dart';
 import 'note_reader_page.dart';
+import 'note_search_page.dart';
 
 class WorkspacePage extends StatefulWidget {
   const WorkspacePage({
@@ -26,6 +27,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
   late Future<List<Notebook>> _notebooks;
   List<Note> _notes = const [];
   Notebook? _selectedNotebook;
+  var _showingStarred = false;
+  var _showingTrash = false;
   var _syncing = false;
 
   @override
@@ -42,14 +45,91 @@ class _WorkspacePageState extends State<WorkspacePage> {
     if (mounted) {
       setState(() {
         _selectedNotebook = notebook;
+        _showingStarred = false;
+        _showingTrash = false;
         _notes = notes;
       });
     }
   }
 
   Future<void> _reloadNotes() async {
+    if (_showingStarred) {
+      final notes = await widget.repository.notes(
+        widget.session.account.cacheKey,
+        starredOnly: true,
+      );
+      if (mounted) setState(() => _notes = notes);
+      return;
+    }
+    if (_showingTrash) {
+      final notes = await widget.repository.notes(
+        widget.session.account.cacheKey,
+        trashOnly: true,
+      );
+      if (mounted) setState(() => _notes = notes);
+      return;
+    }
     final notebook = _selectedNotebook;
     if (notebook != null) await _openNotebook(notebook);
+  }
+
+  Future<void> _openStarred() async {
+    final notes = await widget.repository.notes(
+      widget.session.account.cacheKey,
+      starredOnly: true,
+    );
+    if (mounted) {
+      setState(() {
+        _selectedNotebook = null;
+        _showingStarred = true;
+        _showingTrash = false;
+        _notes = notes;
+      });
+    }
+  }
+
+  Future<void> _openTrash() async {
+    final notes = await widget.repository.notes(
+      widget.session.account.cacheKey,
+      trashOnly: true,
+    );
+    if (mounted) {
+      setState(() {
+        _selectedNotebook = null;
+        _showingStarred = false;
+        _showingTrash = true;
+        _notes = notes;
+      });
+    }
+  }
+
+  Future<void> _openReader(Note note) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => NoteReaderPage(
+          note: note,
+          onEdit: () => _editNote(note),
+          onToggleStar: () => _toggleStar(note),
+          onMove: () => _moveNote(note),
+          onTrashToggle: () => note.isTrash
+              ? _saveMetadata(note.copyWith(isTrash: false))
+              : _trashNote(note),
+        ),
+      ),
+    );
+    await _reloadNotes();
+  }
+
+  Future<void> _search() async {
+    final note = await Navigator.of(context).push<Note>(
+      MaterialPageRoute(
+        builder: (_) => NoteSearchPage(
+          repository: widget.repository,
+          session: widget.session,
+        ),
+      ),
+    );
+    if (note != null && mounted) await _openReader(note);
   }
 
   Future<void> _editNote(Note note) async {
@@ -59,6 +139,78 @@ class _WorkspacePageState extends State<WorkspacePage> {
     if (changed == null) return;
     await widget.repository.saveNote(widget.session, changed);
     await _reloadNotes();
+  }
+
+  Future<void> _saveMetadata(Note note) async {
+    await widget.repository.saveNote(
+      widget.session,
+      note.copyWith(updatedTime: DateTime.now().toUtc().toIso8601String()),
+    );
+    await _reloadNotes();
+  }
+
+  Future<void> _toggleStar(Note note) =>
+      _saveMetadata(note.copyWith(isStarred: !note.isStarred));
+
+  Future<void> _moveNote(Note note) async {
+    final notebooks = await widget.repository.notebooks(
+      widget.session.account.cacheKey,
+    );
+    if (!mounted) return;
+    final selected = await showDialog<Notebook>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('移动到笔记本'),
+        children: notebooks
+            .map(
+              (notebook) => SimpleDialogOption(
+                onPressed: () => Navigator.pop(context, notebook),
+                child: Row(
+                  children: [
+                    Icon(
+                      notebook.notebookId == note.notebookId
+                          ? Icons.folder
+                          : Icons.folder_outlined,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        notebook.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+            .toList(growable: false),
+      ),
+    );
+    if (selected != null && selected.notebookId != note.notebookId) {
+      await _saveMetadata(note.copyWith(notebookId: selected.notebookId));
+    }
+  }
+
+  Future<void> _trashNote(Note note) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('移入回收站'),
+        content: Text('确定将“${note.title.isEmpty ? '无标题' : note.title}”移入回收站吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('移入回收站'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await _saveMetadata(note.copyWith(isTrash: true));
   }
 
   Future<void> _createNote(bool isMarkdown) async {
@@ -106,7 +258,9 @@ class _WorkspacePageState extends State<WorkspacePage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_selectedNotebook != null) return _buildNoteList(context);
+    if (_selectedNotebook != null || _showingStarred || _showingTrash) {
+      return _buildNoteList(context);
+    }
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -122,11 +276,13 @@ class _WorkspacePageState extends State<WorkspacePage> {
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'sync') _sync();
+              if (value == 'trash') _openTrash();
               if (value == 'logout') _logout();
             },
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'account', child: Text('账号')),
               PopupMenuItem(value: 'sync', child: Text('同步')),
+              PopupMenuItem(value: 'trash', child: Text('回收站')),
               PopupMenuItem(value: 'logout', child: Text('退出')),
             ],
             child: Padding(
@@ -174,6 +330,14 @@ class _WorkspacePageState extends State<WorkspacePage> {
             ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: 0,
+        onDestinationSelected: (index) {
+          if (index == 1) {
+            _openStarred();
+          } else if (index == 2) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(const SnackBar(content: Text('共享笔记将在后续阶段开放')));
+          }
+        },
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.note_outlined),
@@ -200,10 +364,26 @@ class _WorkspacePageState extends State<WorkspacePage> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => setState(() => _selectedNotebook = null),
+          onPressed: () => setState(() {
+            _selectedNotebook = null;
+            _showingStarred = false;
+            _showingTrash = false;
+          }),
         ),
-        title: Text(_selectedNotebook!.title),
-        actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.search))],
+        title: Text(
+          _showingStarred
+              ? '已加星'
+              : _showingTrash
+              ? '回收站'
+              : _selectedNotebook!.title,
+        ),
+        actions: [
+          IconButton(
+            tooltip: '搜索笔记',
+            onPressed: _search,
+            icon: const Icon(Icons.search),
+          ),
+        ],
       ),
       body: _notes.isEmpty
           ? const _EmptyState(label: '选择笔记或开始全新记录。')
@@ -222,51 +402,48 @@ class _WorkspacePageState extends State<WorkspacePage> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Text(note.updatedTime, maxLines: 1),
-                  trailing: note.isStarred
-                      ? const Icon(Icons.star, color: Color(0xff816d32))
-                      : null,
-                  onTap: () async {
-                    await Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => NoteReaderPage(
-                          note: note,
-                          onEdit: () => _editNote(note),
-                        ),
-                      ),
-                    );
-                    await _reloadNotes();
-                  },
+                  trailing: IconButton(
+                    tooltip: note.isStarred ? '取消星标' : '添加星标',
+                    onPressed: () => _toggleStar(note),
+                    icon: Icon(
+                      note.isStarred ? Icons.star : Icons.star_outline,
+                      color: note.isStarred ? const Color(0xff816d32) : null,
+                    ),
+                  ),
+                  onTap: () => _openReader(note),
                 );
               },
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => showModalBottomSheet<void>(
-          context: context,
-          builder: (context) => SafeArea(
-            child: Wrap(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.article_outlined),
-                  title: const Text('新建笔记'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _createNote(false);
-                  },
+      floatingActionButton: _showingStarred || _showingTrash
+          ? null
+          : FloatingActionButton(
+              onPressed: () => showModalBottomSheet<void>(
+                context: context,
+                builder: (context) => SafeArea(
+                  child: Wrap(
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.article_outlined),
+                        title: const Text('新建笔记'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _createNote(false);
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.code),
+                        title: const Text('新建 Markdown'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _createNote(true);
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.code),
-                  title: const Text('新建 Markdown'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _createNote(true);
-                  },
-                ),
-              ],
+              ),
+              child: const Icon(Icons.add),
             ),
-          ),
-        ),
-        child: const Icon(Icons.add),
-      ),
     );
   }
 

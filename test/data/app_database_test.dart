@@ -76,6 +76,24 @@ void main() {
     expect(dirty.single.noteId, hasLength(24));
     expect(dirty.single.title, '离线草稿');
 
+    await database.saveLocalNote(
+      account.cacheKey,
+      note.copyWith(isStarred: true, notebookId: notebook.notebookId),
+    );
+    final starred = await database.notes(account.cacheKey, starredOnly: true);
+    expect(starred.single.noteId, note.noteId);
+    expect(await database.dirtyNotes(account.cacheKey), hasLength(2));
+    expect(
+      (await database.searchNotes(account.cacheKey, '珠玑')).single.noteId,
+      note.noteId,
+    );
+    await database.saveLocalNote(
+      account.cacheKey,
+      draft.copyWith(title: '回收站草稿', isTrash: true),
+    );
+    final trash = await database.notes(account.cacheKey, trashOnly: true);
+    expect(trash.single.noteId, draft.noteId);
+
     await database.mergeChanges(
       account: account,
       notebooks: const [],

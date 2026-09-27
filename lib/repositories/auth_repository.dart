@@ -65,8 +65,20 @@ class AuthRepository {
   Future<List<Notebook>> notebooks(String accountId) =>
       _database.notebooks(accountId);
 
-  Future<List<Note>> notes(String accountId, {String? notebookId}) =>
-      _database.notes(accountId, notebookId: notebookId);
+  Future<List<Note>> notes(
+    String accountId, {
+    String? notebookId,
+    bool starredOnly = false,
+    bool trashOnly = false,
+  }) => _database.notes(
+    accountId,
+    notebookId: notebookId,
+    starredOnly: starredOnly,
+    trashOnly: trashOnly,
+  );
+
+  Future<List<Note>> searchNotes(String accountId, String query) =>
+      _database.searchNotes(accountId, query);
 
   Future<Note> createNote(
     StoredSession session, {

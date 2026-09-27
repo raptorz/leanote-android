@@ -92,6 +92,47 @@ void main() {
     expect(result.usn, 4);
   });
 
+  test('note metadata updates use server ids and usn', () async {
+    late http.Request captured;
+    final client = Api2Client(
+      httpClient: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          '{"NoteId":"507f1f77bcf86cd799439013","NotebookId":"507f1f77bcf86cd799439099","UserId":"507f1f77bcf86cd799439011","Title":"Moved","Usn":8,"IsStar":true}',
+          200,
+        );
+      }),
+    );
+    const note = Note(
+      noteId: '507f1f77bcf86cd799439013',
+      notebookId: '507f1f77bcf86cd799439099',
+      userId: '507f1f77bcf86cd799439011',
+      title: 'Moved',
+      content: 'body',
+      tags: [],
+      usn: 7,
+      isMarkdown: false,
+      isStarred: true,
+      isTrash: false,
+      isDeleted: false,
+      createdTime: '2026-01-01T00:00:00Z',
+      updatedTime: '2026-01-02T00:00:00Z',
+    );
+
+    await client.updateNote(
+      server: Uri.parse('https://notes.example.test/'),
+      token: 'secret',
+      note: note,
+    );
+
+    expect(captured.url.path, '/api2/client/note/update');
+    final fields = Uri.splitQueryString(captured.body);
+    expect(fields['NoteId'], note.noteId);
+    expect(fields['NotebookId'], note.notebookId);
+    expect(fields['Usn'], '7');
+    expect(fields['IsStar'], 'true');
+  });
+
   test('login rejects a non-Gemsnote server response', () async {
     final client = Api2Client(
       httpClient: MockClient(
