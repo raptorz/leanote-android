@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../../domain/models/account.dart';
 import '../../domain/models/note.dart';
+import '../../domain/models/note_history.dart';
 import '../../domain/models/notebook.dart';
 import 'api_exception.dart';
 
@@ -104,6 +105,49 @@ class Api2Client {
       token: token,
       body: const <String, Object?>{},
     );
+  }
+
+  Future<List<NoteHistory>> getHistories({
+    required Uri server,
+    required String token,
+    required String noteId,
+  }) async {
+    final response = await _requestJson(
+      server: server,
+      path: '/api2/note/getHistories',
+      method: 'GET',
+      token: token,
+      query: {'noteId': noteId},
+    );
+    if (response['Ok'] != true || response['Item'] is! List) {
+      throw const ApiException('invalidResponse');
+    }
+    return (response['Item'] as List)
+        .map((item) => NoteHistory.fromJson(_map(item)))
+        .toList(growable: false);
+  }
+
+  Future<String> getHistoryContent({
+    required Uri server,
+    required String token,
+    required String noteId,
+    required String historyId,
+  }) async {
+    if (historyId.isEmpty) throw const ApiException('invalidHistoryId');
+    final response = await _requestJson(
+      server: server,
+      path: '/api2/note/getHistoryContent',
+      method: 'GET',
+      token: token,
+      query: {'noteId': noteId, 'historyId': historyId},
+    );
+    final item = _map(response['Item']);
+    if (response['Ok'] != true ||
+        item['HistoryId'] != historyId ||
+        item['Content'] is! String) {
+      throw const ApiException('invalidResponse');
+    }
+    return item['Content'] as String;
   }
 
   Future<Note> addNote({

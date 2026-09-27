@@ -6,18 +6,22 @@ import '../domain/models/note.dart';
 class NoteReaderPage extends StatefulWidget {
   const NoteReaderPage({
     required this.note,
-    required this.onEdit,
-    required this.onToggleStar,
-    required this.onMove,
-    required this.onTrashToggle,
+    this.onEdit,
+    this.onToggleStar,
+    this.onMove,
+    this.onTrashToggle,
+    this.onHistory,
+    this.readOnly = false,
     super.key,
   });
 
   final Note note;
-  final Future<void> Function() onEdit;
-  final Future<void> Function() onToggleStar;
-  final Future<void> Function() onMove;
-  final Future<void> Function() onTrashToggle;
+  final Future<void> Function()? onEdit;
+  final Future<void> Function()? onToggleStar;
+  final Future<void> Function()? onMove;
+  final Future<void> Function()? onTrashToggle;
+  final Future<void> Function()? onHistory;
+  final bool readOnly;
 
   @override
   State<NoteReaderPage> createState() => _NoteReaderPageState();
@@ -43,40 +47,50 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(note.title.isEmpty ? '无标题' : note.title),
-        actions: [
-          IconButton(
-            tooltip: '编辑',
-            onPressed: () async {
-              await widget.onEdit();
-              if (context.mounted) Navigator.of(context).pop();
-            },
-            icon: const Icon(Icons.edit_outlined),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) async {
-              switch (value) {
-                case 'star':
-                  await widget.onToggleStar();
-                case 'move':
-                  await widget.onMove();
-                case 'trash':
-                  await widget.onTrashToggle();
-              }
-              if (context.mounted) Navigator.of(context).pop();
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'star',
-                child: Text(note.isStarred ? '取消星标' : '添加星标'),
-              ),
-              const PopupMenuItem(value: 'move', child: Text('移动到笔记本')),
-              PopupMenuItem(
-                value: 'trash',
-                child: Text(note.isTrash ? '恢复笔记' : '移入回收站'),
-              ),
-            ],
-          ),
-        ],
+        actions: widget.readOnly
+            ? []
+            : [
+                IconButton(
+                  tooltip: '编辑',
+                  onPressed: () async {
+                    await widget.onEdit?.call();
+                    if (context.mounted) Navigator.of(context).pop();
+                  },
+                  icon: const Icon(Icons.edit_outlined),
+                ),
+                PopupMenuButton<String>(
+                  onSelected: (value) async {
+                    switch (value) {
+                      case 'history':
+                        await widget.onHistory?.call();
+                        return;
+                      case 'star':
+                        await widget.onToggleStar?.call();
+                      case 'move':
+                        await widget.onMove?.call();
+                      case 'trash':
+                        await widget.onTrashToggle?.call();
+                    }
+                    if (context.mounted) Navigator.of(context).pop();
+                  },
+                  itemBuilder: (_) => [
+                    if (widget.onHistory != null)
+                      const PopupMenuItem(
+                        value: 'history',
+                        child: Text('历史版本'),
+                      ),
+                    PopupMenuItem(
+                      value: 'star',
+                      child: Text(note.isStarred ? '取消星标' : '添加星标'),
+                    ),
+                    const PopupMenuItem(value: 'move', child: Text('移动到笔记本')),
+                    PopupMenuItem(
+                      value: 'trash',
+                      child: Text(note.isTrash ? '恢复笔记' : '移入回收站'),
+                    ),
+                  ],
+                ),
+              ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

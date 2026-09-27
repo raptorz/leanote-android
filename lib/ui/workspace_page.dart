@@ -6,6 +6,7 @@ import '../domain/models/notebook_tree.dart';
 import '../repositories/auth_repository.dart';
 import 'note_editor_page.dart';
 import 'note_reader_page.dart';
+import 'note_history_page.dart';
 import 'note_search_page.dart';
 import 'notebook_dialog.dart';
 
@@ -111,6 +112,19 @@ class _WorkspacePageState extends State<WorkspacePage> {
       MaterialPageRoute<void>(
         builder: (_) => NoteReaderPage(
           note: note,
+          onHistory: note.usn == 0
+              ? null
+              : () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => NoteHistoryPage(
+                        repository: widget.repository,
+                        session: widget.session,
+                        note: note,
+                      ),
+                    ),
+                  );
+                },
           onEdit: () => _editNote(note),
           onToggleStar: () => _toggleStar(note),
           onMove: () => _moveNote(note),

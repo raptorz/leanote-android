@@ -4,6 +4,7 @@ import '../data/database/app_database.dart';
 import '../data/session/session_store.dart';
 import '../domain/models/account.dart';
 import '../domain/models/note.dart';
+import '../domain/models/note_history.dart';
 import '../domain/models/notebook.dart';
 import '../sync/sync_coordinator.dart';
 
@@ -68,6 +69,24 @@ class AuthRepository {
 
   Future<List<Notebook>> notebooks(String accountId) =>
       _database.notebooks(accountId);
+
+  Future<List<NoteHistory>> histories(StoredSession session, String noteId) =>
+      _api.getHistories(
+        server: session.account.server,
+        token: session.token,
+        noteId: noteId,
+      );
+
+  Future<String> historyContent(
+    StoredSession session,
+    String noteId,
+    String historyId,
+  ) => _api.getHistoryContent(
+    server: session.account.server,
+    token: session.token,
+    noteId: noteId,
+    historyId: historyId,
+  );
 
   Future<void> saveNotebook(
     StoredSession session, {
