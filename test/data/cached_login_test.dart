@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/core/api/api2_client.dart';
+import 'package:gemsnote/core/api/api_exception.dart';
 import 'package:gemsnote/data/database/app_database.dart';
 import 'package:gemsnote/data/session/session_store.dart';
 import 'package:gemsnote/domain/models/account.dart';
@@ -59,9 +60,23 @@ void main() {
       );
       await db.deactivate(account.cacheKey);
       final requests = <String>[];
+      var wrongUser = false;
       final api = Api2Client(
         httpClient: MockClient((request) async {
           requests.add(request.url.path);
+          if (request.url.path == '/api2/user/info') {
+            expect(request.method, 'GET');
+            expect(request.url.queryParameters['token'], 'fresh-token');
+            return http.Response(
+              jsonEncode({
+                'UserId': wrongUser ? 'another-user' : account.userId,
+                'Username': 'refreshed',
+                'Email': 'new@example.test',
+                'Logo': '',
+              }),
+              200,
+            );
+          }
           expect(request.url.path, '/api2/auth/login');
           return http.Response(
             jsonEncode({
@@ -102,6 +117,24 @@ void main() {
       );
       expect(await db.lastSyncUsn(account.cacheKey), 9);
       expect((await repository.restore())?.account.username, 'renamed');
+      expect((await repository.restore())?.token, 'fresh-token');
+      final session = (await repository.restore())!;
+      final profile = await repository.refreshProfile(session);
+      expect(profile.email, 'new@example.test');
+      expect((await repository.cachedProfile(session)).username, 'refreshed');
+      expect(
+        (await db.dirtyNotes(account.cacheKey)).single.content,
+        'Offline work',
+      );
+      expect(await db.lastSyncUsn(account.cacheKey), 9);
+      wrongUser = true;
+      await expectLater(
+        repository.refreshProfile(session),
+        throwsA(
+          isA<ApiException>().having((e) => e.code, 'code', 'accountMismatch'),
+        ),
+      );
+      expect((await repository.cachedProfile(session)).userId, account.userId);
       expect((await repository.restore())?.token, 'fresh-token');
     },
   );

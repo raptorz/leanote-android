@@ -9,6 +9,7 @@ import 'note_reader_page.dart';
 import 'note_history_page.dart';
 import 'note_search_page.dart';
 import 'notebook_dialog.dart';
+import 'account_page.dart';
 
 class WorkspacePage extends StatefulWidget {
   const WorkspacePage({
@@ -324,6 +325,16 @@ class _WorkspacePageState extends State<WorkspacePage> {
           ),
           PopupMenuButton<String>(
             onSelected: (value) {
+              if (value == 'account') {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => AccountPage(
+                      repository: widget.repository,
+                      session: widget.session,
+                    ),
+                  ),
+                );
+              }
               if (value == 'sync') _sync();
               if (value == 'trash') _openTrash();
               if (value == 'logout') _logout();

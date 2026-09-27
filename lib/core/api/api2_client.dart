@@ -107,6 +107,16 @@ class Api2Client {
     );
   }
 
+  Future<Account> userInfo({required Uri server, required String token}) async {
+    final data = await _requestJson(
+      server: server,
+      path: '/api2/user/info',
+      method: 'GET',
+      token: token,
+    );
+    return Account.fromJson(data, server: server);
+  }
+
   Future<List<NoteHistory>> getHistories({
     required Uri server,
     required String token,

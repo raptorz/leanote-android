@@ -70,6 +70,21 @@ class AuthRepository {
   Future<List<Notebook>> notebooks(String accountId) =>
       _database.notebooks(accountId);
 
+  Future<Account> cachedProfile(StoredSession session) =>
+      _database.cachedProfile(session.account);
+
+  Future<Account> refreshProfile(StoredSession session) async {
+    final profile = await _api.userInfo(
+      server: session.account.server,
+      token: session.token,
+    );
+    if (profile.userId != session.account.userId) {
+      throw const ApiException('accountMismatch');
+    }
+    await _database.updateProfile(profile);
+    return profile;
+  }
+
   Future<void> restoreHistory(
     StoredSession session,
     String noteId,

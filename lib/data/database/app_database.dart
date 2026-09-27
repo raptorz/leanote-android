@@ -67,6 +67,37 @@ class AppDatabase {
     limit: 1,
   )).isNotEmpty;
 
+  Future<Account> cachedProfile(Account fallback) async {
+    final rows = await raw.query(
+      'accounts',
+      where: 'account_id = ?',
+      whereArgs: [fallback.cacheKey],
+      limit: 1,
+    );
+    if (rows.isEmpty) return fallback;
+    final row = rows.single;
+    return Account(
+      userId: fallback.userId,
+      server: fallback.server,
+      username: row['username'] as String,
+      email: row['email'] as String,
+      logo: row['logo'] as String,
+    );
+  }
+
+  Future<void> updateProfile(Account account) async {
+    await raw.update(
+      'accounts',
+      {
+        'username': account.username,
+        'email': account.email,
+        'logo': account.logo,
+      },
+      where: 'account_id = ?',
+      whereArgs: [account.cacheKey],
+    );
+  }
+
   Future<void> activateCachedAccount(Account account) async {
     await raw.transaction((txn) async {
       await txn.update('accounts', {'is_active': 0});
