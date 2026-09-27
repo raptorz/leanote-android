@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../domain/models/note.dart';
 import '../domain/models/notebook.dart';
+import '../domain/models/notebook_tree.dart';
 import '../repositories/auth_repository.dart';
 import 'note_editor_page.dart';
 import 'note_reader_page.dart';
@@ -31,6 +32,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
   var _showingStarred = false;
   var _showingTrash = false;
   var _syncing = false;
+  final _expandedNotebooks = <String>{};
 
   @override
   void initState() {
@@ -269,6 +271,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
       ),
     );
     if (saved == true && mounted) {
+      if (parentId.isNotEmpty) _expandedNotebooks.add(parentId);
       setState(
         () => _notebooks = widget.repository.notebooks(
           widget.session.account.cacheKey,
@@ -321,21 +324,54 @@ class _WorkspacePageState extends State<WorkspacePage> {
       body: FutureBuilder<List<Notebook>>(
         future: _notebooks,
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('读取笔记本失败：${snapshot.error}'));
+          }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
           final notebooks = snapshot.data!;
           if (notebooks.isEmpty) return const _EmptyState(label: '还没有笔记本');
+          final rows = NotebookTree(notebooks).visibleRows(_expandedNotebooks);
           return ListView.builder(
-            itemCount: notebooks.length,
+            itemCount: rows.length,
             itemBuilder: (context, index) {
-              final notebook = notebooks[index];
+              final row = rows[index];
+              final notebook = row.notebook;
               return ListTile(
-                leading: const Icon(Icons.folder_outlined),
-                title: Text(
-                  notebook.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                key: ValueKey(notebook.notebookId),
+                contentPadding: EdgeInsets.only(
+                  left: 8 + row.depth.clamp(0, 5) * 12.0,
+                  right: 8,
+                ),
+                leading: row.hasChildren
+                    ? IconButton(
+                        tooltip:
+                            _expandedNotebooks.contains(notebook.notebookId)
+                            ? '收起子笔记本'
+                            : '展开子笔记本',
+                        icon: Icon(
+                          _expandedNotebooks.contains(notebook.notebookId)
+                              ? Icons.expand_more
+                              : Icons.chevron_right,
+                        ),
+                        onPressed: () => setState(() {
+                          if (!_expandedNotebooks.remove(notebook.notebookId)) {
+                            _expandedNotebooks.add(notebook.notebookId);
+                          }
+                        }),
+                      )
+                    : const SizedBox(
+                        width: 48,
+                        child: Icon(Icons.folder_outlined),
+                      ),
+                title: Tooltip(
+                  message: notebook.title,
+                  child: Text(
+                    notebook.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
