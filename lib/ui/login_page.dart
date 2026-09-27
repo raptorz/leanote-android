@@ -162,6 +162,7 @@ class _LoginPageState extends State<LoginPage> {
   static String _progressText(SyncProgress? progress) {
     if (progress == null) return '正在登录…';
     final label = switch (progress.stage) {
+      SyncStage.uploading => '正在上传本地修改',
       SyncStage.notebooks => '正在同步笔记本',
       SyncStage.notes => '正在同步笔记',
       SyncStage.tags => '正在同步标签',

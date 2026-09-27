@@ -4,7 +4,7 @@ import '../domain/models/account.dart';
 import '../domain/models/note.dart';
 import '../domain/models/notebook.dart';
 
-enum SyncStage { notebooks, notes, tags, saving }
+enum SyncStage { uploading, notebooks, notes, tags, saving }
 
 class SyncProgress {
   const SyncProgress(this.stage, this.completed);
@@ -21,19 +21,67 @@ class SyncCoordinator {
   final Api2Client _api;
   final AppDatabase _database;
 
+  Future<void> synchronize({
+    required Account account,
+    required String token,
+    SyncProgressCallback? onProgress,
+  }) async {
+    final afterUsn = await _database.lastSyncUsn(account.cacheKey);
+    final dirty = await _database.dirtyNotes(account.cacheKey);
+    for (var index = 0; index < dirty.length; index++) {
+      final local = dirty[index];
+      final remote = local.usn == 0
+          ? await _api.addNote(
+              server: account.server,
+              token: token,
+              note: local,
+            )
+          : await _api.updateNote(
+              server: account.server,
+              token: token,
+              note: local,
+            );
+      await _database.markNoteUploaded(account.cacheKey, local, remote);
+      onProgress?.call(SyncProgress(SyncStage.uploading, index + 1));
+    }
+    final notebooks = await _allNotebooks(
+      account,
+      token,
+      onProgress,
+      afterUsn: afterUsn,
+    );
+    final notes = await _allNotes(
+      account,
+      token,
+      onProgress,
+      afterUsn: afterUsn,
+    );
+    final tags = await _allTags(account, token, onProgress, afterUsn: afterUsn);
+    final highestUsn = _highestUsn(afterUsn, notebooks, notes, tags);
+    onProgress?.call(SyncProgress(SyncStage.saving, notes.length));
+    await _database.mergeChanges(
+      account: account,
+      notebooks: notebooks,
+      notes: notes,
+      tags: tags,
+      lastSyncUsn: highestUsn,
+    );
+  }
+
   Future<void> downloadFreshSnapshot({
     required Account account,
     required String token,
     SyncProgressCallback? onProgress,
   }) async {
-    final notebooks = await _allNotebooks(account, token, onProgress);
-    final notes = await _allNotes(account, token, onProgress);
-    final tags = await _allTags(account, token, onProgress);
-    final highestUsn = <int>[
-      ...notebooks.map((item) => item.usn),
-      ...notes.map((item) => item.usn),
-      ...tags.map((item) => _integer(item['Usn'])),
-    ].fold<int>(0, (highest, value) => value > highest ? value : highest);
+    final notebooks = await _allNotebooks(
+      account,
+      token,
+      onProgress,
+      afterUsn: 0,
+    );
+    final notes = await _allNotes(account, token, onProgress, afterUsn: 0);
+    final tags = await _allTags(account, token, onProgress, afterUsn: 0);
+    final highestUsn = _highestUsn(0, notebooks, notes, tags);
     onProgress?.call(SyncProgress(SyncStage.saving, notes.length));
     await _database.replaceSnapshot(
       account: account,
@@ -44,13 +92,26 @@ class SyncCoordinator {
     );
   }
 
+  static int _highestUsn(
+    int initial,
+    List<Notebook> notebooks,
+    List<Note> notes,
+    List<Map<String, Object?>> tags,
+  ) => <int>[
+    initial,
+    ...notebooks.map((item) => item.usn),
+    ...notes.map((item) => item.usn),
+    ...tags.map((item) => _integer(item['Usn'])),
+  ].fold<int>(0, (highest, value) => value > highest ? value : highest);
+
   Future<List<Notebook>> _allNotebooks(
     Account account,
     String token,
-    SyncProgressCallback? progress,
-  ) async {
+    SyncProgressCallback? progress, {
+    required int afterUsn,
+  }) async {
     final result = <Notebook>[];
-    var cursor = 0;
+    var cursor = afterUsn;
     while (true) {
       final page = await _api.getNotebooks(
         server: account.server,
@@ -73,10 +134,11 @@ class SyncCoordinator {
   Future<List<Note>> _allNotes(
     Account account,
     String token,
-    SyncProgressCallback? progress,
-  ) async {
+    SyncProgressCallback? progress, {
+    required int afterUsn,
+  }) async {
     final result = <Note>[];
-    var cursor = 0;
+    var cursor = afterUsn;
     while (true) {
       final page = await _api.getNotesWithContent(
         server: account.server,
@@ -99,10 +161,11 @@ class SyncCoordinator {
   Future<List<Map<String, Object?>>> _allTags(
     Account account,
     String token,
-    SyncProgressCallback? progress,
-  ) async {
+    SyncProgressCallback? progress, {
+    required int afterUsn,
+  }) async {
     final result = <Map<String, Object?>>[];
-    var cursor = 0;
+    var cursor = afterUsn;
     while (true) {
       final page = await _api.getTags(
         server: account.server,

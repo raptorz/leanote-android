@@ -29,6 +29,36 @@ class Note {
   final String createdTime;
   final String updatedTime;
 
+  Note copyWith({
+    String? noteId,
+    String? notebookId,
+    String? userId,
+    String? title,
+    String? content,
+    List<String>? tags,
+    int? usn,
+    bool? isMarkdown,
+    bool? isStarred,
+    bool? isTrash,
+    bool? isDeleted,
+    String? createdTime,
+    String? updatedTime,
+  }) => Note(
+    noteId: noteId ?? this.noteId,
+    notebookId: notebookId ?? this.notebookId,
+    userId: userId ?? this.userId,
+    title: title ?? this.title,
+    content: content ?? this.content,
+    tags: tags ?? this.tags,
+    usn: usn ?? this.usn,
+    isMarkdown: isMarkdown ?? this.isMarkdown,
+    isStarred: isStarred ?? this.isStarred,
+    isTrash: isTrash ?? this.isTrash,
+    isDeleted: isDeleted ?? this.isDeleted,
+    createdTime: createdTime ?? this.createdTime,
+    updatedTime: updatedTime ?? this.updatedTime,
+  );
+
   factory Note.fromJson(Map<String, Object?> json) => Note(
     noteId: json['NoteId']?.toString() ?? '',
     notebookId: json['NotebookId']?.toString() ?? '',

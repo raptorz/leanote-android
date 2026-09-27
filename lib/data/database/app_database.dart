@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -45,6 +46,17 @@ class AppDatabase {
       email: row['email']! as String,
       logo: row['logo']! as String,
     );
+  }
+
+  Future<int> lastSyncUsn(String accountId) async {
+    final rows = await raw.query(
+      'accounts',
+      columns: ['last_sync_usn'],
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+      limit: 1,
+    );
+    return rows.isEmpty ? 0 : rows.single['last_sync_usn']! as int;
   }
 
   Future<void> replaceSnapshot({
@@ -118,12 +130,84 @@ class AppDatabase {
     });
   }
 
+  Future<void> mergeChanges({
+    required Account account,
+    required List<Notebook> notebooks,
+    required List<Note> notes,
+    required List<Map<String, Object?>> tags,
+    required int lastSyncUsn,
+  }) async {
+    await raw.transaction((txn) async {
+      final batch = txn.batch();
+      for (final notebook in notebooks) {
+        if (notebook.isDeleted) {
+          batch.delete(
+            'notebooks',
+            where: 'account_id = ? AND server_id = ?',
+            whereArgs: [account.cacheKey, notebook.notebookId],
+          );
+        } else {
+          batch.insert('notebooks', {
+            'account_id': account.cacheKey,
+            'server_id': notebook.notebookId,
+            'parent_server_id': notebook.parentNotebookId,
+            'title': notebook.title,
+            'sequence': notebook.sequence,
+            'usn': notebook.usn,
+            'number_notes': notebook.numberNotes,
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+      for (final note in notes) {
+        if (note.isDeleted) {
+          batch.delete(
+            'notes',
+            where: 'account_id = ? AND server_id = ?',
+            whereArgs: [account.cacheKey, note.noteId],
+          );
+        } else {
+          _insertNote(batch, account.cacheKey, note);
+        }
+      }
+      for (final tag in tags) {
+        final name = tag['Tag']?.toString() ?? tag['Title']?.toString() ?? '';
+        if (name.isEmpty) continue;
+        if (tag['IsDeleted'] == true) {
+          batch.delete(
+            'tags',
+            where: 'account_id = ? AND name = ?',
+            whereArgs: [account.cacheKey, name],
+          );
+        } else {
+          batch.insert('tags', {
+            'account_id': account.cacheKey,
+            'name': name,
+            'usn': _integer(tag['Usn']),
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      }
+      batch.update(
+        'accounts',
+        {'last_sync_usn': lastSyncUsn},
+        where: 'account_id = ?',
+        whereArgs: [account.cacheKey],
+      );
+      await batch.commit(noResult: true);
+    });
+  }
+
   Future<List<Notebook>> notebooks(String accountId) async {
-    final rows = await raw.query(
-      'notebooks',
-      where: 'account_id = ?',
-      whereArgs: [accountId],
-      orderBy: 'title COLLATE NOCASE, server_id',
+    final rows = await raw.rawQuery(
+      '''SELECT notebooks.*,
+        (SELECT COUNT(*) FROM notes
+          WHERE notes.account_id = notebooks.account_id
+            AND notes.notebook_server_id = notebooks.server_id
+            AND notes.is_trash = 0
+            AND notes.local_is_deleted = 0) AS actual_number_notes
+        FROM notebooks
+        WHERE notebooks.account_id = ?
+        ORDER BY notebooks.title COLLATE NOCASE, notebooks.server_id''',
+      [accountId],
     );
     return rows
         .map(
@@ -133,7 +217,7 @@ class AppDatabase {
             title: row['title']! as String,
             sequence: row['sequence']! as int,
             usn: row['usn']! as int,
-            numberNotes: row['number_notes']! as int,
+            numberNotes: row['actual_number_notes']! as int,
             isDeleted: false,
           ),
         )
@@ -154,6 +238,108 @@ class AppDatabase {
       orderBy: 'updated_time DESC, server_id',
     );
     return rows.map(_noteFromRow).toList(growable: false);
+  }
+
+  Future<Note> createLocalNote({
+    required Account account,
+    required String notebookId,
+    required bool isMarkdown,
+  }) async {
+    final now = DateTime.now().toUtc().toIso8601String();
+    final note = Note(
+      noteId: _objectId(),
+      notebookId: notebookId,
+      userId: account.userId,
+      title: '',
+      content: '',
+      tags: const [],
+      usn: 0,
+      isMarkdown: isMarkdown,
+      isStarred: false,
+      isTrash: false,
+      isDeleted: false,
+      createdTime: now,
+      updatedTime: now,
+    );
+    await _writeNote(account.cacheKey, note, isDirty: true, isNew: true);
+    return note;
+  }
+
+  Future<void> saveLocalNote(String accountId, Note note) =>
+      _writeNote(accountId, note, isDirty: true, isNew: note.usn == 0);
+
+  Future<List<Note>> dirtyNotes(String accountId) async {
+    final rows = await raw.query(
+      'notes',
+      where: 'account_id = ? AND is_dirty = 1',
+      whereArgs: [accountId],
+      orderBy: 'created_time, server_id',
+    );
+    return rows.map(_noteFromRow).toList(growable: false);
+  }
+
+  Future<void> markNoteUploaded(
+    String accountId,
+    Note local,
+    Note remote,
+  ) async {
+    await _writeNote(
+      accountId,
+      local.copyWith(
+        noteId: remote.noteId,
+        usn: remote.usn,
+        updatedTime: remote.updatedTime.isEmpty
+            ? local.updatedTime
+            : remote.updatedTime,
+      ),
+      isDirty: false,
+      isNew: false,
+    );
+  }
+
+  Future<void> _writeNote(
+    String accountId,
+    Note note, {
+    required bool isDirty,
+    required bool isNew,
+  }) => raw.insert('notes', {
+    'account_id': accountId,
+    'server_id': note.noteId,
+    'notebook_server_id': note.notebookId,
+    'owner_server_id': note.userId,
+    'title': note.title,
+    'content': note.content,
+    'tags_json': jsonEncode(note.tags),
+    'usn': note.usn,
+    'is_markdown': note.isMarkdown ? 1 : 0,
+    'is_starred': note.isStarred ? 1 : 0,
+    'is_trash': note.isTrash ? 1 : 0,
+    'created_time': note.createdTime,
+    'updated_time': note.updatedTime,
+    'is_dirty': isDirty ? 1 : 0,
+    'local_is_new': isNew ? 1 : 0,
+    'local_is_deleted': 0,
+  }, conflictAlgorithm: ConflictAlgorithm.replace);
+
+  static void _insertNote(Batch batch, String accountId, Note note) {
+    batch.insert('notes', {
+      'account_id': accountId,
+      'server_id': note.noteId,
+      'notebook_server_id': note.notebookId,
+      'owner_server_id': note.userId,
+      'title': note.title,
+      'content': note.content,
+      'tags_json': jsonEncode(note.tags),
+      'usn': note.usn,
+      'is_markdown': note.isMarkdown ? 1 : 0,
+      'is_starred': note.isStarred ? 1 : 0,
+      'is_trash': note.isTrash ? 1 : 0,
+      'created_time': note.createdTime,
+      'updated_time': note.updatedTime,
+      'is_dirty': 0,
+      'local_is_new': 0,
+      'local_is_deleted': 0,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<void> deactivate(String accountId) async {
@@ -185,6 +371,14 @@ class AppDatabase {
 
   static int _integer(Object? value) =>
       value is num ? value.toInt() : int.tryParse('$value') ?? 0;
+
+  static String _objectId() {
+    final random = Random.secure();
+    return List.generate(
+      12,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+  }
 
   static const _schema = <String>[
     '''CREATE TABLE accounts (

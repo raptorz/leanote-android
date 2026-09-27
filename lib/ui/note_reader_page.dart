@@ -4,9 +4,10 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../domain/models/note.dart';
 
 class NoteReaderPage extends StatefulWidget {
-  const NoteReaderPage({required this.note, super.key});
+  const NoteReaderPage({required this.note, required this.onEdit, super.key});
 
   final Note note;
+  final Future<void> Function() onEdit;
 
   @override
   State<NoteReaderPage> createState() => _NoteReaderPageState();
@@ -38,6 +39,14 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Icon(Icons.star, color: Color(0xff816d32)),
             ),
+          IconButton(
+            tooltip: '编辑',
+            onPressed: () async {
+              await widget.onEdit();
+              if (context.mounted) Navigator.of(context).pop();
+            },
+            icon: const Icon(Icons.edit_outlined),
+          ),
         ],
       ),
       body: Column(

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/core/api/api2_client.dart';
 import 'package:gemsnote/core/api/api_exception.dart';
+import 'package:gemsnote/domain/models/note.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
@@ -45,6 +46,50 @@ void main() {
     expect(result.token, 'token-1');
     expect(result.account.username, 'admin');
     expect(result.serverVersion, '1.0.0');
+  });
+
+  test('new notes use the API2 client form contract', () async {
+    late http.Request captured;
+    final client = Api2Client(
+      httpClient: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          '{"NoteId":"507f1f77bcf86cd799439013","NotebookId":"507f1f77bcf86cd799439012","UserId":"507f1f77bcf86cd799439011","Title":"New","Usn":4,"IsMarkdown":true}',
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+    const note = Note(
+      noteId: '507f1f77bcf86cd799439013',
+      notebookId: '507f1f77bcf86cd799439012',
+      userId: '507f1f77bcf86cd799439011',
+      title: 'New',
+      content: '# New',
+      tags: ['mobile'],
+      usn: 0,
+      isMarkdown: true,
+      isStarred: false,
+      isTrash: false,
+      isDeleted: false,
+      createdTime: '2026-01-01T00:00:00Z',
+      updatedTime: '2026-01-01T00:00:00Z',
+    );
+
+    final result = await client.addNote(
+      server: Uri.parse('https://notes.example.test/'),
+      token: 'secret',
+      note: note,
+    );
+
+    expect(captured.method, 'POST');
+    expect(captured.url.path, '/api2/client/note/add');
+    final fields = Uri.splitQueryString(captured.body);
+    expect(fields['ClientNoteId'], note.noteId);
+    expect(fields['NotebookId'], note.notebookId);
+    expect(fields['Content'], '# New');
+    expect(fields['Tags[0]'], 'mobile');
+    expect(result.usn, 4);
   });
 
   test('login rejects a non-Gemsnote server response', () async {

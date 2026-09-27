@@ -106,6 +106,52 @@ class Api2Client {
     );
   }
 
+  Future<Note> addNote({
+    required Uri server,
+    required String token,
+    required Note note,
+  }) async {
+    final data = await _requestFormJson(
+      server: server,
+      path: '/api2/client/note/add',
+      token: token,
+      fields: _noteFields(note, isNew: true),
+    );
+    return Note.fromJson(data);
+  }
+
+  Future<Note> updateNote({
+    required Uri server,
+    required String token,
+    required Note note,
+  }) async {
+    final data = await _requestFormJson(
+      server: server,
+      path: '/api2/client/note/update',
+      token: token,
+      fields: _noteFields(note, isNew: false),
+    );
+    return Note.fromJson(data);
+  }
+
+  Future<Map<String, Object?>> _requestFormJson({
+    required Uri server,
+    required String path,
+    required String token,
+    required Map<String, String> fields,
+  }) async {
+    final uri = _uri(server, path, token: token);
+    late http.Response response;
+    try {
+      response = await _http
+          .post(uri, body: fields)
+          .timeout(const Duration(minutes: 2));
+    } on Exception {
+      throw const ApiException('networkUnavailable');
+    }
+    return _decodeMapResponse(response);
+  }
+
   Future<List<Map<String, Object?>>> _requestList({
     required Uri server,
     required String path,
@@ -150,12 +196,7 @@ class Api2Client {
     Map<String, String> query = const {},
     Object? body,
   }) async {
-    final parameters = <String, String>{
-      ...query,
-      'token': ?token,
-      'v': 'mobile_$clientVersion',
-    };
-    final uri = server.resolve(path).replace(queryParameters: parameters);
+    final uri = _uri(server, path, token: token, query: query);
     late http.Response response;
     try {
       response = method == 'POST'
@@ -170,6 +211,25 @@ class Api2Client {
     } on Exception {
       throw const ApiException('networkUnavailable');
     }
+    return _decodeResponse(response);
+  }
+
+  Uri _uri(
+    Uri server,
+    String path, {
+    String? token,
+    Map<String, String> query = const {},
+  }) => server
+      .resolve(path)
+      .replace(
+        queryParameters: <String, String>{
+          ...query,
+          'token': ?token,
+          'v': 'mobile_$clientVersion',
+        },
+      );
+
+  static Object? _decodeResponse(http.Response response) {
     Object? decoded;
     try {
       decoded = jsonDecode(utf8.decode(response.bodyBytes));
@@ -190,6 +250,29 @@ class Api2Client {
       }
     }
     return decoded;
+  }
+
+  static Map<String, Object?> _decodeMapResponse(http.Response response) =>
+      _map(_decodeResponse(response));
+
+  static Map<String, String> _noteFields(Note note, {required bool isNew}) {
+    final fields = <String, String>{
+      if (isNew) 'ClientNoteId': note.noteId else 'NoteId': note.noteId,
+      'NotebookId': note.notebookId,
+      'Title': note.title,
+      'Content': note.content,
+      'IsMarkdown': '${note.isMarkdown}',
+      'IsTrash': '${note.isTrash}',
+      'IsBlog': 'false',
+      'IsStar': '${note.isStarred}',
+      'CreatedTime': note.createdTime,
+      'UpdatedTime': note.updatedTime,
+    };
+    if (!isNew) fields['Usn'] = '${note.usn}';
+    for (var index = 0; index < note.tags.length; index++) {
+      fields['Tags[$index]'] = note.tags[index];
+    }
+    return fields;
   }
 
   static Map<String, Object?> _map(Object? value) {

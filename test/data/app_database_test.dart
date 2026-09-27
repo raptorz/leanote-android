@@ -61,6 +61,35 @@ void main() {
     final cached = (await database.notes(account.cacheKey)).single;
     expect(cached.content, '日积字句，终得珠玑。');
     expect(cached.isStarred, isTrue);
+
+    final draft = await database.createLocalNote(
+      account: account,
+      notebookId: notebook.notebookId,
+      isMarkdown: true,
+    );
+    await database.saveLocalNote(
+      account.cacheKey,
+      draft.copyWith(title: '离线草稿', content: '# 草稿'),
+    );
+    final dirty = await database.dirtyNotes(account.cacheKey);
+    expect(dirty, hasLength(1));
+    expect(dirty.single.noteId, hasLength(24));
+    expect(dirty.single.title, '离线草稿');
+
+    await database.mergeChanges(
+      account: account,
+      notebooks: const [],
+      notes: [
+        note.copyWith(title: '服务端标题', usn: 8),
+        draft.copyWith(isDeleted: true, usn: 9),
+      ],
+      tags: const [],
+      lastSyncUsn: 9,
+    );
+    final merged = await database.notes(account.cacheKey);
+    expect(merged, hasLength(1));
+    expect(merged.single.title, '服务端标题');
+    expect(await database.lastSyncUsn(account.cacheKey), 9);
     await database.raw.close();
   });
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../domain/models/note.dart';
 import '../domain/models/notebook.dart';
 import '../repositories/auth_repository.dart';
+import 'note_editor_page.dart';
 import 'note_reader_page.dart';
 
 class WorkspacePage extends StatefulWidget {
@@ -25,6 +26,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
   late Future<List<Notebook>> _notebooks;
   List<Note> _notes = const [];
   Notebook? _selectedNotebook;
+  var _syncing = false;
 
   @override
   void initState() {
@@ -42,6 +44,58 @@ class _WorkspacePageState extends State<WorkspacePage> {
         _selectedNotebook = notebook;
         _notes = notes;
       });
+    }
+  }
+
+  Future<void> _reloadNotes() async {
+    final notebook = _selectedNotebook;
+    if (notebook != null) await _openNotebook(notebook);
+  }
+
+  Future<void> _editNote(Note note) async {
+    final changed = await Navigator.of(
+      context,
+    ).push<Note>(MaterialPageRoute(builder: (_) => NoteEditorPage(note: note)));
+    if (changed == null) return;
+    await widget.repository.saveNote(widget.session, changed);
+    await _reloadNotes();
+  }
+
+  Future<void> _createNote(bool isMarkdown) async {
+    final notebook = _selectedNotebook;
+    if (notebook == null) return;
+    final note = await widget.repository.createNote(
+      widget.session,
+      notebookId: notebook.notebookId,
+      isMarkdown: isMarkdown,
+    );
+    await _editNote(note);
+  }
+
+  Future<void> _sync() async {
+    if (_syncing) return;
+    setState(() => _syncing = true);
+    try {
+      await widget.repository.synchronize(
+        widget.session,
+        onProgress: (value) {
+          if (mounted) setState(() {});
+        },
+      );
+      _notebooks = widget.repository.notebooks(widget.session.account.cacheKey);
+      await _reloadNotes();
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('同步完成')));
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('同步失败：$error'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _syncing = false);
     }
   }
 
@@ -67,6 +121,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
         actions: [
           PopupMenuButton<String>(
             onSelected: (value) {
+              if (value == 'sync') _sync();
               if (value == 'logout') _logout();
             },
             itemBuilder: (_) => const [
@@ -107,6 +162,16 @@ class _WorkspacePageState extends State<WorkspacePage> {
           );
         },
       ),
+      floatingActionButton: _syncing
+          ? const FloatingActionButton(
+              onPressed: null,
+              child: CircularProgressIndicator(),
+            )
+          : FloatingActionButton(
+              tooltip: '立即同步',
+              onPressed: _sync,
+              child: const Icon(Icons.sync),
+            ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: 0,
         destinations: const [
@@ -160,16 +225,46 @@ class _WorkspacePageState extends State<WorkspacePage> {
                   trailing: note.isStarred
                       ? const Icon(Icons.star, color: Color(0xff816d32))
                       : null,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => NoteReaderPage(note: note),
-                    ),
-                  ),
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => NoteReaderPage(
+                          note: note,
+                          onEdit: () => _editNote(note),
+                        ),
+                      ),
+                    );
+                    await _reloadNotes();
+                  },
                 );
               },
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed: () => showModalBottomSheet<void>(
+          context: context,
+          builder: (context) => SafeArea(
+            child: Wrap(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.article_outlined),
+                  title: const Text('新建笔记'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _createNote(false);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.code),
+                  title: const Text('新建 Markdown'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _createNote(true);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
         child: const Icon(Icons.add),
       ),
     );

@@ -68,6 +68,28 @@ class AuthRepository {
   Future<List<Note>> notes(String accountId, {String? notebookId}) =>
       _database.notes(accountId, notebookId: notebookId);
 
+  Future<Note> createNote(
+    StoredSession session, {
+    required String notebookId,
+    required bool isMarkdown,
+  }) => _database.createLocalNote(
+    account: session.account,
+    notebookId: notebookId,
+    isMarkdown: isMarkdown,
+  );
+
+  Future<void> saveNote(StoredSession session, Note note) =>
+      _database.saveLocalNote(session.account.cacheKey, note);
+
+  Future<void> synchronize(
+    StoredSession session, {
+    SyncProgressCallback? onProgress,
+  }) => _sync.synchronize(
+    account: session.account,
+    token: session.token,
+    onProgress: onProgress,
+  );
+
   static Uri normalizeServer(String value) {
     final trimmed = value.trim();
     final candidate = trimmed.contains('://') ? trimmed : 'https://$trimmed';
