@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../domain/models/note.dart';
+import 'markdown_note_body.dart';
 
 class NoteReaderPage extends StatefulWidget {
   const NoteReaderPage({
@@ -29,6 +30,7 @@ class NoteReaderPage extends StatefulWidget {
 
 class _NoteReaderPageState extends State<NoteReaderPage> {
   WebViewController? _webView;
+  bool _showSource = false;
 
   @override
   void initState() {
@@ -47,53 +49,62 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(note.title.isEmpty ? '无标题' : note.title),
-        actions: widget.readOnly
-            ? []
-            : [
-                IconButton(
-                  tooltip: '编辑',
-                  onPressed: () async {
-                    await widget.onEdit?.call();
-                    if (context.mounted) Navigator.of(context).pop();
-                  },
-                  icon: const Icon(Icons.edit_outlined),
-                ),
-                PopupMenuButton<String>(
-                  onSelected: (value) async {
-                    switch (value) {
-                      case 'history':
-                        final restored = await widget.onHistory?.call();
-                        if (restored == true && context.mounted) {
-                          Navigator.of(context).pop();
-                        }
-                        return;
-                      case 'star':
-                        await widget.onToggleStar?.call();
-                      case 'move':
-                        await widget.onMove?.call();
-                      case 'trash':
-                        await widget.onTrashToggle?.call();
+        actions: [
+          if (note.isMarkdown) ...[
+            IconButton(
+              tooltip: _showSource ? '查看预览' : '查看原文',
+              onPressed: () => setState(() => _showSource = !_showSource),
+              icon: Icon(_showSource ? Icons.visibility_outlined : Icons.code),
+            ),
+            IconButton(
+              tooltip: '复制 Markdown 原文',
+              onPressed: () => copyNoteText(context, note.content),
+              icon: const Icon(Icons.copy_outlined),
+            ),
+          ],
+          if (!widget.readOnly) ...[
+            IconButton(
+              tooltip: '编辑',
+              onPressed: () async {
+                await widget.onEdit?.call();
+                if (context.mounted) Navigator.of(context).pop();
+              },
+              icon: const Icon(Icons.edit_outlined),
+            ),
+            PopupMenuButton<String>(
+              onSelected: (value) async {
+                switch (value) {
+                  case 'history':
+                    final restored = await widget.onHistory?.call();
+                    if (restored == true && context.mounted) {
+                      Navigator.of(context).pop();
                     }
-                    if (context.mounted) Navigator.of(context).pop();
-                  },
-                  itemBuilder: (_) => [
-                    if (widget.onHistory != null)
-                      const PopupMenuItem(
-                        value: 'history',
-                        child: Text('历史版本'),
-                      ),
-                    PopupMenuItem(
-                      value: 'star',
-                      child: Text(note.isStarred ? '取消星标' : '添加星标'),
-                    ),
-                    const PopupMenuItem(value: 'move', child: Text('移动到笔记本')),
-                    PopupMenuItem(
-                      value: 'trash',
-                      child: Text(note.isTrash ? '恢复笔记' : '移入回收站'),
-                    ),
-                  ],
+                    return;
+                  case 'star':
+                    await widget.onToggleStar?.call();
+                  case 'move':
+                    await widget.onMove?.call();
+                  case 'trash':
+                    await widget.onTrashToggle?.call();
+                }
+                if (context.mounted) Navigator.of(context).pop();
+              },
+              itemBuilder: (_) => [
+                if (widget.onHistory != null)
+                  const PopupMenuItem(value: 'history', child: Text('历史版本')),
+                PopupMenuItem(
+                  value: 'star',
+                  child: Text(note.isStarred ? '取消星标' : '添加星标'),
+                ),
+                const PopupMenuItem(value: 'move', child: Text('移动到笔记本')),
+                PopupMenuItem(
+                  value: 'trash',
+                  child: Text(note.isTrash ? '恢复笔记' : '移入回收站'),
                 ),
               ],
+            ),
+          ],
+        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -101,13 +112,15 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
           _Metadata(note: note),
           Expanded(
             child: note.isMarkdown
-                ? SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
-                    child: SelectableText(
-                      note.content,
-                      style: const TextStyle(fontSize: 16, height: 1.65),
-                    ),
-                  )
+                ? _showSource
+                      ? SingleChildScrollView(
+                          padding: const EdgeInsets.all(20),
+                          child: SelectableText(
+                            note.content,
+                            style: const TextStyle(fontSize: 16, height: 1.65),
+                          ),
+                        )
+                      : MarkdownNoteBody(content: note.content)
                 : WebViewWidget(controller: _webView!),
           ),
           if (note.tags.isNotEmpty)

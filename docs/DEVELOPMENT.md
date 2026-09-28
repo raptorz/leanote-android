@@ -37,6 +37,13 @@ flutter build ios
 
 首次登录按 USN 分页下载笔记本、含正文笔记和标签，并在单个 SQLite 事务中替换该账号快照。token 只在完整快照成功落库后写入系统安全存储，避免残缺缓存被当成有效登录。
 
+## Markdown 阅读
+
+Markdown 阅读使用 [flutter_markdown_plus](https://pub.dev/packages/flutter_markdown_plus)
+原生组件，并保留可复制的原文模式。图片渲染覆盖为占位组件，链接仅展示地址并
+允许用户复制；接入账号隔离的媒体缓存前，不启用渲染器默认的网络/本地文件加载。
+此实现不支持 Markdown 中内嵌 HTML 的浏览器渲染，富文本笔记继续使用原有阅读组件。
+
 ## 测试原则
 
 - API 客户端测试必须检查 HTTP 方法、路径和 JSON 请求体
