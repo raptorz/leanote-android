@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../domain/models/note.dart';
+import 'markdown_editing.dart';
+import 'markdown_note_body.dart';
 
 class NoteEditorPage extends StatefulWidget {
   const NoteEditorPage({required this.note, required this.saveText, super.key});
@@ -25,6 +27,8 @@ class _NoteEditorPageState extends State<NoteEditorPage>
   late String _savedTitle;
   late String _savedContent;
   String? _error;
+  bool _preview = false;
+  final _contentFocus = FocusNode();
 
   @override
   void initState() {
@@ -42,6 +46,7 @@ class _NoteEditorPageState extends State<NoteEditorPage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _debounce?.cancel();
+    _contentFocus.dispose();
     _title.dispose();
     _content.dispose();
     super.dispose();
@@ -95,11 +100,41 @@ class _NoteEditorPageState extends State<NoteEditorPage>
     });
   }
 
+  void _togglePreview() {
+    if (_closing) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _preview = !_preview);
+    _flush();
+  }
+
+  Widget _formatButton(
+    String label,
+    IconData icon,
+    TextEditingValue Function(TextEditingValue) transform,
+  ) => IconButton(
+    tooltip: label,
+    icon: Icon(icon),
+    onPressed: _closing
+        ? null
+        : () {
+            _content.value = transform(_content.value);
+            _contentFocus.requestFocus();
+          },
+  );
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: Text(widget.note.isMarkdown ? '编辑 Markdown' : '编辑笔记'),
       actions: [
+        if (widget.note.isMarkdown)
+          IconButton(
+            tooltip: _preview ? '继续编辑' : '预览 Markdown',
+            onPressed: _closing ? null : _togglePreview,
+            icon: Icon(
+              _preview ? Icons.edit_outlined : Icons.visibility_outlined,
+            ),
+          ),
         IconButton(
           tooltip: '保存到本地',
           onPressed: _closing ? null : _save,
@@ -131,22 +166,58 @@ class _NoteEditorPageState extends State<NoteEditorPage>
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 12),
-            Expanded(
-              child: TextField(
-                readOnly: _closing,
-                controller: _content,
-                expands: true,
-                maxLines: null,
-                minLines: null,
-                textAlignVertical: TextAlignVertical.top,
-                keyboardType: TextInputType.multiline,
-                decoration: InputDecoration(
-                  hintText: widget.note.isMarkdown
-                      ? '使用 Markdown 开始记录…'
-                      : '开始记录…',
-                  border: InputBorder.none,
+            if (widget.note.isMarkdown && !_preview)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _formatButton(
+                      '加粗',
+                      Icons.format_bold,
+                      (value) => wrapMarkdown(value, '**'),
+                    ),
+                    _formatButton(
+                      '斜体',
+                      Icons.format_italic,
+                      (value) => wrapMarkdown(value, '*'),
+                    ),
+                    _formatButton(
+                      '行内代码',
+                      Icons.code,
+                      (value) => wrapMarkdown(value, '`'),
+                    ),
+                    _formatButton(
+                      '标题',
+                      Icons.title,
+                      (value) => prefixMarkdownLines(value, '# '),
+                    ),
+                    _formatButton(
+                      '无序列表',
+                      Icons.format_list_bulleted,
+                      (value) => prefixMarkdownLines(value, '- '),
+                    ),
+                  ],
                 ),
               ),
+            Expanded(
+              child: _preview
+                  ? MarkdownNoteBody(content: _content.text)
+                  : TextField(
+                      focusNode: _contentFocus,
+                      readOnly: _closing,
+                      controller: _content,
+                      expands: true,
+                      maxLines: null,
+                      minLines: null,
+                      textAlignVertical: TextAlignVertical.top,
+                      keyboardType: TextInputType.multiline,
+                      decoration: InputDecoration(
+                        hintText: widget.note.isMarkdown
+                            ? '使用 Markdown 开始记录…'
+                            : '开始记录…',
+                        border: InputBorder.none,
+                      ),
+                    ),
             ),
           ],
         ),
