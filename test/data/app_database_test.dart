@@ -75,6 +75,8 @@ void main() {
     expect(dirty, hasLength(1));
     expect(dirty.single.noteId, hasLength(24));
     expect(dirty.single.title, '离线草稿');
+    expect(await database.pendingNoteIds(account.cacheKey), {draft.noteId});
+    expect(await database.pendingNoteIds('another-account'), isEmpty);
     await expectLater(
       database.replaceSnapshot(
         account: account,
@@ -106,6 +108,10 @@ void main() {
     final starred = await database.notes(account.cacheKey, starredOnly: true);
     expect(starred.single.noteId, note.noteId);
     expect(await database.dirtyNotes(account.cacheKey), hasLength(2));
+    expect(await database.pendingNoteIds(account.cacheKey), {
+      draft.noteId,
+      note.noteId,
+    });
     expect(
       (await database.searchNotes(account.cacheKey, '珠玑')).single.noteId,
       note.noteId,
@@ -146,6 +152,10 @@ void main() {
         .firstWhere((item) => item.noteId == note.noteId);
     expect(edited.content, 'New edit during upload');
     expect(edited.usn, 6);
+    expect(
+      await database.pendingNoteIds(account.cacheKey),
+      contains(note.noteId),
+    );
     for (final pending in await database.dirtyNotes(account.cacheKey)) {
       await database.markNoteUploaded(
         account.cacheKey,
@@ -154,6 +164,8 @@ void main() {
       );
     }
 
+    // Upload acknowledgement clears pending state without waiting for downloads.
+    expect(await database.pendingNoteIds(account.cacheKey), isEmpty);
     await database.mergeChanges(
       account: account,
       notebooks: const [],

@@ -146,6 +146,9 @@ class AuthRepository {
     trashOnly: trashOnly,
   );
 
+  Future<Set<String>> pendingNoteIds(String accountId) =>
+      _database.pendingNoteIds(accountId);
+
   Future<List<Note>> searchNotes(String accountId, String query) =>
       _database.searchNotes(accountId, query);
 

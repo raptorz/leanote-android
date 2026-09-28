@@ -401,6 +401,16 @@ class AppDatabase {
     if (changed != 1) throw StateError('localNoteMissing');
   }
 
+  Future<Set<String>> pendingNoteIds(String accountId) async {
+    final rows = await raw.query(
+      'notes',
+      columns: ['server_id'],
+      where: 'account_id = ? AND is_dirty = 1',
+      whereArgs: [accountId],
+    );
+    return rows.map((row) => row['server_id'] as String).toSet();
+  }
+
   Future<List<Note>> dirtyNotes(String accountId) async {
     final rows = await raw.query(
       'notes',

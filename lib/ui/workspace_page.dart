@@ -34,13 +34,59 @@ class _WorkspacePageState extends State<WorkspacePage> {
   var _showingStarred = false;
   var _showingTrash = false;
   var _syncing = false;
+  Set<String> _pendingNoteIds = {};
+  String? _syncError;
+  int _pendingRead = 0;
   final _expandedNotebooks = <String>{};
 
   @override
   void initState() {
     super.initState();
     _notebooks = widget.repository.notebooks(widget.session.account.cacheKey);
+    _refreshPending();
   }
+
+  Future<void> _refreshPending() async {
+    final generation = ++_pendingRead;
+    try {
+      final ids = await widget.repository.pendingNoteIds(
+        widget.session.account.cacheKey,
+      );
+      if (mounted && generation == _pendingRead) {
+        setState(() => _pendingNoteIds = ids);
+      }
+    } on Object catch (error) {
+      if (mounted) setState(() => _syncError = '无法读取待同步状态：$error');
+    }
+  }
+
+  Widget _syncIcon() => Badge(
+    isLabelVisible: _pendingNoteIds.isNotEmpty,
+    backgroundColor: const Color(0xffb9d9c4),
+    child: const Icon(Icons.sync),
+  );
+
+  PreferredSizeWidget? get _syncStatus => _syncError == null
+      ? null
+      : PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Material(
+            color: Theme.of(context).colorScheme.errorContainer,
+            child: ListTile(
+              dense: true,
+              title: Text(
+                _syncError!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: IconButton(
+                tooltip: '关闭提示',
+                onPressed: () => setState(() => _syncError = null),
+                icon: const Icon(Icons.close),
+              ),
+            ),
+          ),
+        );
 
   Future<void> _openNotebook(Notebook notebook) async {
     final notes = await widget.repository.notes(
@@ -58,6 +104,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
   }
 
   Future<void> _reloadNotes() async {
+    await _refreshPending();
     if (_showingStarred) {
       final notes = await widget.repository.notes(
         widget.session.account.cacheKey,
@@ -160,7 +207,10 @@ class _WorkspacePageState extends State<WorkspacePage> {
     final changed = await Navigator.of(
       context,
     ).push<Note>(MaterialPageRoute(builder: (_) => NoteEditorPage(note: note)));
-    if (changed == null) return;
+    if (changed == null) {
+      await _reloadNotes();
+      return;
+    }
     await widget.repository.saveNote(widget.session, changed);
     await _reloadNotes();
   }
@@ -250,7 +300,10 @@ class _WorkspacePageState extends State<WorkspacePage> {
 
   Future<void> _sync() async {
     if (_syncing) return;
-    setState(() => _syncing = true);
+    setState(() {
+      _syncing = true;
+      _syncError = null;
+    });
     try {
       await widget.repository.synchronize(
         widget.session,
@@ -266,11 +319,13 @@ class _WorkspacePageState extends State<WorkspacePage> {
       }
     } on Object catch (error) {
       if (mounted) {
+        setState(() => _syncError = '同步失败：$error');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('同步失败：$error'), backgroundColor: Colors.red),
         );
       }
     } finally {
+      await _refreshPending();
       if (mounted) setState(() => _syncing = false);
     }
   }
@@ -316,6 +371,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
           ],
         ),
         backgroundColor: const Color(0xff173d38),
+        bottom: _syncStatus,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
@@ -436,9 +492,11 @@ class _WorkspacePageState extends State<WorkspacePage> {
               child: CircularProgressIndicator(),
             )
           : FloatingActionButton(
-              tooltip: '立即同步',
+              tooltip: _pendingNoteIds.isEmpty
+                  ? '立即同步'
+                  : '立即同步（${_pendingNoteIds.length} 篇待上传）',
               onPressed: _sync,
-              child: const Icon(Icons.sync),
+              child: _syncIcon(),
             ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: 0,
@@ -474,6 +532,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
   Widget _buildNoteList(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        bottom: _syncStatus,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => setState(() {
@@ -490,6 +549,16 @@ class _WorkspacePageState extends State<WorkspacePage> {
               : _selectedNotebook!.title,
         ),
         actions: [
+          IconButton(
+            tooltip: _syncing ? '正在同步' : '立即同步',
+            onPressed: _syncing ? null : _sync,
+            icon: _syncing
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : _syncIcon(),
+          ),
           IconButton(
             tooltip: '搜索笔记',
             onPressed: _search,
@@ -508,10 +577,28 @@ class _WorkspacePageState extends State<WorkspacePage> {
                   leading: Icon(
                     note.isMarkdown ? Icons.code : Icons.article_outlined,
                   ),
-                  title: Text(
-                    note.title.isEmpty ? '无标题' : note.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  title: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          note.title.isEmpty ? '无标题' : note.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (_pendingNoteIds.contains(note.noteId))
+                        const Tooltip(
+                          message: '本地修改尚未上传',
+                          child: Padding(
+                            padding: EdgeInsets.only(left: 6),
+                            child: Icon(
+                              Icons.circle,
+                              size: 8,
+                              color: Color(0xff173d38),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   subtitle: Text(note.updatedTime, maxLines: 1),
                   trailing: IconButton(
