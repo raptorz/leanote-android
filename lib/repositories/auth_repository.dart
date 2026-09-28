@@ -57,12 +57,30 @@ class AuthRepository {
     return StoredSession(account: result.account, token: result.token);
   }
 
-  Future<void> logout(StoredSession session) async {
-    try {
-      await _api.logout(server: session.account.server, token: session.token);
-    } on ApiException {
-      // Local sign-out must remain available while the server is offline.
+  Future<void> prepareLogout(
+    StoredSession session, {
+    SyncProgressCallback? onProgress,
+  }) async {
+    if ((await pendingNoteIds(session.account.cacheKey)).isEmpty) return;
+    await _sync.uploadPending(
+      account: session.account,
+      token: session.token,
+      onProgress: onProgress,
+    );
+    if ((await pendingNoteIds(session.account.cacheKey)).isNotEmpty) {
+      throw StateError('unsyncedChanges');
     }
+  }
+
+  Future<void> logout(
+    StoredSession session, {
+    bool discardSessionWithPendingChanges = false,
+  }) async {
+    if (!discardSessionWithPendingChanges &&
+        (await pendingNoteIds(session.account.cacheKey)).isNotEmpty) {
+      throw StateError('unsyncedChanges');
+    }
+    // Local logout retains the account cache and never waits on the network.
     await _sessions.delete(session.account.cacheKey);
     await _database.deactivate(session.account.cacheKey);
   }

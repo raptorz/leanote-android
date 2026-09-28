@@ -21,12 +21,19 @@ class SyncCoordinator {
   final Api2Client _api;
   final AppDatabase _database;
   Future<void>? _running;
+  bool _uploadingOnly = false;
 
   Future<void> synchronize({
     required Account account,
     required String token,
     SyncProgressCallback? onProgress,
   }) {
+    if (_uploadingOnly) {
+      return _running!.then(
+        (_) =>
+            synchronize(account: account, token: token, onProgress: onProgress),
+      );
+    }
     return _running ??= _synchronize(
       account: account,
       token: token,
@@ -40,24 +47,7 @@ class SyncCoordinator {
     SyncProgressCallback? onProgress,
   }) async {
     final afterUsn = await _database.lastSyncUsn(account.cacheKey);
-    final dirty = await _database.dirtyNotes(account.cacheKey);
-    onProgress?.call(SyncProgress(SyncStage.uploading, 0));
-    for (var index = 0; index < dirty.length; index++) {
-      final local = dirty[index];
-      final remote = local.usn == 0
-          ? await _api.addNote(
-              server: account.server,
-              token: token,
-              note: local,
-            )
-          : await _api.updateNote(
-              server: account.server,
-              token: token,
-              note: local,
-            );
-      await _database.markNoteUploaded(account.cacheKey, local, remote);
-      onProgress?.call(SyncProgress(SyncStage.uploading, index + 1));
-    }
+    await _uploadChanges(account, token, onProgress);
     final notebooks = await _allNotebooks(
       account,
       token,
@@ -80,6 +70,46 @@ class SyncCoordinator {
       tags: tags,
       lastSyncUsn: highestUsn,
     );
+  }
+
+  Future<void> uploadPending({
+    required Account account,
+    required String token,
+    SyncProgressCallback? onProgress,
+  }) {
+    if (_running != null) return _running!;
+    _uploadingOnly = true;
+    return _running = _uploadChanges(account, token, onProgress).whenComplete(
+      () {
+        _running = null;
+        _uploadingOnly = false;
+      },
+    );
+  }
+
+  Future<void> _uploadChanges(
+    Account account,
+    String token,
+    SyncProgressCallback? onProgress,
+  ) async {
+    final dirty = await _database.dirtyNotes(account.cacheKey);
+    onProgress?.call(SyncProgress(SyncStage.uploading, 0));
+    for (var index = 0; index < dirty.length; index++) {
+      final local = dirty[index];
+      final remote = local.usn == 0
+          ? await _api.addNote(
+              server: account.server,
+              token: token,
+              note: local,
+            )
+          : await _api.updateNote(
+              server: account.server,
+              token: token,
+              note: local,
+            );
+      await _database.markNoteUploaded(account.cacheKey, local, remote);
+      onProgress?.call(SyncProgress(SyncStage.uploading, index + 1));
+    }
   }
 
   Future<void> downloadFreshSnapshot({

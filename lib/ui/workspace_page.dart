@@ -12,6 +12,7 @@ import 'notebook_dialog.dart';
 import 'account_page.dart';
 import 'tags_page.dart';
 import 'sync_progress_dialog.dart';
+import 'logout_confirmation_dialog.dart';
 
 class WorkspacePage extends StatefulWidget {
   const WorkspacePage({
@@ -37,6 +38,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
   var _showingStarred = false;
   var _showingTrash = false;
   var _syncing = false;
+  var _loggingOut = false;
   Set<String> _pendingNoteIds = {};
   String? _syncError;
   int _pendingRead = 0;
@@ -346,7 +348,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
   }
 
   Future<void> _sync() async {
-    if (_syncing) return;
+    if (_syncing || _loggingOut) return;
     setState(() {
       _syncing = true;
       _syncError = null;
@@ -378,8 +380,41 @@ class _WorkspacePageState extends State<WorkspacePage> {
   }
 
   Future<void> _logout() async {
-    await widget.repository.logout(widget.session);
-    if (mounted) widget.onSignedOut();
+    if (_loggingOut || _syncing) return;
+    setState(() => _loggingOut = true);
+    try {
+      var leavePending = false;
+      try {
+        final pending = await widget.repository.pendingNoteIds(
+          widget.session.account.cacheKey,
+        );
+        if (!mounted) return;
+        if (pending.isNotEmpty) {
+          await showSyncProgress(
+            context,
+            synchronize: (progress) => widget.repository.prepareLogout(
+              widget.session,
+              onProgress: progress,
+            ),
+          );
+        }
+      } on Object {
+        if (!mounted) return;
+        leavePending = await confirmUnsyncedLogout(context);
+        if (!leavePending) return;
+      }
+      if (!mounted) return;
+      await widget.repository.logout(
+        widget.session,
+        discardSessionWithPendingChanges: leavePending,
+      );
+      if (mounted) widget.onSignedOut();
+    } on Object catch (error) {
+      if (mounted) setState(() => _syncError = '退出登录失败：$error');
+    } finally {
+      await _refreshPending();
+      if (mounted) setState(() => _loggingOut = false);
+    }
   }
 
   Future<void> _editNotebook({Notebook? existing, String parentId = ''}) async {
