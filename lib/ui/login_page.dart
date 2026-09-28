@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../repositories/auth_repository.dart';
-import '../sync/sync_coordinator.dart';
 import 'password_reset_page.dart';
+import 'cached_login_dialog.dart';
+import 'sync_progress_dialog.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({
@@ -25,7 +26,6 @@ class _LoginPageState extends State<LoginPage> {
   final _password = TextEditingController();
   var _busy = false;
   String? _error;
-  SyncProgress? _progress;
 
   @override
   void dispose() {
@@ -40,17 +40,36 @@ class _LoginPageState extends State<LoginPage> {
     setState(() {
       _busy = true;
       _error = null;
-      _progress = null;
     });
     try {
-      final session = await widget.repository.loginAndDownload(
+      final pending = await widget.repository.beginLogin(
         serverAddress: _server.text,
         identity: _identity.text,
         password: _password.text,
-        onProgress: (value) {
-          if (mounted) setState(() => _progress = value);
-        },
       );
+      if (!mounted) return;
+      final reset = pending.hasCache
+          ? await chooseCachedLoginReset(context)
+          : false;
+      if (!mounted) return;
+      late StoredSession session;
+      if (!pending.hasCache || reset) {
+        await showSyncProgress(
+          context,
+          synchronize: (progress) async {
+            session = await widget.repository.completeLogin(
+              pending,
+              resetCache: reset,
+              onProgress: progress,
+            );
+          },
+        );
+      } else {
+        session = await widget.repository.completeLogin(
+          pending,
+          resetCache: false,
+        );
+      }
       if (mounted) widget.onSignedIn(session);
     } on Object catch (error) {
       if (mounted) setState(() => _error = _message(error));
@@ -87,6 +106,7 @@ class _LoginPageState extends State<LoginPage> {
                         const Text('日积字句，终得珠玑。', textAlign: TextAlign.center),
                         const SizedBox(height: 28),
                         TextFormField(
+                          readOnly: _busy,
                           controller: _server,
                           keyboardType: TextInputType.url,
                           autofillHints: const [AutofillHints.url],
@@ -101,6 +121,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
+                          readOnly: _busy,
                           controller: _identity,
                           autofillHints: const [AutofillHints.username],
                           decoration: const InputDecoration(
@@ -113,6 +134,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
+                          readOnly: _busy,
                           controller: _password,
                           obscureText: true,
                           autofillHints: const [AutofillHints.password],
@@ -138,7 +160,7 @@ class _LoginPageState extends State<LoginPage> {
                               children: [
                                 const LinearProgressIndicator(),
                                 const SizedBox(height: 8),
-                                Text(_progressText(_progress)),
+                                const Text('正在登录…'),
                               ],
                             ),
                           ),
@@ -175,18 +197,6 @@ class _LoginPageState extends State<LoginPage> {
         ),
       ),
     );
-  }
-
-  static String _progressText(SyncProgress? progress) {
-    if (progress == null) return '正在登录…';
-    final label = switch (progress.stage) {
-      SyncStage.uploading => '正在上传本地修改',
-      SyncStage.notebooks => '正在同步笔记本',
-      SyncStage.notes => '正在同步笔记',
-      SyncStage.tags => '正在同步标签',
-      SyncStage.saving => '正在保存离线数据',
-    };
-    return '$label · ${progress.completed}';
   }
 
   static String _message(Object error) {

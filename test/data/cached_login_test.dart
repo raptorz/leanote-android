@@ -105,11 +105,14 @@ void main() {
         sessions,
         SyncCoordinator(api, db),
       );
-      await repository.loginAndDownload(
+      final pendingLogin = await repository.beginLogin(
         serverAddress: account.server.toString(),
         identity: 'renamed',
         password: 'test-password',
       );
+      expect(pendingLogin.hasCache, isTrue);
+      expect(await repository.restore(), isNull);
+      await repository.completeLogin(pendingLogin, resetCache: false);
       expect(requests, ['/api2/auth/login']);
       expect(
         (await db.dirtyNotes(account.cacheKey)).single.content,

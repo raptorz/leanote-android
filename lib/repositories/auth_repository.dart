@@ -15,6 +15,13 @@ class StoredSession {
   final String token;
 }
 
+class PendingLogin {
+  const PendingLogin({required this.session, required this.hasCache});
+
+  final StoredSession session;
+  final bool hasCache;
+}
+
 class AuthRepository {
   const AuthRepository(this._api, this._database, this._sessions, this._sync);
 
@@ -31,11 +38,10 @@ class AuthRepository {
     return StoredSession(account: account, token: token);
   }
 
-  Future<StoredSession> loginAndDownload({
+  Future<PendingLogin> beginLogin({
     required String serverAddress,
     required String identity,
     required String password,
-    SyncProgressCallback? onProgress,
   }) async {
     final server = normalizeServer(serverAddress);
     final result = await _api.login(
@@ -45,16 +51,34 @@ class AuthRepository {
     );
     _validateCompatibility(result);
     final cached = await _database.hasAccountCache(result.account.cacheKey);
-    if (!cached) {
+    return PendingLogin(
+      session: StoredSession(account: result.account, token: result.token),
+      hasCache: cached,
+    );
+  }
+
+  Future<StoredSession> completeLogin(
+    PendingLogin login, {
+    required bool resetCache,
+    SyncProgressCallback? onProgress,
+  }) async {
+    final session = login.session;
+    if (login.hasCache && resetCache) {
+      await _sync.resetFromServer(
+        account: session.account,
+        token: session.token,
+        onProgress: onProgress,
+      );
+    } else if (!login.hasCache) {
       await _sync.downloadFreshSnapshot(
-        account: result.account,
-        token: result.token,
+        account: session.account,
+        token: session.token,
         onProgress: onProgress,
       );
     }
-    await _sessions.write(result.account.cacheKey, result.token);
-    await _database.activateCachedAccount(result.account);
-    return StoredSession(account: result.account, token: result.token);
+    await _sessions.write(session.account.cacheKey, session.token);
+    await _database.activateCachedAccount(session.account);
+    return session;
   }
 
   Future<void> prepareLogout(
