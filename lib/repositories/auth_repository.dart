@@ -201,6 +201,18 @@ class AuthRepository {
   Future<void> saveNote(StoredSession session, Note note) =>
       _database.saveLocalNote(session.account.cacheKey, note);
 
+  Future<void> resetFromServer(
+    StoredSession session, {
+    SyncProgressCallback? onProgress,
+  }) async {
+    final profile = await cachedProfile(session);
+    await _sync.resetFromServer(
+      account: profile,
+      token: session.token,
+      onProgress: onProgress,
+    );
+  }
+
   Future<void> synchronize(
     StoredSession session, {
     SyncProgressCallback? onProgress,

@@ -13,6 +13,7 @@ import 'account_page.dart';
 import 'tags_page.dart';
 import 'sync_progress_dialog.dart';
 import 'logout_confirmation_dialog.dart';
+import 'reset_sync_dialog.dart';
 
 class WorkspacePage extends StatefulWidget {
   const WorkspacePage({
@@ -347,20 +348,37 @@ class _WorkspacePageState extends State<WorkspacePage> {
     await _editNote(note);
   }
 
-  Future<void> _sync() async {
+  Future<void> _sync({bool reset = false}) async {
     if (_syncing || _loggingOut) return;
     setState(() {
       _syncing = true;
       _syncError = null;
     });
     try {
+      if (reset && !await confirmResetSync(context)) return;
+      if (!mounted) return;
       await showSyncProgress(
         context,
-        synchronize: (progress) =>
-            widget.repository.synchronize(widget.session, onProgress: progress),
+        synchronize: (progress) => reset
+            ? widget.repository.resetFromServer(
+                widget.session,
+                onProgress: progress,
+              )
+            : widget.repository.synchronize(
+                widget.session,
+                onProgress: progress,
+              ),
       );
       if (!mounted) return;
       _notebooks = widget.repository.notebooks(widget.session.account.cacheKey);
+      if (reset) {
+        _selectedNotebook = null;
+        _selectedTag = null;
+        _showingStarred = false;
+        _showingTrash = false;
+        _notes = [];
+        _expandedNotebooks.clear();
+      }
       await _reloadNotes();
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -482,12 +500,14 @@ class _WorkspacePageState extends State<WorkspacePage> {
                 );
               }
               if (value == 'sync') _sync();
+              if (value == 'resetSync') _sync(reset: true);
               if (value == 'trash') _openTrash();
               if (value == 'logout') _logout();
             },
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'account', child: Text('账号')),
-              PopupMenuItem(value: 'sync', child: Text('同步')),
+              PopupMenuItem(value: 'sync', child: Text('立即同步')),
+              PopupMenuItem(value: 'resetSync', child: Text('重新同步')),
               PopupMenuItem(value: 'trash', child: Text('回收站')),
               PopupMenuItem(value: 'logout', child: Text('退出')),
             ],

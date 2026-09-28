@@ -116,12 +116,22 @@ class AppDatabase {
     });
   }
 
+  Future<String> noteSnapshotFingerprint(String accountId) async => jsonEncode(
+    await raw.query(
+      'notes',
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+      orderBy: 'server_id',
+    ),
+  );
+
   Future<void> replaceSnapshot({
     required Account account,
     required List<Notebook> notebooks,
     required List<Note> notes,
     required List<Map<String, Object?>> tags,
     required int lastSyncUsn,
+    String? expectedNoteSnapshot,
   }) async {
     await raw.transaction((txn) async {
       final pending = await txn.query(
@@ -131,7 +141,21 @@ class AppDatabase {
         whereArgs: [account.cacheKey],
         limit: 1,
       );
-      if (pending.isNotEmpty) throw StateError('unsyncedChanges');
+      if (expectedNoteSnapshot == null) {
+        if (pending.isNotEmpty) throw StateError('unsyncedChanges');
+      } else {
+        final current = jsonEncode(
+          await txn.query(
+            'notes',
+            where: 'account_id = ?',
+            whereArgs: [account.cacheKey],
+            orderBy: 'server_id',
+          ),
+        );
+        if (current != expectedNoteSnapshot) {
+          throw StateError('localChangesDuringReset');
+        }
+      }
       final batch = txn.batch();
       batch.update('accounts', {'is_active': 0});
       batch.insert('accounts', {

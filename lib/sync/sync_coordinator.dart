@@ -22,12 +22,14 @@ class SyncCoordinator {
   final AppDatabase _database;
   Future<void>? _running;
   bool _uploadingOnly = false;
+  bool _resetting = false;
 
   Future<void> synchronize({
     required Account account,
     required String token,
     SyncProgressCallback? onProgress,
   }) {
+    if (_resetting) return Future.error(StateError('resetInProgress'));
     if (_uploadingOnly) {
       return _running!.then(
         (_) =>
@@ -83,6 +85,7 @@ class SyncCoordinator {
     required String token,
     SyncProgressCallback? onProgress,
   }) {
+    if (_resetting) return Future.error(StateError('resetInProgress'));
     if (_running != null) return _running!;
     _uploadingOnly = true;
     return _running = _uploadChanges(account, token, onProgress).whenComplete(
@@ -118,10 +121,43 @@ class SyncCoordinator {
     }
   }
 
+  /// Destructive replacement is invoked only after explicit user confirmation.
+  Future<void> resetFromServer({
+    required Account account,
+    required String token,
+    SyncProgressCallback? onProgress,
+  }) {
+    if (_running != null) return Future.error(StateError('syncInProgress'));
+    _resetting = true;
+    return _running =
+        (() async {
+          final expected = await _database.noteSnapshotFingerprint(
+            account.cacheKey,
+          );
+          await _downloadSnapshot(
+            account: account,
+            token: token,
+            onProgress: onProgress,
+            expectedNoteSnapshot: expected,
+          );
+        })().whenComplete(() {
+          _running = null;
+          _resetting = false;
+        });
+  }
+
   Future<void> downloadFreshSnapshot({
     required Account account,
     required String token,
     SyncProgressCallback? onProgress,
+  }) =>
+      _downloadSnapshot(account: account, token: token, onProgress: onProgress);
+
+  Future<void> _downloadSnapshot({
+    required Account account,
+    required String token,
+    SyncProgressCallback? onProgress,
+    String? expectedNoteSnapshot,
   }) async {
     final checkpoint = await _api.getSyncUsn(
       server: account.server,
@@ -142,6 +178,7 @@ class SyncCoordinator {
       notes: notes,
       tags: tags,
       lastSyncUsn: checkpoint,
+      expectedNoteSnapshot: expectedNoteSnapshot,
     );
   }
 
