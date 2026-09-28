@@ -47,7 +47,8 @@ class _NotebookDialogState extends State<NotebookDialog> {
         widget.session,
         title: _title.text,
         existing: widget.existing,
-        parentNotebookId: widget.parentNotebookId,
+        parentNotebookId:
+            widget.existing?.parentNotebookId ?? widget.parentNotebookId,
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {

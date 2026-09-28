@@ -9,6 +9,7 @@ import 'note_reader_page.dart';
 import 'note_history_page.dart';
 import 'note_search_page.dart';
 import 'notebook_dialog.dart';
+import 'move_notebook_dialog.dart';
 import 'account_page.dart';
 import 'tags_page.dart';
 import 'sync_progress_dialog.dart';
@@ -435,6 +436,33 @@ class _WorkspacePageState extends State<WorkspacePage> {
     }
   }
 
+  Future<void> _moveNotebook(Notebook notebook) async {
+    final parent = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => MoveNotebookDialog(
+        repository: widget.repository,
+        session: widget.session,
+        notebook: notebook,
+      ),
+    );
+    if (parent == null || !mounted) return;
+    final notebooks = await widget.repository.notebooks(
+      widget.session.account.cacheKey,
+    );
+    if (!mounted) return;
+    setState(() {
+      _notebooks = Future.value(notebooks);
+      final byId = {for (final n in notebooks) n.notebookId: n};
+      var id = parent;
+      final visited = <String>{};
+      while (id.isNotEmpty && visited.add(id)) {
+        _expandedNotebooks.add(id);
+        id = byId[id]?.parentNotebookId ?? '';
+      }
+    });
+  }
+
   Future<void> _editNotebook({Notebook? existing, String parentId = ''}) async {
     final saved = await showDialog<bool>(
       context: context,
@@ -582,10 +610,12 @@ class _WorkspacePageState extends State<WorkspacePage> {
                         if (action == 'child') {
                           _editNotebook(parentId: notebook.notebookId);
                         }
+                        if (action == 'move') _moveNotebook(notebook);
                       },
                       itemBuilder: (_) => const [
                         PopupMenuItem(value: 'rename', child: Text('重命名')),
                         PopupMenuItem(value: 'child', child: Text('新增子笔记本')),
+                        PopupMenuItem(value: 'move', child: Text('移动')),
                       ],
                     ),
                   ],

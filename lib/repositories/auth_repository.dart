@@ -6,6 +6,7 @@ import '../domain/models/account.dart';
 import '../domain/models/note.dart';
 import '../domain/models/note_history.dart';
 import '../domain/models/notebook.dart';
+import '../domain/models/notebook_tree.dart';
 import '../sync/sync_coordinator.dart';
 
 class StoredSession {
@@ -162,7 +163,7 @@ class AuthRepository {
     StoredSession session, {
     required String title,
     Notebook? existing,
-    String parentNotebookId = '',
+    String? parentNotebookId,
   }) async {
     final trimmed = title.trim();
     if (trimmed.isEmpty) throw const FormatException('请输入笔记本名称');
@@ -174,6 +175,30 @@ class AuthRepository {
       parentNotebookId: parentNotebookId,
     );
     await _database.cacheNotebook(session.account.cacheKey, notebook);
+  }
+
+  Future<void> moveNotebook(
+    StoredSession session,
+    String notebookId,
+    String parentId,
+  ) async {
+    final current = await notebooks(session.account.cacheKey);
+    if (!canMoveNotebook(current, notebookId, parentId)) {
+      throw const FormatException('目标笔记本无效，不能移到自身、子级或循环层级下');
+    }
+    final source = current.firstWhere((n) => n.notebookId == notebookId);
+    if (source.parentNotebookId == parentId) return;
+    final moved = await _api.saveNotebook(
+      server: session.account.server,
+      token: session.token,
+      title: source.title,
+      existing: source,
+      parentNotebookId: parentId,
+    );
+    if (moved.parentNotebookId != parentId || moved.isDeleted) {
+      throw const ApiException('invalidResponse');
+    }
+    await _database.cacheNotebook(session.account.cacheKey, moved);
   }
 
   Future<List<Note>> notes(

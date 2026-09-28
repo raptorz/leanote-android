@@ -1,5 +1,26 @@
 import 'notebook.dart';
 
+/// Validate original parent links, not the presentation tree's repaired edges.
+bool canMoveNotebook(
+  Iterable<Notebook> notebooks,
+  String sourceId,
+  String parentId,
+) {
+  final byId = {
+    for (final n in notebooks.where((n) => !n.isDeleted)) n.notebookId: n,
+  };
+  if (!byId.containsKey(sourceId)) return false;
+  final visited = <String>{sourceId};
+  var current = parentId;
+  while (current.isNotEmpty) {
+    if (!visited.add(current)) return false;
+    final notebook = byId[current];
+    if (notebook == null) return false;
+    current = notebook.parentNotebookId;
+  }
+  return true;
+}
+
 class NotebookTreeRow {
   const NotebookTreeRow(this.notebook, this.depth, this.hasChildren);
   final Notebook notebook;

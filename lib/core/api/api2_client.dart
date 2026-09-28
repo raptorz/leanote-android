@@ -205,7 +205,7 @@ class Api2Client {
     required Uri server,
     required String token,
     required String title,
-    String parentNotebookId = '',
+    String? parentNotebookId,
     Notebook? existing,
   }) async {
     final data = await _requestFormJson(
@@ -216,7 +216,8 @@ class Api2Client {
       token: token,
       fields: {
         'title': title,
-        'parentNotebookId': existing?.parentNotebookId ?? parentNotebookId,
+        'parentNotebookId':
+            parentNotebookId ?? existing?.parentNotebookId ?? '',
         'seq': '${existing?.sequence ?? 0}',
         if (existing != null) 'notebookId': existing.notebookId,
         if (existing != null) 'usn': '${existing.usn}',
