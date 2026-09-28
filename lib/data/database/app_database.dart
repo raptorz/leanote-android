@@ -410,6 +410,35 @@ class AppDatabase {
     return note;
   }
 
+  Future<void> saveEditedText(
+    String accountId,
+    String noteId,
+    String title,
+    String content,
+  ) => raw.transaction((txn) async {
+    final rows = await txn.query(
+      'notes',
+      columns: ['title', 'content'],
+      where: 'account_id = ? AND server_id = ? AND local_is_deleted = 0',
+      whereArgs: [accountId, noteId],
+    );
+    if (rows.isEmpty) throw StateError('localNoteMissing');
+    if (rows.single['title'] == title && rows.single['content'] == content) {
+      return;
+    }
+    await txn.update(
+      'notes',
+      {
+        'title': title,
+        'content': content,
+        'updated_time': DateTime.now().toUtc().toIso8601String(),
+        'is_dirty': 1,
+      },
+      where: 'account_id = ? AND server_id = ?',
+      whereArgs: [accountId, noteId],
+    );
+  });
+
   Future<void> saveLocalNote(String accountId, Note note) =>
       _writeNote(accountId, note, isDirty: true, isNew: note.usn == 0);
 

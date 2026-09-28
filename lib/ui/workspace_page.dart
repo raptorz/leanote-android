@@ -246,14 +246,19 @@ class _WorkspacePageState extends State<WorkspacePage> {
   }
 
   Future<void> _editNote(Note note) async {
-    final changed = await Navigator.of(
-      context,
-    ).push<Note>(MaterialPageRoute(builder: (_) => NoteEditorPage(note: note)));
-    if (changed == null) {
-      await _reloadNotes();
-      return;
-    }
-    await widget.repository.saveNote(widget.session, changed);
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => NoteEditorPage(
+          note: note,
+          saveText: (title, content) => widget.repository.saveEditedText(
+            widget.session,
+            note.noteId,
+            title,
+            content,
+          ),
+        ),
+      ),
+    );
     await _reloadNotes();
   }
 

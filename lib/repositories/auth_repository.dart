@@ -168,6 +168,18 @@ class AuthRepository {
     isMarkdown: isMarkdown,
   );
 
+  Future<void> saveEditedText(
+    StoredSession session,
+    String noteId,
+    String title,
+    String content,
+  ) => _database.saveEditedText(
+    session.account.cacheKey,
+    noteId,
+    title,
+    content,
+  );
+
   Future<void> saveNote(StoredSession session, Note note) =>
       _database.saveLocalNote(session.account.cacheKey, note);
 
