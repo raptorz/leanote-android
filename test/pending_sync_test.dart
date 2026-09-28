@@ -44,10 +44,14 @@ void main() {
           tags: [],
           lastSyncUsn: 1,
         );
-        await db.createLocalNote(
+        final draft = await db.createLocalNote(
           account: account,
           notebookId: notebook.notebookId,
           isMarkdown: true,
+        );
+        await db.saveLocalNote(
+          account.cacheKey,
+          draft.copyWith(tags: ['mobile']),
         );
       });
       addTearDown(db.raw.close);
@@ -74,6 +78,28 @@ void main() {
       });
       await tester.pumpAndSettle();
       expect(find.byTooltip('立即同步（1 篇待上传）'), findsOneWidget);
+      await tester.tap(find.byTooltip('标签'));
+      await tester.pump();
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('mobile'), findsOneWidget);
+      expect(find.text('1'), findsOneWidget);
+      await tester.runAsync(() async {
+        await tester.tap(find.text('mobile'));
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      });
+      await tester.pumpAndSettle();
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('mobile'), findsOneWidget);
+      expect(find.byTooltip('本地修改尚未上传'), findsOneWidget);
+      expect(find.byType(FloatingActionButton), findsNothing);
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pumpAndSettle();
       await tester.runAsync(() async {
         await tester.tap(find.text('Life'));
         await Future<void>.delayed(const Duration(milliseconds: 100));

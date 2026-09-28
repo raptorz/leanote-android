@@ -315,6 +315,38 @@ class AppDatabase {
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
+  Future<Map<String, int>> tagCounts(String accountId) async {
+    final rows = await raw.query(
+      'notes',
+      columns: ['tags_json'],
+      where: 'account_id = ? AND is_trash = 0 AND local_is_deleted = 0',
+      whereArgs: [accountId],
+    );
+    final counts = <String, int>{};
+    for (final row in rows) {
+      final tags = (jsonDecode(row['tags_json'] as String) as List)
+          .cast<String>()
+          .where((tag) => tag.trim().isNotEmpty)
+          .toSet();
+      for (final tag in tags) {
+        counts.update(tag, (count) => count + 1, ifAbsent: () => 1);
+      }
+    }
+    final names = counts.keys.toList()
+      ..sort((a, b) {
+        final order = a.toLowerCase().compareTo(b.toLowerCase());
+        return order == 0 ? a.compareTo(b) : order;
+      });
+    return {for (final name in names) name: counts[name]!};
+  }
+
+  Future<List<Note>> notesForTag(String accountId, String tag) async {
+    if (tag.trim().isEmpty) return [];
+    return (await notes(accountId))
+        .where((note) => note.tags.contains(tag))
+        .toList(growable: false);
+  }
+
   Future<List<Note>> notes(
     String accountId, {
     String? notebookId,

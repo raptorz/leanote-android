@@ -10,6 +10,7 @@ import 'note_history_page.dart';
 import 'note_search_page.dart';
 import 'notebook_dialog.dart';
 import 'account_page.dart';
+import 'tags_page.dart';
 
 class WorkspacePage extends StatefulWidget {
   const WorkspacePage({
@@ -31,6 +32,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
   late Future<List<Notebook>> _notebooks;
   List<Note> _notes = const [];
   Notebook? _selectedNotebook;
+  String? _selectedTag;
   var _showingStarred = false;
   var _showingTrash = false;
   var _syncing = false;
@@ -96,6 +98,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
     if (mounted) {
       setState(() {
         _selectedNotebook = notebook;
+        _selectedTag = null;
         _showingStarred = false;
         _showingTrash = false;
         _notes = notes;
@@ -105,6 +108,14 @@ class _WorkspacePageState extends State<WorkspacePage> {
 
   Future<void> _reloadNotes() async {
     await _refreshPending();
+    if (_selectedTag != null) {
+      final notes = await widget.repository.notesForTag(
+        widget.session.account.cacheKey,
+        _selectedTag!,
+      );
+      if (mounted) setState(() => _notes = notes);
+      return;
+    }
     if (_showingStarred) {
       final notes = await widget.repository.notes(
         widget.session.account.cacheKey,
@@ -126,6 +137,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
   }
 
   Future<void> _openStarred() async {
+    _selectedTag = null;
     final notes = await widget.repository.notes(
       widget.session.account.cacheKey,
       starredOnly: true,
@@ -141,6 +153,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
   }
 
   Future<void> _openTrash() async {
+    _selectedTag = null;
     final notes = await widget.repository.notes(
       widget.session.account.cacheKey,
       trashOnly: true,
@@ -189,6 +202,34 @@ class _WorkspacePageState extends State<WorkspacePage> {
       ),
     );
     await _reloadNotes();
+  }
+
+  Future<void> _openTags() async {
+    final tag = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => TagsPage(
+          repository: widget.repository,
+          accountId: widget.session.account.cacheKey,
+        ),
+      ),
+    );
+    if (tag == null || !mounted) return;
+    try {
+      final notes = await widget.repository.notesForTag(
+        widget.session.account.cacheKey,
+        tag,
+      );
+      if (!mounted) return;
+      setState(() {
+        _selectedTag = tag;
+        _selectedNotebook = null;
+        _showingStarred = false;
+        _showingTrash = false;
+        _notes = notes;
+      });
+    } on Object catch (error) {
+      if (mounted) setState(() => _syncError = '读取标签笔记失败：$error');
+    }
   }
 
   Future<void> _search() async {
@@ -358,7 +399,10 @@ class _WorkspacePageState extends State<WorkspacePage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_selectedNotebook != null || _showingStarred || _showingTrash) {
+    if (_selectedNotebook != null ||
+        _selectedTag != null ||
+        _showingStarred ||
+        _showingTrash) {
       return _buildNoteList(context);
     }
     return Scaffold(
@@ -374,6 +418,11 @@ class _WorkspacePageState extends State<WorkspacePage> {
         bottom: _syncStatus,
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            tooltip: '标签',
+            onPressed: _openTags,
+            icon: const Icon(Icons.label_outline),
+          ),
           IconButton(
             tooltip: '新建笔记本',
             onPressed: () => _editNotebook(),
@@ -537,16 +586,18 @@ class _WorkspacePageState extends State<WorkspacePage> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => setState(() {
             _selectedNotebook = null;
+            _selectedTag = null;
             _showingStarred = false;
             _showingTrash = false;
           }),
         ),
         title: Text(
-          _showingStarred
-              ? '已加星'
-              : _showingTrash
-              ? '回收站'
-              : _selectedNotebook!.title,
+          _selectedTag ??
+              (_showingStarred
+                  ? '已加星'
+                  : _showingTrash
+                  ? '回收站'
+                  : _selectedNotebook!.title),
         ),
         actions: [
           IconButton(
@@ -613,7 +664,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
                 );
               },
             ),
-      floatingActionButton: _showingStarred || _showingTrash
+      floatingActionButton:
+          _selectedTag != null || _showingStarred || _showingTrash
           ? null
           : FloatingActionButton(
               onPressed: () => showModalBottomSheet<void>(

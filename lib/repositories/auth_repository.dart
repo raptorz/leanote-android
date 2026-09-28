@@ -146,6 +146,12 @@ class AuthRepository {
     trashOnly: trashOnly,
   );
 
+  Future<Map<String, int>> tagCounts(String accountId) =>
+      _database.tagCounts(accountId);
+
+  Future<List<Note>> notesForTag(String accountId, String tag) =>
+      _database.notesForTag(accountId, tag);
+
   Future<Set<String>> pendingNoteIds(String accountId) =>
       _database.pendingNoteIds(accountId);
 
