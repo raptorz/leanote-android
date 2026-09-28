@@ -11,6 +11,7 @@ import 'note_search_page.dart';
 import 'notebook_dialog.dart';
 import 'account_page.dart';
 import 'tags_page.dart';
+import 'sync_progress_dialog.dart';
 
 class WorkspacePage extends StatefulWidget {
   const WorkspacePage({
@@ -346,12 +347,12 @@ class _WorkspacePageState extends State<WorkspacePage> {
       _syncError = null;
     });
     try {
-      await widget.repository.synchronize(
-        widget.session,
-        onProgress: (value) {
-          if (mounted) setState(() {});
-        },
+      await showSyncProgress(
+        context,
+        synchronize: (progress) =>
+            widget.repository.synchronize(widget.session, onProgress: progress),
       );
+      if (!mounted) return;
       _notebooks = widget.repository.notebooks(widget.session.account.cacheKey);
       await _reloadNotes();
       if (mounted) {

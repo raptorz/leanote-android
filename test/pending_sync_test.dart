@@ -108,6 +108,7 @@ void main() {
       expect(find.byTooltip('本地修改尚未上传'), findsOneWidget);
       await tester.runAsync(() async {
         await tester.tap(find.byTooltip('立即同步'));
+        await tester.pump();
         await Future<void>.delayed(const Duration(milliseconds: 100));
       });
       await tester.pumpAndSettle();

@@ -41,6 +41,7 @@ class SyncCoordinator {
   }) async {
     final afterUsn = await _database.lastSyncUsn(account.cacheKey);
     final dirty = await _database.dirtyNotes(account.cacheKey);
+    onProgress?.call(SyncProgress(SyncStage.uploading, 0));
     for (var index = 0; index < dirty.length; index++) {
       final local = dirty[index];
       final remote = local.usn == 0
@@ -124,6 +125,7 @@ class SyncCoordinator {
     required int afterUsn,
   }) async {
     final result = <Notebook>[];
+    progress?.call(SyncProgress(SyncStage.notebooks, 0));
     var cursor = afterUsn;
     while (true) {
       final page = await _api.getNotebooks(
@@ -151,6 +153,7 @@ class SyncCoordinator {
     required int afterUsn,
   }) async {
     final result = <Note>[];
+    progress?.call(SyncProgress(SyncStage.notes, 0));
     var cursor = afterUsn;
     while (true) {
       final page = await _api.getNotesWithContent(
@@ -178,6 +181,7 @@ class SyncCoordinator {
     required int afterUsn,
   }) async {
     final result = <Map<String, Object?>>[];
+    progress?.call(SyncProgress(SyncStage.tags, 0));
     var cursor = afterUsn;
     while (true) {
       final page = await _api.getTags(
