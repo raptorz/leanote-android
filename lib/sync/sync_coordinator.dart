@@ -48,6 +48,13 @@ class SyncCoordinator {
   }) async {
     final afterUsn = await _database.lastSyncUsn(account.cacheKey);
     await _uploadChanges(account, token, onProgress);
+    // Fix the checkpoint before reading separate resource streams. A change
+    // arriving later must remain eligible for the next incremental download.
+    final checkpoint = await _api.getSyncUsn(
+      server: account.server,
+      token: token,
+    );
+    if (checkpoint < afterUsn) throw StateError('serverSyncStateReset');
     final notebooks = await _allNotebooks(
       account,
       token,
@@ -61,14 +68,13 @@ class SyncCoordinator {
       afterUsn: afterUsn,
     );
     final tags = await _allTags(account, token, onProgress, afterUsn: afterUsn);
-    final highestUsn = _highestUsn(afterUsn, notebooks, notes, tags);
     onProgress?.call(SyncProgress(SyncStage.saving, notes.length));
     await _database.mergeChanges(
       account: account,
       notebooks: notebooks,
       notes: notes,
       tags: tags,
-      lastSyncUsn: highestUsn,
+      lastSyncUsn: checkpoint,
     );
   }
 
@@ -117,6 +123,10 @@ class SyncCoordinator {
     required String token,
     SyncProgressCallback? onProgress,
   }) async {
+    final checkpoint = await _api.getSyncUsn(
+      server: account.server,
+      token: token,
+    );
     final notebooks = await _allNotebooks(
       account,
       token,
@@ -125,28 +135,15 @@ class SyncCoordinator {
     );
     final notes = await _allNotes(account, token, onProgress, afterUsn: 0);
     final tags = await _allTags(account, token, onProgress, afterUsn: 0);
-    final highestUsn = _highestUsn(0, notebooks, notes, tags);
     onProgress?.call(SyncProgress(SyncStage.saving, notes.length));
     await _database.replaceSnapshot(
       account: account,
       notebooks: notebooks,
       notes: notes,
       tags: tags,
-      lastSyncUsn: highestUsn,
+      lastSyncUsn: checkpoint,
     );
   }
-
-  static int _highestUsn(
-    int initial,
-    List<Notebook> notebooks,
-    List<Note> notes,
-    List<Map<String, Object?>> tags,
-  ) => <int>[
-    initial,
-    ...notebooks.map((item) => item.usn),
-    ...notes.map((item) => item.usn),
-    ...tags.map((item) => _integer(item['Usn'])),
-  ].fold<int>(0, (highest, value) => value > highest ? value : highest);
 
   Future<List<Notebook>> _allNotebooks(
     Account account,
@@ -170,7 +167,7 @@ class SyncCoordinator {
         cursor,
         (usn, item) => item.usn > usn ? item.usn : usn,
       );
-      if (next <= cursor) break;
+      if (next <= cursor) throw StateError('notebookSyncCursorStalled');
       cursor = next;
     }
     return result;
@@ -198,7 +195,7 @@ class SyncCoordinator {
         cursor,
         (usn, item) => item.usn > usn ? item.usn : usn,
       );
-      if (next <= cursor) break;
+      if (next <= cursor) throw StateError('noteSyncCursorStalled');
       cursor = next;
     }
     return result;
@@ -226,7 +223,7 @@ class SyncCoordinator {
         final value = _integer(item['Usn']);
         return value > usn ? value : usn;
       });
-      if (next <= cursor) break;
+      if (next <= cursor) throw StateError('tagSyncCursorStalled');
       cursor = next;
     }
     return result;

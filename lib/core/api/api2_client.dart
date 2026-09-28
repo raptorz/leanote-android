@@ -53,6 +53,20 @@ class Api2Client {
     );
   }
 
+  Future<int> getSyncUsn({required Uri server, required String token}) async {
+    final data = await _requestJson(
+      server: server,
+      path: '/api2/user/getSyncState',
+      method: 'GET',
+      token: token,
+    );
+    final value = data['LastSyncUsn'];
+    if (value is! int || value < 0) {
+      throw const ApiException('invalidSyncState');
+    }
+    return value;
+  }
+
   Future<List<Notebook>> getNotebooks({
     required Uri server,
     required String token,
