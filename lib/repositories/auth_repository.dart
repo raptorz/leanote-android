@@ -188,6 +188,12 @@ class AuthRepository {
     );
   }
 
+  Future<void> requestPasswordReset(String serverAddress, String email) =>
+      _api.requestPasswordReset(
+        server: normalizeServer(serverAddress),
+        email: email.trim(),
+      );
+
   static void _validateCompatibility(LoginResult result) {
     if (_compareVersions(
           Api2Client.clientVersion,

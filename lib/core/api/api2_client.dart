@@ -117,6 +117,19 @@ class Api2Client {
     return Account.fromJson(data, server: server);
   }
 
+  Future<void> requestPasswordReset({
+    required Uri server,
+    required String email,
+  }) async {
+    final response = await _requestJson(
+      server: server,
+      path: '/api2/auth/password/request',
+      method: 'POST',
+      body: {'email': email},
+    );
+    if (response['Ok'] != true) throw const ApiException('invalidResponse');
+  }
+
   Future<List<NoteHistory>> getHistories({
     required Uri server,
     required String token,

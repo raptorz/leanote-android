@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../repositories/auth_repository.dart';
 import '../sync/sync_coordinator.dart';
+import 'password_reset_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({
@@ -146,7 +147,24 @@ class _LoginPageState extends State<LoginPage> {
                           onPressed: _busy ? null : _login,
                           child: const Text('登录'),
                         ),
-                        TextButton(onPressed: null, child: const Text('找回密码')),
+                        TextButton(
+                          onPressed: _busy
+                              ? null
+                              : () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => PasswordResetPage(
+                                        repository: widget.repository,
+                                        serverAddress: _server.text,
+                                        email: _identity.text.contains('@')
+                                            ? _identity.text
+                                            : '',
+                                      ),
+                                    ),
+                                  );
+                                },
+                          child: const Text('找回密码'),
+                        ),
                       ],
                     ),
                   ),
