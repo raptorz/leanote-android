@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../domain/models/account.dart';
 import '../repositories/auth_repository.dart';
+import 'account_avatar.dart';
 
 class AccountPage extends StatefulWidget {
   const AccountPage({
@@ -100,20 +101,7 @@ class _AccountPageState extends State<AccountPage> {
       padding: const EdgeInsets.all(24),
       children: [
         if (_busy) const LinearProgressIndicator(),
-        Center(
-          child: ClipOval(
-            child: _avatar == null
-                ? const Icon(Icons.account_circle, size: 80)
-                : Image.memory(
-                    _avatar!,
-                    width: 80,
-                    height: 80,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) =>
-                        const Icon(Icons.account_circle, size: 80),
-                  ),
-          ),
-        ),
+        Center(child: AccountAvatar(bytes: _avatar, size: 80)),
         if (_error != null)
           Text(
             _error!,

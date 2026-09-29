@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../domain/models/note.dart';
@@ -13,6 +15,7 @@ import 'note_search_page.dart';
 import 'notebook_dialog.dart';
 import 'move_notebook_dialog.dart';
 import 'account_page.dart';
+import 'account_avatar.dart';
 import 'tags_page.dart';
 import 'sync_progress_dialog.dart';
 import 'logout_confirmation_dialog.dart';
@@ -48,6 +51,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
   Set<String> _pendingNoteIds = {};
   String? _syncError;
   int _pendingRead = 0;
+  Uint8List? _avatar;
+  int _avatarRead = 0;
   final _expandedNotebooks = <String>{};
 
   @override
@@ -55,6 +60,31 @@ class _WorkspacePageState extends State<WorkspacePage> {
     super.initState();
     _notebooks = widget.repository.notebooks(widget.session.account.cacheKey);
     _refreshPending();
+    _refreshAvatarCache();
+  }
+
+  Future<void> _refreshAvatarCache() async {
+    final generation = ++_avatarRead;
+    try {
+      final bytes = await widget.repository.cachedAvatar(widget.session);
+      if (mounted && generation == _avatarRead) {
+        setState(() => _avatar = bytes);
+      }
+    } on Object catch (error) {
+      if (mounted && generation == _avatarRead) {
+        setState(() => _syncError = '读取头像缓存失败：$error');
+      }
+    }
+  }
+
+  Future<void> _openAccount() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            AccountPage(repository: widget.repository, session: widget.session),
+      ),
+    );
+    if (mounted) await _refreshAvatarCache();
   }
 
   Future<void> _refreshPending() async {
@@ -447,6 +477,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
       );
       if (!mounted) return;
       _notebooks = widget.repository.notebooks(widget.session.account.cacheKey);
+      await _refreshAvatarCache();
+      if (!mounted) return;
       if (reset) {
         _selectedNotebook = null;
         _selectedTag = null;
@@ -592,16 +624,10 @@ class _WorkspacePageState extends State<WorkspacePage> {
             icon: const Icon(Icons.create_new_folder_outlined),
           ),
           PopupMenuButton<String>(
+            tooltip: '账号菜单',
             onSelected: (value) {
               if (value == 'account') {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => AccountPage(
-                      repository: widget.repository,
-                      session: widget.session,
-                    ),
-                  ),
-                );
+                _openAccount();
               }
               if (value == 'sync') _sync();
               if (value == 'resetSync') _sync(reset: true);
@@ -617,7 +643,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
             ],
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: CircleAvatar(child: Text(_initials)),
+              child: AccountAvatar(bytes: _avatar),
             ),
           ),
         ],
@@ -889,11 +915,6 @@ class _WorkspacePageState extends State<WorkspacePage> {
               child: const Icon(Icons.add),
             ),
     );
-  }
-
-  String get _initials {
-    final name = widget.session.account.username.trim();
-    return name.isEmpty ? '?' : name.characters.first.toUpperCase();
   }
 }
 
