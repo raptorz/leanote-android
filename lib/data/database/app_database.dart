@@ -444,6 +444,40 @@ class AppDatabase {
     return note;
   }
 
+  Future<void> saveNoteTags(
+    String accountId,
+    String noteId,
+    List<String> tags,
+  ) => raw.transaction((txn) async {
+    final normalized = tags
+        .map((tag) => tag.trim())
+        .where((tag) => tag.isNotEmpty)
+        .toSet()
+        .toList();
+    final rows = await txn.query(
+      'notes',
+      where: 'account_id = ? AND server_id = ? AND local_is_deleted = 0',
+      whereArgs: [accountId, noteId],
+    );
+    if (rows.isEmpty) throw StateError('localNoteMissing');
+    final current = _noteFromRow(rows.single);
+    if (jsonEncode(current.tags) == jsonEncode(normalized)) return;
+    // Also guard new notes: an add request may already be in flight.
+    if (normalized.isEmpty) {
+      throw const FormatException('当前服务端接口不支持清空全部标签，请至少保留一个标签');
+    }
+    await txn.update(
+      'notes',
+      {
+        'tags_json': jsonEncode(normalized),
+        'is_dirty': 1,
+        'updated_time': DateTime.now().toUtc().toIso8601String(),
+      },
+      where: 'account_id = ? AND server_id = ?',
+      whereArgs: [accountId, noteId],
+    );
+  });
+
   Future<void> saveEditedText(
     String accountId,
     String noteId,

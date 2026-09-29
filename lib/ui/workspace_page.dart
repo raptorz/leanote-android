@@ -7,6 +7,7 @@ import '../domain/models/notebook_tree.dart';
 import '../repositories/auth_repository.dart';
 import 'note_editor_page.dart';
 import 'note_reader_page.dart';
+import 'note_tags_dialog.dart';
 import 'note_history_page.dart';
 import 'note_search_page.dart';
 import 'notebook_dialog.dart';
@@ -224,6 +225,20 @@ class _WorkspacePageState extends State<WorkspacePage> {
                   return restored == true;
                 },
           onEdit: () => _editNote(note),
+          onEditTags: () async =>
+              await showDialog<bool>(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => NoteTagsDialog(
+                  tags: note.tags,
+                  onSave: (tags) => widget.repository.saveNoteTags(
+                    widget.session,
+                    note.noteId,
+                    tags,
+                  ),
+                ),
+              ) ==
+              true,
           onDeleteForever: note.isTrash ? () => _deleteForever(note) : null,
           onToggleStar: () => _toggleStar(note),
           onMove: () => _moveNote(note),

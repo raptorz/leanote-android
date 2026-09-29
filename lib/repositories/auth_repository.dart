@@ -283,6 +283,12 @@ class AuthRepository {
   Future<void> deleteTrash(StoredSession session, String noteId) =>
       _database.deleteLocalTrash(session.account.cacheKey, noteId);
 
+  Future<void> saveNoteTags(
+    StoredSession session,
+    String noteId,
+    List<String> tags,
+  ) => _database.saveNoteTags(session.account.cacheKey, noteId, tags);
+
   Future<void> saveNote(StoredSession session, Note note) =>
       _database.saveLocalNote(session.account.cacheKey, note);
 
