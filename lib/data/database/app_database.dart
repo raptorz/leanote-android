@@ -406,15 +406,24 @@ class AppDatabase {
     return rows.map(_noteFromRow).toList(growable: false);
   }
 
-  Future<List<Note>> searchNotes(String accountId, String query) async {
-    final pattern = '%${query.replaceAll('%', r'\%').replaceAll('_', r'\_')}%';
+  Future<List<Note>> searchNotes(
+    String accountId,
+    String query, {
+    int limit = 50,
+  }) async {
+    if (limit < 1) throw ArgumentError.value(limit, 'limit');
+    final escaped = query
+        .replaceAll('\\', r'\\')
+        .replaceAll('%', r'\%')
+        .replaceAll('_', r'\_');
+    final pattern = '%$escaped%';
     final rows = await raw.query(
       'notes',
       where: '''account_id = ? AND is_trash = 0 AND local_is_deleted = 0
         AND (title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\')''',
       whereArgs: [accountId, pattern, pattern],
       orderBy: 'updated_time DESC, server_id',
-      limit: 100,
+      limit: limit,
     );
     return rows.map(_noteFromRow).toList(growable: false);
   }
