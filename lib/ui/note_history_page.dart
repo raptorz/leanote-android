@@ -23,14 +23,18 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
   late Future<List<NoteHistory>> _histories;
   String? _loading;
   String? _error;
+  bool _cachedOnly = false;
   @override
   void initState() {
     super.initState();
     _histories = _load();
   }
 
-  Future<List<NoteHistory>> _load() =>
-      widget.repository.histories(widget.session, widget.note.noteId);
+  Future<List<NoteHistory>> _load() => widget.repository.histories(
+    widget.session,
+    widget.note.noteId,
+    cachedOnly: _cachedOnly,
+  );
 
   Future<void> _restore(NoteHistory history) async {
     if (_loading != null) return;
@@ -63,6 +67,7 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
         widget.session,
         widget.note.noteId,
         history.id,
+        cachedOnly: _cachedOnly,
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
@@ -83,6 +88,7 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
         widget.session,
         widget.note.noteId,
         history.id,
+        cachedOnly: _cachedOnly,
       );
       if (!mounted) return;
       await Navigator.of(context).push(
@@ -109,6 +115,18 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
     appBar: AppBar(title: const Text('历史版本')),
     body: Column(
       children: [
+        SwitchListTile(
+          title: const Text('离线缓存'),
+          subtitle: const Text('仅显示上次缓存的列表；已查看的正文可离线阅读和恢复，不包含图片附件。'),
+          value: _cachedOnly,
+          onChanged: _loading != null
+              ? null
+              : (value) => setState(() {
+                  _cachedOnly = value;
+                  _error = null;
+                  _histories = _load();
+                }),
+        ),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.all(16),
@@ -121,6 +139,9 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
           child: FutureBuilder<List<NoteHistory>>(
             future: _histories,
             builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
               if (snapshot.hasError) {
                 return Center(
                   child: Column(
@@ -139,7 +160,11 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
                 return const Center(child: CircularProgressIndicator());
               }
               final items = snapshot.data!;
-              if (items.isEmpty) return const Center(child: Text('暂无历史版本'));
+              if (items.isEmpty) {
+                return Center(
+                  child: Text(_cachedOnly ? '暂无缓存的历史版本' : '暂无历史版本'),
+                );
+              }
               return ListView.builder(
                 itemCount: items.length,
                 itemBuilder: (context, index) {

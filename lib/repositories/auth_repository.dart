@@ -131,9 +131,15 @@ class AuthRepository {
   Future<void> restoreHistory(
     StoredSession session,
     String noteId,
-    String historyId,
-  ) async {
-    final content = await historyContent(session, noteId, historyId);
+    String historyId, {
+    bool cachedOnly = false,
+  }) async {
+    final content = await historyContent(
+      session,
+      noteId,
+      historyId,
+      cachedOnly: cachedOnly,
+    );
     await _database.restoreHistoryContent(
       session.account.cacheKey,
       noteId,
@@ -141,23 +147,50 @@ class AuthRepository {
     );
   }
 
-  Future<List<NoteHistory>> histories(StoredSession session, String noteId) =>
-      _api.getHistories(
-        server: session.account.server,
-        token: session.token,
-        noteId: noteId,
-      );
+  Future<List<NoteHistory>> histories(
+    StoredSession session,
+    String noteId, {
+    bool cachedOnly = false,
+  }) async {
+    if (cachedOnly) {
+      return _database.cachedHistories(session.account.cacheKey, noteId);
+    }
+    final items = await _api.getHistories(
+      server: session.account.server,
+      token: session.token,
+      noteId: noteId,
+    );
+    await _database.cacheHistories(session.account.cacheKey, noteId, items);
+    return items;
+  }
 
   Future<String> historyContent(
     StoredSession session,
     String noteId,
-    String historyId,
-  ) => _api.getHistoryContent(
-    server: session.account.server,
-    token: session.token,
-    noteId: noteId,
-    historyId: historyId,
-  );
+    String historyId, {
+    bool cachedOnly = false,
+  }) async {
+    if (cachedOnly) {
+      return _database.cachedHistoryContent(
+        session.account.cacheKey,
+        noteId,
+        historyId,
+      );
+    }
+    final content = await _api.getHistoryContent(
+      server: session.account.server,
+      token: session.token,
+      noteId: noteId,
+      historyId: historyId,
+    );
+    await _database.cacheHistoryContent(
+      session.account.cacheKey,
+      noteId,
+      historyId,
+      content,
+    );
+    return content;
+  }
 
   Future<void> saveNotebook(
     StoredSession session, {

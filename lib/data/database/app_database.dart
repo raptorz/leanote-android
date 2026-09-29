@@ -7,12 +7,13 @@ import 'package:sqflite/sqflite.dart';
 
 import '../../domain/models/account.dart';
 import '../../domain/models/note.dart';
+import '../../domain/models/note_history.dart';
 import '../../domain/models/notebook.dart';
 
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 1;
+  static const schemaVersion = 2;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -30,6 +31,9 @@ class AppDatabase {
         for (final statement in _schema) {
           await db.execute(statement);
         }
+      },
+      onUpgrade: (db, oldVersion, _) async {
+        if (oldVersion < 2) await db.execute(_historySchema);
       },
     );
     return AppDatabase._(database);
@@ -261,6 +265,11 @@ class AppDatabase {
       }
       for (final note in notes) {
         if (note.isDeleted) {
+          batch.delete(
+            'note_histories',
+            where: 'account_id = ? AND note_id = ?',
+            whereArgs: [account.cacheKey, note.noteId],
+          );
           batch.delete(
             'notes',
             where: 'account_id = ? AND server_id = ?',
@@ -494,14 +503,118 @@ class AppDatabase {
     if (changed != 1) throw StateError('trashNoteMissing');
   }
 
-  Future<void> acknowledgeDeletion(String accountId, Note note) async {
-    final changed = await raw.delete(
+  Future<void> acknowledgeDeletion(String accountId, Note note) =>
+      raw.transaction((txn) async {
+        final changed = await txn.delete(
+          'notes',
+          where: 'account_id = ? AND server_id = ? AND local_is_deleted = 1 AND usn = ?',
+          whereArgs: [accountId, note.noteId, note.usn],
+        );
+        if (changed != 1) throw StateError('localChangesDuringDeletion');
+        await txn.delete(
+          'note_histories',
+          where: 'account_id = ? AND note_id = ?',
+          whereArgs: [accountId, note.noteId],
+        );
+      });
+
+  Future<void> _requireLiveNote(
+    DatabaseExecutor db,
+    String accountId,
+    String noteId,
+  ) async {
+    final rows = await db.query(
       'notes',
-      where: 'account_id = ? AND server_id = ? AND local_is_deleted = 1 AND usn = ?',
-      whereArgs: [accountId, note.noteId, note.usn],
+      columns: ['server_id'],
+      where: 'account_id = ? AND server_id = ? AND local_is_deleted = 0',
+      whereArgs: [accountId, noteId],
     );
-    if (changed != 1) throw StateError('localChangesDuringDeletion');
+    if (rows.isEmpty) throw StateError('localNoteMissing');
   }
+
+  Future<void> cacheHistories(
+    String accountId,
+    String noteId,
+    List<NoteHistory> histories,
+  ) => raw.transaction((txn) async {
+    await _requireLiveNote(txn, accountId, noteId);
+    final old = await txn.query(
+      'note_histories',
+      where: 'account_id = ? AND note_id = ?',
+      whereArgs: [accountId, noteId],
+    );
+    final bodies = {for (final row in old) row['history_id']: row['content']};
+    await txn.delete(
+      'note_histories',
+      where: 'account_id = ? AND note_id = ?',
+      whereArgs: [accountId, noteId],
+    );
+    for (final history in histories) {
+      await txn.insert('note_histories', {
+        'account_id': accountId,
+        'note_id': noteId,
+        'history_id': history.id,
+        'updated_time': history.updatedTime,
+        'updated_user_id': history.updatedUserId,
+        'content': bodies[history.id],
+      });
+    }
+  });
+
+  Future<List<NoteHistory>> cachedHistories(String accountId, String noteId) =>
+      raw.transaction((txn) async {
+        await _requireLiveNote(txn, accountId, noteId);
+        final rows = await txn.query(
+          'note_histories',
+          where: 'account_id = ? AND note_id = ?',
+          whereArgs: [accountId, noteId],
+          orderBy: 'updated_time DESC, history_id',
+        );
+        return rows
+            .map(
+              (row) => NoteHistory(
+                id: row['history_id'] as String,
+                updatedTime: row['updated_time'] as String,
+                updatedUserId: row['updated_user_id'] as String,
+              ),
+            )
+            .toList();
+      });
+
+  Future<void> cacheHistoryContent(
+    String accountId,
+    String noteId,
+    String historyId,
+    String content,
+  ) => raw.transaction((txn) async {
+    await _requireLiveNote(txn, accountId, noteId);
+    // The list may have been refreshed while this body was downloading.
+    final count = await txn.update(
+      'note_histories',
+      {'content': content},
+      where: 'account_id = ? AND note_id = ? AND history_id = ?',
+      whereArgs: [accountId, noteId, historyId],
+    );
+    if (count != 1) throw StateError('historyNotListed');
+  });
+
+  Future<String> cachedHistoryContent(
+    String accountId,
+    String noteId,
+    String historyId,
+  ) => raw.transaction((txn) async {
+    await _requireLiveNote(txn, accountId, noteId);
+    final rows = await txn.query(
+      'note_histories',
+      columns: ['content'],
+      where: 'account_id = ? AND note_id = ? AND history_id = ?',
+      whereArgs: [accountId, noteId, historyId],
+    );
+    if (rows.isEmpty || rows.single['content'] == null) {
+      throw StateError('此历史正文尚未缓存，请联网查看后再离线使用');
+    }
+    return rows.single['content'] as String;
+  });
 
   Future<void> restoreHistoryContent(
     String accountId,
@@ -717,6 +830,17 @@ class AppDatabase {
     ).join();
   }
 
+  static const _historySchema = '''CREATE TABLE note_histories (
+    account_id TEXT NOT NULL,
+    note_id TEXT NOT NULL,
+    history_id TEXT NOT NULL,
+    updated_time TEXT NOT NULL,
+    updated_user_id TEXT NOT NULL,
+    content TEXT,
+    PRIMARY KEY (account_id, note_id, history_id),
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
+  )''';
+
   static const _schema = <String>[
     '''CREATE TABLE accounts (
       account_id TEXT PRIMARY KEY,
@@ -769,5 +893,6 @@ class AppDatabase {
     'CREATE INDEX notebook_parent_idx ON notebooks(account_id, parent_server_id)',
     'CREATE INDEX note_notebook_idx ON notes(account_id, notebook_server_id)',
     'CREATE INDEX note_dirty_idx ON notes(account_id, is_dirty)',
+    _historySchema,
   ];
 }
