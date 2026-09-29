@@ -198,6 +198,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
                   return restored == true;
                 },
           onEdit: () => _editNote(note),
+          onDeleteForever: note.isTrash ? () => _deleteForever(note) : null,
           onToggleStar: () => _toggleStar(note),
           onMove: () => _moveNote(note),
           onTrashToggle: () => note.isTrash
@@ -207,6 +208,39 @@ class _WorkspacePageState extends State<WorkspacePage> {
       ),
     );
     await _reloadNotes();
+  }
+
+  Future<bool> _deleteForever(Note note) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('彻底删除笔记？'),
+        content: const Text('此操作无法恢复。下次同步会删除服务端的笔记、历史版本和附件；失败时保留待删除任务。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('彻底删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return false;
+    try {
+      await widget.repository.deleteTrash(widget.session, note.noteId);
+      await _reloadNotes();
+      return true;
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('删除失败：$error')));
+      }
+      return false;
+    }
   }
 
   Future<void> _openTags() async {

@@ -12,6 +12,7 @@ class NoteReaderPage extends StatefulWidget {
     this.onMove,
     this.onTrashToggle,
     this.onHistory,
+    this.onDeleteForever,
     this.readOnly = false,
     super.key,
   });
@@ -22,6 +23,7 @@ class NoteReaderPage extends StatefulWidget {
   final Future<void> Function()? onMove;
   final Future<void> Function()? onTrashToggle;
   final Future<bool> Function()? onHistory;
+  final Future<bool> Function()? onDeleteForever;
   final bool readOnly;
 
   @override
@@ -74,6 +76,12 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
             PopupMenuButton<String>(
               onSelected: (value) async {
                 switch (value) {
+                  case 'deleteForever':
+                    final deleted = await widget.onDeleteForever?.call();
+                    if (deleted == true && context.mounted) {
+                      Navigator.of(context).pop();
+                    }
+                    return;
                   case 'history':
                     final restored = await widget.onHistory?.call();
                     if (restored == true && context.mounted) {
@@ -90,6 +98,11 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
                 if (context.mounted) Navigator.of(context).pop();
               },
               itemBuilder: (_) => [
+                if (note.isTrash && widget.onDeleteForever != null)
+                  const PopupMenuItem(
+                    value: 'deleteForever',
+                    child: Text('彻底删除'),
+                  ),
                 if (widget.onHistory != null)
                   const PopupMenuItem(value: 'history', child: Text('历史版本')),
                 PopupMenuItem(

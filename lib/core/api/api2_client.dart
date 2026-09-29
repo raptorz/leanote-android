@@ -232,6 +232,49 @@ class Api2Client {
     return notebook;
   }
 
+  Future<void> deleteTrash({
+    required Uri server,
+    required String token,
+    required Note note,
+  }) async {
+    // A new note may have reached the server before an add response was lost.
+    // Never delete an unacknowledged server version using a guessed USN.
+    if (note.usn == 0) {
+      try {
+        final current = await _requestJson(
+          server: server,
+          path: '/api2/note/getNote',
+          method: 'GET',
+          token: token,
+          query: {'noteId': note.noteId},
+        );
+        if (current['NoteId'] == note.noteId && current['IsDeleted'] == true) {
+          return;
+        }
+      } on ApiException catch (error) {
+        if (error.code == 'notExists' && error.statusCode == null) return;
+        rethrow;
+      }
+      throw const ApiException('unconfirmedNoteDeletion');
+    }
+    try {
+      final response = await _requestFormJson(
+        server: server,
+        path: '/api2/client/note/deleteTrash',
+        token: token,
+        fields: {'noteId': note.noteId, 'usn': '${note.usn}'},
+      );
+      final usn = response['Usn'];
+      if (response['Ok'] != true || usn is! int || usn <= note.usn) {
+        throw const ApiException('invalidResponse');
+      }
+    } on ApiException catch (error) {
+      // The previous attempt may have succeeded before its response was lost.
+      if (error.code == 'notExists' && error.statusCode == null) return;
+      rethrow;
+    }
+  }
+
   Future<Note> updateNote({
     required Uri server,
     required String token,

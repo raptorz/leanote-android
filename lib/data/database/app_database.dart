@@ -379,6 +379,7 @@ class AppDatabase {
   }) async {
     final clauses = <String>[
       'account_id = ?',
+      'local_is_deleted = 0',
       trashOnly ? 'is_trash = 1' : 'is_trash = 0',
     ];
     final arguments = <Object?>[accountId];
@@ -463,8 +464,44 @@ class AppDatabase {
     );
   });
 
-  Future<void> saveLocalNote(String accountId, Note note) =>
-      _writeNote(accountId, note, isDirty: true, isNew: note.usn == 0);
+  Future<void> saveLocalNote(String accountId, Note note) async {
+    final changed = await raw.update(
+      'notes',
+      {
+        'notebook_server_id': note.notebookId,
+        'title': note.title,
+        'content': note.content,
+        'tags_json': jsonEncode(note.tags),
+        'is_markdown': note.isMarkdown ? 1 : 0,
+        'is_starred': note.isStarred ? 1 : 0,
+        'is_trash': note.isTrash ? 1 : 0,
+        'updated_time': note.updatedTime,
+        'is_dirty': 1,
+      },
+      where: 'account_id = ? AND server_id = ? AND local_is_deleted = 0',
+      whereArgs: [accountId, note.noteId],
+    );
+    if (changed != 1) throw StateError('localNoteMissing');
+  }
+
+  Future<void> deleteLocalTrash(String accountId, String noteId) async {
+    final changed = await raw.update(
+      'notes',
+      {'local_is_deleted': 1, 'is_dirty': 1},
+      where: 'account_id = ? AND server_id = ? AND is_trash = 1 AND local_is_deleted = 0',
+      whereArgs: [accountId, noteId],
+    );
+    if (changed != 1) throw StateError('trashNoteMissing');
+  }
+
+  Future<void> acknowledgeDeletion(String accountId, Note note) async {
+    final changed = await raw.delete(
+      'notes',
+      where: 'account_id = ? AND server_id = ? AND local_is_deleted = 1 AND usn = ?',
+      whereArgs: [accountId, note.noteId, note.usn],
+    );
+    if (changed != 1) throw StateError('localChangesDuringDeletion');
+  }
 
   Future<void> restoreHistoryContent(
     String accountId,
@@ -523,6 +560,7 @@ class AppDatabase {
       if (rows.isEmpty) throw StateError('localNoteMissing');
       final current = _noteFromRow(rows.single);
       final unchanged =
+          current.isDeleted == local.isDeleted &&
           current.title == local.title &&
           current.content == local.content &&
           current.notebookId == local.notebookId &&
@@ -613,7 +651,7 @@ class AppDatabase {
     isMarkdown: row['is_markdown'] == 1,
     isStarred: row['is_starred'] == 1,
     isTrash: row['is_trash'] == 1,
-    isDeleted: false,
+    isDeleted: row['local_is_deleted'] == 1,
     createdTime: row['created_time']! as String,
     updatedTime: row['updated_time']! as String,
   );

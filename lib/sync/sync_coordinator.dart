@@ -105,6 +105,16 @@ class SyncCoordinator {
     onProgress?.call(SyncProgress(SyncStage.uploading, 0));
     for (var index = 0; index < dirty.length; index++) {
       final local = dirty[index];
+      if (local.isDeleted) {
+        await _api.deleteTrash(
+          server: account.server,
+          token: token,
+          note: local,
+        );
+        await _database.acknowledgeDeletion(account.cacheKey, local);
+        onProgress?.call(SyncProgress(SyncStage.uploading, index + 1));
+        continue;
+      }
       final remote = local.usn == 0
           ? await _api.addNote(
               server: account.server,
