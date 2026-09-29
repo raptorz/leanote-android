@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -27,6 +29,62 @@ class Api2Client {
 
   static const clientVersion = '1.0.0';
   final http.Client _http;
+
+  Future<Uint8List?> downloadAvatar({
+    required Uri server,
+    required String logo,
+  }) async {
+    if (logo.trim().isEmpty) return null;
+    final uri = server.resolve(logo);
+    if (!['http', 'https'].contains(uri.scheme) ||
+        uri.origin != server.origin ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasFragment) {
+      throw const ApiException('invalidAvatarUrl');
+    }
+    // Public static resource: no token, cookies or automatic redirects.
+    final request = http.Request('GET', uri)..followRedirects = false;
+    try {
+      final response = await _http
+          .send(request)
+          .timeout(const Duration(seconds: 15));
+      const maxBytes = 2 * 1024 * 1024;
+      if (response.statusCode != 200 ||
+          (response.contentLength ?? 0) > maxBytes ||
+          !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].contains(
+            response.headers['content-type']
+                ?.split(';')
+                .first
+                .trim()
+                .toLowerCase(),
+          )) {
+        await response.stream.listen((_) {}).cancel();
+        throw const ApiException('invalidAvatarResponse');
+      }
+      final bytes = BytesBuilder(copy: false);
+      final chunks = StreamIterator(response.stream);
+      final timer = Stopwatch()..start();
+      try {
+        while (await chunks.moveNext().timeout(
+          const Duration(seconds: 15) - timer.elapsed,
+        )) {
+          final chunk = chunks.current;
+          if (bytes.length + chunk.length > maxBytes) {
+            throw const ApiException('avatarTooLarge');
+          }
+          bytes.add(chunk);
+        }
+      } finally {
+        await chunks.cancel();
+      }
+      if (bytes.isEmpty) throw const ApiException('invalidAvatarResponse');
+      return bytes.takeBytes();
+    } on ApiException {
+      rethrow;
+    } on Exception {
+      throw const ApiException('avatarDownloadFailed');
+    }
+  }
 
   Future<LoginResult> login({
     required Uri server,

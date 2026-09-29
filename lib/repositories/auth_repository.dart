@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import '../core/api/api2_client.dart';
 import '../core/api/api_exception.dart';
 import '../data/database/app_database.dart';
@@ -115,6 +118,34 @@ class AuthRepository {
 
   Future<Account> cachedProfile(StoredSession session) =>
       _database.cachedProfile(session.account);
+
+  Future<Uint8List?> cachedAvatar(StoredSession session) =>
+      _database.cachedAvatar(session.account.cacheKey);
+
+  Future<Uint8List?> refreshAvatar(
+    StoredSession session,
+    Account profile,
+  ) async {
+    if (profile.cacheKey != session.account.cacheKey) {
+      throw const ApiException('accountMismatch');
+    }
+    final bytes = await _api.downloadAvatar(
+      server: profile.server,
+      logo: profile.logo,
+    );
+    if (bytes != null) {
+      // Validate before replacing a working cache with a bogus image response.
+      final codec = await ui.instantiateImageCodec(bytes, targetWidth: 256);
+      try {
+        final frame = await codec.getNextFrame();
+        frame.image.dispose();
+      } finally {
+        codec.dispose();
+      }
+    }
+    await _database.cacheAvatar(session.account.cacheKey, bytes);
+    return bytes;
+  }
 
   Future<Account> refreshProfile(StoredSession session) async {
     final profile = await _api.userInfo(

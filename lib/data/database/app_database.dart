@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -13,7 +14,7 @@ import '../../domain/models/notebook.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 2;
+  static const schemaVersion = 3;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -34,6 +35,7 @@ class AppDatabase {
       },
       onUpgrade: (db, oldVersion, _) async {
         if (oldVersion < 2) await db.execute(_historySchema);
+        if (oldVersion < 3) await db.execute(_avatarSchema);
       },
     );
     return AppDatabase._(database);
@@ -87,6 +89,31 @@ class AppDatabase {
       email: row['email'] as String,
       logo: row['logo'] as String,
     );
+  }
+
+  Future<Uint8List?> cachedAvatar(String accountId) async {
+    final rows = await raw.query(
+      'account_avatars',
+      columns: ['bytes'],
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+    );
+    return rows.isEmpty ? null : rows.single['bytes'] as Uint8List;
+  }
+
+  Future<void> cacheAvatar(String accountId, Uint8List? bytes) async {
+    if (bytes == null) {
+      await raw.delete(
+        'account_avatars',
+        where: 'account_id = ?',
+        whereArgs: [accountId],
+      );
+    } else {
+      await raw.insert('account_avatars', {
+        'account_id': accountId,
+        'bytes': bytes,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
   }
 
   Future<void> updateProfile(Account account) async {
@@ -884,6 +911,12 @@ class AppDatabase {
     FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
   )''';
 
+  static const _avatarSchema = '''CREATE TABLE account_avatars (
+    account_id TEXT PRIMARY KEY,
+    bytes BLOB NOT NULL,
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
+  )''';
+
   static const _schema = <String>[
     '''CREATE TABLE accounts (
       account_id TEXT PRIMARY KEY,
@@ -937,5 +970,6 @@ class AppDatabase {
     'CREATE INDEX note_notebook_idx ON notes(account_id, notebook_server_id)',
     'CREATE INDEX note_dirty_idx ON notes(account_id, is_dirty)',
     _historySchema,
+    _avatarSchema,
   ];
 }

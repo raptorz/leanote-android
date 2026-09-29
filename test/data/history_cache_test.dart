@@ -192,11 +192,12 @@ void main() {
         lastSyncUsn: 3,
       );
       await initial.raw.execute('DROP TABLE note_histories');
+      await initial.raw.execute('DROP TABLE account_avatars');
       await initial.raw.setVersion(1);
       await initial.raw.close();
       final upgraded = await AppDatabase.open(databasePath: file);
       try {
-        expect(await upgraded.raw.getVersion(), 2);
+        expect(await upgraded.raw.getVersion(), AppDatabase.schemaVersion);
         expect(
           (await upgraded.notes(account.cacheKey)).single.content,
           'current',

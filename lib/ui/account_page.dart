@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../domain/models/account.dart';
@@ -19,6 +21,7 @@ class _AccountPageState extends State<AccountPage> {
   late Account _account;
   bool _busy = true;
   String? _error;
+  Uint8List? _avatar;
 
   @override
   void initState() {
@@ -30,7 +33,13 @@ class _AccountPageState extends State<AccountPage> {
   Future<void> _loadCache() async {
     try {
       final profile = await widget.repository.cachedProfile(widget.session);
-      if (mounted) setState(() => _account = profile);
+      final avatar = await widget.repository.cachedAvatar(widget.session);
+      if (mounted) {
+        setState(() {
+          _account = profile;
+          _avatar = avatar;
+        });
+      }
     } catch (error) {
       if (mounted) setState(() => _error = '读取本地账号信息失败：$error');
     } finally {
@@ -47,6 +56,15 @@ class _AccountPageState extends State<AccountPage> {
     try {
       final profile = await widget.repository.refreshProfile(widget.session);
       if (mounted) setState(() => _account = profile);
+      try {
+        final avatar = await widget.repository.refreshAvatar(
+          widget.session,
+          profile,
+        );
+        if (mounted) setState(() => _avatar = avatar);
+      } on Object catch (error) {
+        if (mounted) setState(() => _error = '资料已刷新，但头像刷新失败，保留原头像：$error');
+      }
     } catch (error) {
       if (mounted) setState(() => _error = '刷新失败，仍显示本地资料：$error');
     } finally {
@@ -82,6 +100,20 @@ class _AccountPageState extends State<AccountPage> {
       padding: const EdgeInsets.all(24),
       children: [
         if (_busy) const LinearProgressIndicator(),
+        Center(
+          child: ClipOval(
+            child: _avatar == null
+                ? const Icon(Icons.account_circle, size: 80)
+                : Image.memory(
+                    _avatar!,
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) =>
+                        const Icon(Icons.account_circle, size: 80),
+                  ),
+          ),
+        ),
         if (_error != null)
           Text(
             _error!,
