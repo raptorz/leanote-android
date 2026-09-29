@@ -1,4 +1,5 @@
 import '../core/api/api2_client.dart';
+import '../core/api/api_exception.dart';
 import '../data/database/app_database.dart';
 import '../domain/models/account.dart';
 import '../domain/models/note.dart';
@@ -115,18 +116,32 @@ class SyncCoordinator {
         onProgress?.call(SyncProgress(SyncStage.uploading, index + 1));
         continue;
       }
-      final remote = local.usn == 0
-          ? await _api.addNote(
-              server: account.server,
-              token: token,
-              note: local,
-            )
-          : await _api.updateNote(
-              server: account.server,
-              token: token,
-              note: local,
-            );
-      await _database.markNoteUploaded(account.cacheKey, local, remote);
+      try {
+        final remote = local.usn == 0
+            ? await _api.addNote(
+                server: account.server,
+                token: token,
+                note: local,
+              )
+            : await _api.updateNote(
+                server: account.server,
+                token: token,
+                note: local,
+              );
+        await _database.markNoteUploaded(account.cacheKey, local, remote);
+      } on ApiException catch (error) {
+        if (error.code != 'conflict' ||
+            error.statusCode != null ||
+            local.usn <= 0) {
+          rethrow;
+        }
+        final remote = await _api.getConflictSnapshot(
+          server: account.server,
+          token: token,
+          noteId: local.noteId,
+        );
+        await _database.acceptRemoteMetadata(account.cacheKey, local, remote);
+      }
       onProgress?.call(SyncProgress(SyncStage.uploading, index + 1));
     }
   }

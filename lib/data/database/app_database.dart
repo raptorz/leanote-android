@@ -543,6 +543,56 @@ class AppDatabase {
     return rows.map(_noteFromRow).toList(growable: false);
   }
 
+  /// Only resolve metadata-only conflicts. A changed body/format or an edit
+  /// made while the remote snapshot was downloading must remain pending.
+  Future<void> acceptRemoteMetadata(
+    String accountId,
+    Note local,
+    Note remote,
+  ) => raw.transaction((txn) async {
+    if (remote.noteId != local.noteId ||
+        remote.userId != local.userId ||
+        remote.usn <= local.usn ||
+        local.usn <= 0 ||
+        remote.isDeleted ||
+        local.isDeleted ||
+        remote.content != local.content ||
+        remote.isMarkdown != local.isMarkdown ||
+        remote.isTrash != local.isTrash) {
+      throw StateError('unresolvedNoteConflict');
+    }
+    final rows = await txn.query(
+      'notes',
+      where: 'account_id = ? AND server_id = ? AND is_dirty = 1',
+      whereArgs: [accountId, local.noteId],
+    );
+    if (rows.length != 1 ||
+        _noteFingerprint(_noteFromRow(rows.single)) !=
+            _noteFingerprint(local)) {
+      throw StateError('localChangesDuringConflict');
+    }
+    final batch = txn.batch();
+    _insertNote(batch, accountId, remote);
+    await batch.commit(noResult: true);
+    // Do not advance the account cursor: other remote changes are still unread.
+  });
+
+  static String _noteFingerprint(Note note) => jsonEncode([
+    note.noteId,
+    note.userId,
+    note.notebookId,
+    note.title,
+    note.content,
+    note.tags,
+    note.usn,
+    note.isMarkdown,
+    note.isStarred,
+    note.isTrash,
+    note.isDeleted,
+    note.createdTime,
+    note.updatedTime,
+  ]);
+
   Future<void> markNoteUploaded(
     String accountId,
     Note local,

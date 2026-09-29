@@ -275,6 +275,67 @@ class Api2Client {
     }
   }
 
+  /// Bracket the body read with metadata reads: these API2 endpoints are
+  /// separate requests and must not combine different remote revisions.
+  Future<Note> getConflictSnapshot({
+    required Uri server,
+    required String token,
+    required String noteId,
+  }) async {
+    Future<Map<String, Object?>> metadata() async {
+      final data = await _requestJson(
+        server: server,
+        path: '/api2/note/getNote',
+        method: 'GET',
+        token: token,
+        query: {'noteId': noteId},
+      );
+      if (data['NoteId'] != noteId ||
+          data['Usn'] is! int ||
+          (data['Usn'] as int) <= 0 ||
+          [
+            'UserId',
+            'NotebookId',
+            'Title',
+            'CreatedTime',
+            'UpdatedTime',
+          ].any((key) => data[key] is! String) ||
+          [
+            'IsMarkdown',
+            'IsStar',
+            'IsTrash',
+            'IsDeleted',
+          ].any((key) => data[key] is! bool) ||
+          !data.containsKey('Tags') ||
+          (data['Tags'] != null &&
+              (data['Tags'] is! List ||
+                  (data['Tags'] as List).any((tag) => tag is! String)))) {
+        throw const ApiException('invalidResponse');
+      }
+      if (data['IsDeleted'] == true) throw const ApiException('conflict');
+      return data;
+    }
+
+    final before = await metadata();
+    final body = await _requestJson(
+      server: server,
+      path: '/api2/note/getNoteContent',
+      method: 'GET',
+      token: token,
+      query: {'noteId': noteId},
+    );
+    if (body['NoteId'] != noteId ||
+        body['Content'] is! String ||
+        body['UserId'] != before['UserId']) {
+      throw const ApiException('invalidResponse');
+    }
+    final after = await metadata();
+    if (before['Usn'] != after['Usn']) {
+      throw const ApiException('conflict');
+    }
+    return Note.fromJson({...after, 'Content': body['Content']});
+  }
+
   Future<Note> updateNote({
     required Uri server,
     required String token,
