@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../domain/models/note.dart';
+import '../domain/models/note_sort.dart';
 import '../domain/models/notebook.dart';
 import '../domain/models/notebook_tree.dart';
 import '../repositories/auth_repository.dart';
@@ -39,6 +40,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
   String? _selectedTag;
   var _showingStarred = false;
   var _showingTrash = false;
+  var _showingAll = false;
+  var _noteSort = NoteSort.updatedDescending;
   var _syncing = false;
   var _loggingOut = false;
   Set<String> _pendingNoteIds = {};
@@ -113,6 +116,10 @@ class _WorkspacePageState extends State<WorkspacePage> {
 
   Future<void> _reloadNotes() async {
     await _refreshPending();
+    if (_showingAll) {
+      await _openAllNotes();
+      return;
+    }
     if (_selectedTag != null) {
       final notes = await widget.repository.notesForTag(
         widget.session.account.cacheKey,
@@ -139,6 +146,25 @@ class _WorkspacePageState extends State<WorkspacePage> {
     }
     final notebook = _selectedNotebook;
     if (notebook != null) await _openNotebook(notebook);
+  }
+
+  Future<void> _openAllNotes() async {
+    try {
+      final notes = await widget.repository.notes(
+        widget.session.account.cacheKey,
+      );
+      if (!mounted) return;
+      setState(() {
+        _selectedNotebook = null;
+        _selectedTag = null;
+        _showingStarred = false;
+        _showingTrash = false;
+        _showingAll = true;
+        _notes = notes;
+      });
+    } on Object catch (error) {
+      if (mounted) setState(() => _syncError = '读取所有笔记失败：$error');
+    }
   }
 
   Future<void> _openStarred() async {
@@ -521,6 +547,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
   @override
   Widget build(BuildContext context) {
     if (_selectedNotebook != null ||
+        _showingAll ||
         _selectedTag != null ||
         _showingStarred ||
         _showingTrash) {
@@ -590,12 +617,18 @@ class _WorkspacePageState extends State<WorkspacePage> {
             return const Center(child: CircularProgressIndicator());
           }
           final notebooks = snapshot.data!;
-          if (notebooks.isEmpty) return const _EmptyState(label: '还没有笔记本');
           final rows = NotebookTree(notebooks).visibleRows(_expandedNotebooks);
           return ListView.builder(
-            itemCount: rows.length,
+            itemCount: rows.length + 1,
             itemBuilder: (context, index) {
-              final row = rows[index];
+              if (index == 0) {
+                return ListTile(
+                  leading: const Icon(Icons.notes),
+                  title: const Text('所有笔记'),
+                  onTap: _openAllNotes,
+                );
+              }
+              final row = rows[index - 1];
               final notebook = row.notebook;
               return ListTile(
                 key: ValueKey(notebook.notebookId),
@@ -704,6 +737,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
   }
 
   Widget _buildNoteList(BuildContext context) {
+    final sortedNotes = _noteSort.apply(_notes);
     return Scaffold(
       appBar: AppBar(
         bottom: _syncStatus,
@@ -714,17 +748,33 @@ class _WorkspacePageState extends State<WorkspacePage> {
             _selectedTag = null;
             _showingStarred = false;
             _showingTrash = false;
+            _showingAll = false;
           }),
         ),
         title: Text(
-          _selectedTag ??
-              (_showingStarred
-                  ? '已加星'
-                  : _showingTrash
-                  ? '回收站'
-                  : _selectedNotebook!.title),
+          _showingAll
+              ? '所有笔记'
+              : _selectedTag ??
+                    (_showingStarred
+                        ? '已加星'
+                        : _showingTrash
+                        ? '回收站'
+                        : _selectedNotebook!.title),
         ),
         actions: [
+          PopupMenuButton<NoteSort>(
+            tooltip: '笔记排序',
+            icon: const Icon(Icons.sort),
+            onSelected: (value) => setState(() => _noteSort = value),
+            itemBuilder: (_) => [
+              for (final sort in NoteSort.values)
+                CheckedPopupMenuItem(
+                  value: sort,
+                  checked: sort == _noteSort,
+                  child: Text(sort.label),
+                ),
+            ],
+          ),
           IconButton(
             tooltip: _syncing ? '正在同步' : '立即同步',
             onPressed: _syncing ? null : _sync,
@@ -748,7 +798,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
               itemCount: _notes.length,
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, index) {
-                final note = _notes[index];
+                final note = sortedNotes[index];
                 return ListTile(
                   leading: Icon(
                     note.isMarkdown ? Icons.code : Icons.article_outlined,
@@ -790,7 +840,10 @@ class _WorkspacePageState extends State<WorkspacePage> {
               },
             ),
       floatingActionButton:
-          _selectedTag != null || _showingStarred || _showingTrash
+          _showingAll ||
+              _selectedTag != null ||
+              _showingStarred ||
+              _showingTrash
           ? null
           : FloatingActionButton(
               onPressed: () => showModalBottomSheet<void>(
