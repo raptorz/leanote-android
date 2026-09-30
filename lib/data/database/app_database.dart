@@ -10,11 +10,12 @@ import '../../domain/models/account.dart';
 import '../../domain/models/note.dart';
 import '../../domain/models/note_history.dart';
 import '../../domain/models/notebook.dart';
+import '../../domain/models/shared_note.dart';
 
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 3;
+  static const schemaVersion = 4;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -36,9 +37,107 @@ class AppDatabase {
       onUpgrade: (db, oldVersion, _) async {
         if (oldVersion < 2) await db.execute(_historySchema);
         if (oldVersion < 3) await db.execute(_avatarSchema);
+        if (oldVersion < 4) await db.execute(_sharedSchema);
       },
     );
     return AppDatabase._(database);
+  }
+
+  Future<void> replaceSharedSnapshot(
+    String accountId,
+    List<SharedNote> notes,
+  ) => raw.transaction((txn) async {
+    final previous = await txn.query(
+      'shared_notes',
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+    );
+    final old = {for (final row in previous) row['note_id']: row};
+    await txn.delete(
+      'shared_notes',
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+    );
+    for (final shared in notes) {
+      final existing = old[shared.note.noteId];
+      await txn.insert('shared_notes', {
+        'account_id': accountId,
+        'note_id': shared.note.noteId,
+        'owner_id': shared.note.userId,
+        'version': shared.version,
+        'metadata': jsonEncode(shared.toJson()),
+        'content':
+            existing != null &&
+                existing['version'] == shared.version &&
+                existing['owner_id'] == shared.note.userId
+            ? existing['content']
+            : null,
+      });
+    }
+  });
+
+  Future<List<SharedNote>> cachedSharedNotes(String accountId) async {
+    final rows = await raw.query(
+      'shared_notes',
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+      orderBy: 'note_id',
+    );
+    final result = rows
+        .map(
+          (row) => SharedNote.fromJson(
+            Map<String, Object?>.from(
+              jsonDecode(row['metadata'] as String) as Map,
+            ),
+          ),
+        )
+        .toList();
+    result.sort((a, b) {
+      final cmp = a.note.title.toLowerCase().compareTo(
+        b.note.title.toLowerCase(),
+      );
+      return cmp == 0 ? a.note.noteId.compareTo(b.note.noteId) : cmp;
+    });
+    return result;
+  }
+
+  Future<void> cacheSharedContent(
+    String accountId,
+    SharedNote note,
+    String content,
+  ) async {
+    final changed = await raw.update(
+      'shared_notes',
+      {'content': content},
+      where: 'account_id = ? AND note_id = ? AND owner_id = ? AND version = ?',
+      whereArgs: [accountId, note.note.noteId, note.note.userId, note.version],
+    );
+    if (changed != 1) throw StateError('共享列表已变化，请刷新后重试');
+  }
+
+  Future<Note> cachedSharedContent(String accountId, SharedNote note) async {
+    final rows = await raw.query(
+      'shared_notes',
+      where: 'account_id = ? AND note_id = ? AND owner_id = ? AND version = ?',
+      whereArgs: [accountId, note.note.noteId, note.note.userId, note.version],
+    );
+    if (rows.isEmpty || rows.single['content'] == null) {
+      throw StateError('此共享正文尚未缓存或已失效，请联网刷新后查看');
+    }
+    final current = SharedNote.fromJson(
+      Map<String, Object?>.from(
+        jsonDecode(rows.single['metadata'] as String) as Map,
+      ),
+    );
+    return current.note.copyWith(content: rows.single['content'] as String);
+  }
+
+  Future<void> removeSharedNote(String accountId, String noteId) async {
+    await raw.delete(
+      'shared_notes',
+      where: 'account_id = ? AND note_id = ?',
+      whereArgs: [accountId, noteId],
+    );
   }
 
   Future<Account?> activeAccount() async {
@@ -917,6 +1016,13 @@ class AppDatabase {
     FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
   )''';
 
+  static const _sharedSchema = '''CREATE TABLE shared_notes (
+    account_id TEXT NOT NULL, note_id TEXT NOT NULL, owner_id TEXT NOT NULL,
+    version TEXT NOT NULL, metadata TEXT NOT NULL, content TEXT,
+    PRIMARY KEY (account_id, note_id),
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
+  )''';
+
   static const _schema = <String>[
     '''CREATE TABLE accounts (
       account_id TEXT PRIMARY KEY,
@@ -971,5 +1077,6 @@ class AppDatabase {
     'CREATE INDEX note_dirty_idx ON notes(account_id, is_dirty)',
     _historySchema,
     _avatarSchema,
+    _sharedSchema,
   ];
 }

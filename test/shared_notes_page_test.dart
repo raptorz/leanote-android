@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/domain/models/account.dart';
@@ -13,14 +15,27 @@ class SharedRepository implements AuthRepository {
   final SharedNote shared;
   bool deny = false;
   bool failList = false;
+  Completer<List<SharedNote>>? pendingOnline;
+  final listModes = <bool>[];
+  final contentModes = <bool>[];
   @override
-  Future<List<SharedNote>> sharedNotes(StoredSession session) async {
+  Future<List<SharedNote>> sharedNotes(
+    StoredSession session, {
+    bool cachedOnly = false,
+  }) async {
+    listModes.add(cachedOnly);
+    if (!cachedOnly && pendingOnline != null) return pendingOnline!.future;
     if (failList) throw StateError('snapshotExpired');
     return [shared];
   }
 
   @override
-  Future<Note> sharedContent(StoredSession session, SharedNote note) async {
+  Future<Note> sharedContent(
+    StoredSession session,
+    SharedNote note, {
+    bool cachedOnly = false,
+  }) async {
+    contentModes.add(cachedOnly);
     if (deny) throw StateError('noPermission');
     return note.note;
   }
@@ -77,6 +92,32 @@ void main() {
       },
     );
   }
+
+  testWidgets(
+    'offline selection ignores late online list and reads cached body',
+    (tester) async {
+      final pending = Completer<List<SharedNote>>();
+      final repo = SharedRepository(note(true))..pendingOnline = pending;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SharedNotesPage(repository: repo, session: session),
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      await tester.tap(find.text('离线缓存'));
+      await tester.pumpAndSettle();
+      expect(repo.listModes, [false, true]);
+      expect(find.text('Shared title'), findsOneWidget);
+      pending.complete([]);
+      await tester.pumpAndSettle();
+      expect(find.text('Shared title'), findsOneWidget);
+      await tester.tap(find.text('Shared title'));
+      await tester.pumpAndSettle();
+      expect(repo.contentModes, [true]);
+      expect(find.byType(NoteReaderPage), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'denied body remains closed and failed refresh removes stale list',

@@ -5,5 +5,6 @@ class ApiException implements Exception {
   final int? statusCode;
 
   @override
-  String toString() => code;
+  String toString() =>
+      code == 'sharedContentChanged' ? '共享笔记已更新，请刷新列表后重试' : code;
 }

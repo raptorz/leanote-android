@@ -193,6 +193,7 @@ void main() {
       );
       await initial.raw.execute('DROP TABLE note_histories');
       await initial.raw.execute('DROP TABLE account_avatars');
+      await initial.raw.execute('DROP TABLE shared_notes');
       await initial.raw.setVersion(1);
       await initial.raw.close();
       final upgraded = await AppDatabase.open(databasePath: file);

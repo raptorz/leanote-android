@@ -275,7 +275,7 @@ class Api2Client {
       throw const ApiException('invalidResponse');
     }
     if (data['Version'] != shared.version || data['Digest'] != shared.version) {
-      throw const ApiException('共享笔记已更新，请刷新列表后重试');
+      throw const ApiException('sharedContentChanged');
     }
     return shared.note.copyWith(content: data['Content'] as String);
   }

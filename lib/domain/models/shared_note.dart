@@ -5,6 +5,18 @@ class SharedNote {
   final Note note;
   final String version;
 
+  Map<String, Object?> toJson() => {
+    'NoteId': note.noteId,
+    'OwnerUserId': note.userId,
+    'NotebookId': note.notebookId,
+    'Title': note.title,
+    'Tags': note.tags,
+    'IsMarkdown': note.isMarkdown,
+    'CreatedTime': note.createdTime,
+    'UpdatedTime': note.updatedTime,
+    'Version': version,
+  };
+
   factory SharedNote.fromJson(Map<String, Object?> data) {
     final id = RegExp(r'^[0-9a-fA-F]{24}$');
     if (data['NoteId'] is! String ||

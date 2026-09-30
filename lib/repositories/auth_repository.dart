@@ -31,6 +31,7 @@ class AuthRepository {
   AuthRepository(this._api, this._database, this._sessions, this._sync);
 
   final Map<String, Future<void>> _presentationRefreshes = {};
+  final Map<String, Future<List<SharedNote>>> _sharedRefreshes = {};
 
   Future<void> refreshAccountPresentation(StoredSession session) {
     final key = session.account.cacheKey;
@@ -48,15 +49,59 @@ class AuthRepository {
   final SessionStore _sessions;
   final SyncCoordinator _sync;
 
-  Future<List<SharedNote>> sharedNotes(StoredSession session) =>
-      _api.sharedNotes(server: session.account.server, token: session.token);
+  Future<List<SharedNote>> sharedNotes(
+    StoredSession session, {
+    bool cachedOnly = false,
+  }) async {
+    if (cachedOnly) {
+      return _database.cachedSharedNotes(session.account.cacheKey);
+    }
+    final key = session.account.cacheKey;
+    return _sharedRefreshes[key] ??=
+        (() async {
+          final notes = await _api.sharedNotes(
+            server: session.account.server,
+            token: session.token,
+          );
+          await _database.replaceSharedSnapshot(key, notes);
+          return notes;
+        })().whenComplete(() {
+          _sharedRefreshes.remove(key);
+        });
+  }
 
-  Future<Note> sharedContent(StoredSession session, SharedNote note) =>
-      _api.sharedContent(
+  Future<Note> sharedContent(
+    StoredSession session,
+    SharedNote note, {
+    bool cachedOnly = false,
+  }) async {
+    if (cachedOnly) {
+      return _database.cachedSharedContent(session.account.cacheKey, note);
+    }
+    try {
+      final content = await _api.sharedContent(
         server: session.account.server,
         token: session.token,
         shared: note,
       );
+      await _database.cacheSharedContent(
+        session.account.cacheKey,
+        note,
+        content.content,
+      );
+      return content;
+    } on ApiException catch (error) {
+      if (error.code == 'noPermission' ||
+          error.code == 'notExists' ||
+          error.code == 'sharedContentChanged') {
+        await _database.removeSharedNote(
+          session.account.cacheKey,
+          note.note.noteId,
+        );
+      }
+      rethrow;
+    }
+  }
 
   Future<StoredSession?> restore() async {
     final account = await _database.activeAccount();

@@ -21,6 +21,8 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
   bool _loading = false;
   String? _opening;
   String? _error;
+  bool _cachedOnly = false;
+  int _generation = 0;
   @override
   void initState() {
     super.initState();
@@ -28,19 +30,27 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
   }
 
   Future<void> _load() async {
-    if (_loading || _opening != null) return;
+    if (_opening != null) return;
+    final generation = ++_generation;
     setState(() {
       _loading = true;
       _error = null;
       _notes = [];
     });
     try {
-      final notes = await widget.repository.sharedNotes(widget.session);
-      if (mounted) setState(() => _notes = notes);
+      final notes = await widget.repository.sharedNotes(
+        widget.session,
+        cachedOnly: _cachedOnly,
+      );
+      if (mounted && generation == _generation) setState(() => _notes = notes);
     } on Object catch (error) {
-      if (mounted) setState(() => _error = '读取共享列表失败：$error');
+      if (mounted && generation == _generation) {
+        setState(() => _error = '读取共享列表失败：$error');
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && generation == _generation) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -54,6 +64,7 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
       final content = await widget.repository.sharedContent(
         widget.session,
         note,
+        cachedOnly: _cachedOnly,
       );
       if (!mounted) return;
       await Navigator.push(
@@ -87,9 +98,20 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
     ),
     body: Column(
       children: [
+        SwitchListTile(
+          title: const Text('离线缓存'),
+          subtitle: const Text('缓存可能已过期；离线时无法确认共享权限是否已撤销。'),
+          value: _cachedOnly,
+          onChanged: _opening != null
+              ? null
+              : (value) {
+                  setState(() => _cachedOnly = value);
+                  _load();
+                },
+        ),
         const Padding(
           padding: EdgeInsets.all(12),
-          child: Text('联网只读浏览；Markdown 可预览，富文本暂显示 HTML 原文。不缓存正文，不下载图片附件。'),
+          child: Text('只读浏览；已查看的正文可离线阅读。Markdown 可预览，富文本显示 HTML 原文；不下载图片附件。'),
         ),
         if (_loading) const LinearProgressIndicator(),
         if (_error != null)
@@ -102,7 +124,13 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
           ),
         Expanded(
           child: !_loading && _notes.isEmpty
-              ? Center(child: Text(_error == null ? '暂无共享笔记' : '请联网后刷新重试'))
+              ? Center(
+                  child: Text(
+                    _error == null
+                        ? (_cachedOnly ? '暂无缓存的共享笔记' : '暂无共享笔记')
+                        : '请刷新重试',
+                  ),
+                )
               : ListView.builder(
                   itemCount: _notes.length,
                   itemBuilder: (context, index) {
