@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../domain/models/note_file.dart';
 import '../repositories/auth_repository.dart';
+import '../services/image_exporter.dart';
 
 class NoteFilesPage extends StatefulWidget {
   const NoteFilesPage({
@@ -11,10 +12,12 @@ class NoteFilesPage extends StatefulWidget {
     required this.repository,
     required this.session,
     required this.noteId,
+    this.imageExporter,
   });
   final AuthRepository repository;
   final StoredSession session;
   final String noteId;
+  final ImageExporter? imageExporter;
   @override
   State<NoteFilesPage> createState() => _NoteFilesPageState();
 }
@@ -75,7 +78,11 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
       await Navigator.push(
         context,
         MaterialPageRoute<void>(
-          builder: (_) => _ImagePreview(title: file.title, bytes: bytes),
+          builder: (_) => _ImagePreview(
+            title: file.title,
+            bytes: bytes,
+            exporter: widget.imageExporter ?? ImageExporter(),
+          ),
         ),
       );
     } on Object catch (error) {
@@ -162,18 +169,59 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
   );
 }
 
-class _ImagePreview extends StatelessWidget {
-  const _ImagePreview({required this.title, required this.bytes});
+class _ImagePreview extends StatefulWidget {
+  const _ImagePreview({
+    required this.title,
+    required this.bytes,
+    required this.exporter,
+  });
   final String title;
   final Uint8List bytes;
+  final ImageExporter exporter;
+  @override
+  State<_ImagePreview> createState() => _ImagePreviewState();
+}
+
+class _ImagePreviewState extends State<_ImagePreview> {
+  bool _saving = false;
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      final saved = await widget.exporter.save(widget.title, widget.bytes);
+      if (mounted && saved) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('图片已保存')));
+      }
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('保存图片失败，请检查保存位置或可用空间后重试')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(title.isEmpty ? '图片' : title)),
+    appBar: AppBar(
+      title: Text(widget.title.isEmpty ? '图片' : widget.title),
+      actions: [
+        IconButton(
+          tooltip: _saving ? '正在保存…' : '保存图片',
+          onPressed: _saving ? null : _save,
+          icon: const Icon(Icons.save_alt),
+        ),
+      ],
+    ),
     body: Center(
       child: InteractiveViewer(
         child: Image(
           image: ResizeImage(
-            MemoryImage(bytes),
+            MemoryImage(widget.bytes),
             width: 2048,
             height: 2048,
             policy: ResizeImagePolicy.fit,

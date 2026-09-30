@@ -52,6 +52,11 @@ Markdown 阅读使用 [flutter_markdown_plus](https://pub.dev/packages/flutter_m
 测试可注入保存回调验证字节、文件名、取消和失败行为。导出不执行 HTML，也不下载附件。
 iOS 保存对话框只能在 macOS/iOS 环境完成构建和真机验收。
 
+图片预览通过 `ImageExporter` 复用系统文件保存能力和文件名清理逻辑，只保存已读取的
+图片字节，不再请求服务器。输出扩展名和 MIME 由 PNG/JPEG/GIF/WebP 文件头确定，
+不信任服务端文件名或类型；仍限制每张最多 8 MiB。该检查只识别格式，图片解码验证
+由读取图片的仓储层负责。导出到系统文件后不再受账号缓存清理控制，用户自行管理。
+
 ## 测试原则
 
 - API 客户端测试必须检查 HTTP 方法、路径和 JSON 请求体

@@ -28,7 +28,15 @@ class NoteExporter {
 
   static String fileName(Note note) {
     final extension = note.isMarkdown ? '.md' : '.html';
-    var title = note.title
+    return safeFileName(note.title, extension, fallback: '未命名笔记');
+  }
+
+  static String safeFileName(
+    String name,
+    String extension, {
+    required String fallback,
+  }) {
+    var title = name
         .replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1f\x7f]'), '_')
         .trim();
     title = title.replaceAll(RegExp(r'^\.+|[. ]+$'), '');
@@ -45,7 +53,7 @@ class NoteExporter {
       byteLength += size;
     }
     title = String.fromCharCodes(safeRunes).trim();
-    if (title.isEmpty) title = '未命名笔记';
+    if (title.isEmpty) title = fallback;
     return '$title$extension';
   }
 

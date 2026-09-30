@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -7,6 +8,7 @@ import 'package:gemsnote/domain/models/account.dart';
 import 'package:gemsnote/domain/models/note_file.dart';
 import 'package:gemsnote/repositories/auth_repository.dart';
 import 'package:gemsnote/ui/note_files_page.dart';
+import 'package:gemsnote/services/image_exporter.dart';
 
 class FilesRepository implements AuthRepository {
   bool deny = false;
@@ -84,7 +86,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(repo.imageModes, [true]);
   });
-  Future<void> mount(WidgetTester tester, FilesRepository repo) async {
+  Future<void> mount(
+    WidgetTester tester,
+    FilesRepository repo, {
+    ImageExporter? exporter,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
         home: NoteFilesPage(
@@ -100,10 +106,75 @@ void main() {
             token: 'test',
           ),
           noteId: 'note',
+          imageExporter: exporter,
         ),
       ),
     );
     await tester.pumpAndSettle();
+  }
+
+  for (final result in ['success', 'cancel', 'error']) {
+    testWidgets(
+      'offline image save $result does not redownload and allows retry',
+      (tester) async {
+        final repo = FilesRepository();
+        var calls = 0;
+        var pending = Completer<Uri?>();
+        await mount(
+          tester,
+          repo,
+          exporter: ImageExporter(
+            save: ({required fileName, required bytes, required mimeType}) {
+              calls++;
+              expect(fileName, 'Photo.png');
+              expect(mimeType, 'image/png');
+              return pending.future;
+            },
+          ),
+        );
+        await tester.tap(find.text('离线缓存'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Photo'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('保存图片'));
+        await tester.pump();
+        expect(
+          tester
+              .widget<IconButton>(
+                find.byWidgetPredicate(
+                  (widget) => widget is IconButton && widget.tooltip == '正在保存…',
+                ),
+              )
+              .onPressed,
+          isNull,
+        );
+        if (result == 'error') {
+          pending.completeError(StateError('disk full'));
+        } else {
+          pending.complete(
+            result == 'success' ? Uri.parse('content://saved/image') : null,
+          );
+        }
+        await tester.pumpAndSettle();
+        expect(
+          find.text('图片已保存'),
+          result == 'success' ? findsOneWidget : findsNothing,
+        );
+        expect(
+          find.textContaining('保存图片失败'),
+          result == 'error' ? findsOneWidget : findsNothing,
+        );
+        expect(repo.imageModes, [true]);
+        expect(calls, 1);
+        pending = Completer<Uri?>();
+        await tester.tap(find.byTooltip('保存图片'));
+        await tester.pump();
+        pending.complete(null);
+        await tester.pumpAndSettle();
+        expect(calls, 2);
+        expect(repo.downloads, 1);
+      },
+    );
   }
 
   testWidgets(
