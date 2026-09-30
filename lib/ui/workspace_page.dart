@@ -304,6 +304,11 @@ class _WorkspacePageState extends State<WorkspacePage>
       MaterialPageRoute<void>(
         builder: (_) => NoteReaderPage(
           note: note,
+          loadCachedImage: (uri) => widget.repository.cachedInlineImage(
+            widget.session,
+            note.noteId,
+            uri,
+          ),
           onFiles: note.usn <= 0
               ? null
               : () => Navigator.of(context).push<void>(

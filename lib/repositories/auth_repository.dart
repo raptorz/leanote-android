@@ -8,6 +8,7 @@ import '../data/session/session_store.dart';
 import '../domain/models/account.dart';
 import '../domain/models/note.dart';
 import '../domain/models/note_file.dart';
+import '../domain/models/note_image_reference.dart';
 import '../domain/models/note_history.dart';
 import '../domain/models/notebook.dart';
 import '../domain/models/notebook_tree.dart';
@@ -49,6 +50,33 @@ class AuthRepository {
   final Api2Client _api;
   final AppDatabase _database;
   final SessionStore _sessions;
+  Future<Uint8List?> cachedInlineImage(
+    StoredSession session,
+    String noteId,
+    Uri uri,
+  ) async {
+    final id = cachedImageFileId(uri, session.account.server);
+    if (id == null) return null;
+    final files = await _database.cachedNoteFiles(
+      session.account.cacheKey,
+      noteId,
+    );
+    for (final file in files) {
+      if (file.id == id && !file.isAttachment) {
+        try {
+          return await _database.cachedNoteImage(
+            session.account.cacheKey,
+            noteId,
+            file,
+          );
+        } on StateError {
+          return null;
+        }
+      }
+    }
+    return null;
+  }
+
   Future<List<NoteFile>> noteFiles(
     StoredSession session,
     String noteId, {

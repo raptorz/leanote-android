@@ -4,6 +4,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../domain/models/note.dart';
 import 'markdown_note_body.dart';
 import 'safe_html_note_body.dart';
+import 'cached_markdown_image.dart';
 
 class NoteReaderPage extends StatefulWidget {
   const NoteReaderPage({
@@ -16,6 +17,7 @@ class NoteReaderPage extends StatefulWidget {
     this.onDeleteForever,
     this.onEditTags,
     this.onFiles,
+    this.loadCachedImage,
     this.readOnly = false,
     this.safeHtmlPreview = false,
     super.key,
@@ -30,6 +32,7 @@ class NoteReaderPage extends StatefulWidget {
   final Future<bool> Function()? onDeleteForever;
   final Future<bool> Function()? onEditTags;
   final Future<void> Function()? onFiles;
+  final CachedImageLoader? loadCachedImage;
   final bool readOnly;
   final bool safeHtmlPreview;
 
@@ -40,6 +43,7 @@ class NoteReaderPage extends StatefulWidget {
 class _NoteReaderPageState extends State<NoteReaderPage> {
   WebViewController? _webView;
   bool _showSource = false;
+  int _imageRevision = 0;
 
   @override
   void initState() {
@@ -85,6 +89,7 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
                 switch (value) {
                   case 'files':
                     await widget.onFiles?.call();
+                    if (mounted) setState(() => _imageRevision++);
                     return;
                   case 'tags':
                     final saved = await widget.onEditTags?.call();
@@ -153,7 +158,11 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
                             style: const TextStyle(fontSize: 16, height: 1.65),
                           ),
                         )
-                      : MarkdownNoteBody(content: note.content)
+                      : MarkdownNoteBody(
+                          key: ValueKey(_imageRevision),
+                          content: note.content,
+                          loadCachedImage: widget.loadCachedImage,
+                        )
                 : widget.safeHtmlPreview
                 ? _showSource
                       ? SingleChildScrollView(

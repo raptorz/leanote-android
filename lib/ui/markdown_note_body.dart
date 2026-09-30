@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
+import 'cached_markdown_image.dart';
+
 Future<void> copyNoteText(BuildContext context, String text) async {
   try {
     await Clipboard.setData(ClipboardData(text: text));
@@ -18,9 +20,14 @@ Future<void> copyNoteText(BuildContext context, String text) async {
 }
 
 class MarkdownNoteBody extends StatelessWidget {
-  const MarkdownNoteBody({required this.content, super.key});
+  const MarkdownNoteBody({
+    required this.content,
+    this.loadCachedImage,
+    super.key,
+  });
 
   final String content;
+  final CachedImageLoader? loadCachedImage;
 
   @override
   Widget build(BuildContext context) => Markdown(
@@ -29,11 +36,13 @@ class MarkdownNoteBody extends StatelessWidget {
     padding: const EdgeInsets.all(20),
     // Media requires account-aware downloading; never resolve arbitrary local
     // paths or contact third-party hosts through the renderer's defaults.
-    imageBuilder: (uri, title, alt) => Container(
-      padding: const EdgeInsets.all(12),
-      color: const Color(0xffebe8dc),
-      child: Text('图片尚未缓存${alt == null || alt.isEmpty ? '' : '：$alt'}'),
-    ),
+    imageBuilder: (uri, title, alt) => loadCachedImage != null
+        ? CachedMarkdownImage(uri: uri, alt: alt, load: loadCachedImage!)
+        : Container(
+            padding: const EdgeInsets.all(12),
+            color: const Color(0xffebe8dc),
+            child: Text('图片尚未缓存${alt == null || alt.isEmpty ? '' : '：$alt'}'),
+          ),
     onTapLink: (text, href, title) {
       if (href == null || href.isEmpty) return;
       showDialog<void>(

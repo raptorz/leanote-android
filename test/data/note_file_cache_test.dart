@@ -49,6 +49,58 @@ void main() {
     await seed(db);
   });
   tearDown(() => db.raw.close());
+  test('inline image cache requires current account, note and image membership without network', () async {
+    const id = '507f1f77bcf86cd799439011';
+    const image = NoteFile(
+      id: id,
+      title: 'photo',
+      type: 'png',
+      isAttachment: false,
+    );
+    await db.replaceNoteFiles(account.cacheKey, 'n', [image]);
+    final current = (await db.cachedNoteFiles(account.cacheKey, 'n')).single;
+    await db.cacheNoteImage(
+      account.cacheKey,
+      'n',
+      current,
+      Uint8List.fromList([1]),
+    );
+    var calls = 0;
+    final api = Api2Client(
+      httpClient: MockClient((_) async {
+        calls++;
+        throw StateError('must not request network');
+      }),
+    );
+    final repo = AuthRepository(
+      api,
+      db,
+      MemorySessions(),
+      SyncCoordinator(api, db),
+    );
+    final session = StoredSession(account: account, token: 'test');
+    final uri = Uri.parse('/api2/file/getImage?fileId=$id');
+    expect(await repo.cachedInlineImage(session, 'n', uri), [1]);
+    expect(await repo.cachedInlineImage(session, 'other', uri), isNull);
+    expect(
+      await repo.cachedInlineImage(
+        session,
+        'n',
+        Uri.parse('https://other.test$uri'),
+      ),
+      isNull,
+    );
+    await db.replaceNoteFiles(account.cacheKey, 'n', [
+      const NoteFile(
+        id: id,
+        title: 'attachment',
+        type: 'png',
+        isAttachment: true,
+      ),
+    ]);
+    expect(await repo.cachedInlineImage(session, 'n', uri), isNull);
+    expect(calls, 0);
+  });
   test('repository offline reads never call network; failures do not silently fall back', () async {
     await db.replaceNoteFiles(account.cacheKey, 'n', [file]);
     final current = (await db.cachedNoteFiles(account.cacheKey, 'n')).single;
