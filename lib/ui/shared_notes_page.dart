@@ -73,7 +73,7 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
           builder: (_) => NoteReaderPage(
             note: content,
             readOnly: true,
-            htmlSourceOnly: true,
+            safeHtmlPreview: true,
           ),
         ),
       );
@@ -111,7 +111,7 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
         ),
         const Padding(
           padding: EdgeInsets.all(12),
-          child: Text('只读浏览；已查看的正文可离线阅读。Markdown 可预览，富文本显示 HTML 原文；不下载图片附件。'),
+          child: Text('只读浏览；已查看的正文可离线阅读。支持 Markdown 和富文本基本排版，可查看原文；不下载图片附件。'),
         ),
         if (_loading) const LinearProgressIndicator(),
         if (_error != null)

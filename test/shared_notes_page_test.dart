@@ -87,6 +87,8 @@ void main() {
         expect(find.byType(PopupMenuButton<String>), findsNothing);
         expect(find.byType(WebViewWidget), findsNothing);
         if (!markdown) {
+          await tester.tap(find.byTooltip('查看原文'));
+          await tester.pumpAndSettle();
           expect(find.text(repo.shared.note.content), findsOneWidget);
         }
       },

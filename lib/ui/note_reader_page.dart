@@ -3,6 +3,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../domain/models/note.dart';
 import 'markdown_note_body.dart';
+import 'safe_html_note_body.dart';
 
 class NoteReaderPage extends StatefulWidget {
   const NoteReaderPage({
@@ -15,7 +16,7 @@ class NoteReaderPage extends StatefulWidget {
     this.onDeleteForever,
     this.onEditTags,
     this.readOnly = false,
-    this.htmlSourceOnly = false,
+    this.safeHtmlPreview = false,
     super.key,
   });
 
@@ -28,7 +29,7 @@ class NoteReaderPage extends StatefulWidget {
   final Future<bool> Function()? onDeleteForever;
   final Future<bool> Function()? onEditTags;
   final bool readOnly;
-  final bool htmlSourceOnly;
+  final bool safeHtmlPreview;
 
   @override
   State<NoteReaderPage> createState() => _NoteReaderPageState();
@@ -41,7 +42,7 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
   @override
   void initState() {
     super.initState();
-    if (!widget.note.isMarkdown && !widget.htmlSourceOnly) {
+    if (!widget.note.isMarkdown && !widget.safeHtmlPreview) {
       _webView = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.disabled)
         ..setBackgroundColor(const Color(0xfff6f4eb))
@@ -56,14 +57,14 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
       appBar: AppBar(
         title: Text(note.title.isEmpty ? '无标题' : note.title),
         actions: [
-          if (note.isMarkdown) ...[
+          if (note.isMarkdown || widget.safeHtmlPreview) ...[
             IconButton(
               tooltip: _showSource ? '查看预览' : '查看原文',
               onPressed: () => setState(() => _showSource = !_showSource),
               icon: Icon(_showSource ? Icons.visibility_outlined : Icons.code),
             ),
             IconButton(
-              tooltip: '复制 Markdown 原文',
+              tooltip: note.isMarkdown ? '复制 Markdown 原文' : '复制 HTML 原文',
               onPressed: () => copyNoteText(context, note.content),
               icon: const Icon(Icons.copy_outlined),
             ),
@@ -146,11 +147,13 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
                           ),
                         )
                       : MarkdownNoteBody(content: note.content)
-                : widget.htmlSourceOnly
-                ? SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
-                    child: SelectableText(note.content),
-                  )
+                : widget.safeHtmlPreview
+                ? _showSource
+                      ? SingleChildScrollView(
+                          padding: const EdgeInsets.all(20),
+                          child: SelectableText(note.content),
+                        )
+                      : SafeHtmlNoteBody(content: note.content)
                 : WebViewWidget(controller: _webView!),
           ),
           if (note.tags.isNotEmpty)
