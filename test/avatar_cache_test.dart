@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -17,6 +18,58 @@ import 'data/cached_login_test.dart' show MemorySessions;
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final server = Uri.parse('https://example.test/');
+  test('presentation refreshes coalesce and a failed task can retry', () async {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+    final db = await AppDatabase.open(databasePath: inMemoryDatabasePath);
+    addTearDown(db.raw.close);
+    final account = Account(
+      userId: 'u',
+      server: server,
+      username: 'u',
+      email: '',
+      logo: '',
+    );
+    await db.replaceSnapshot(
+      account: account,
+      notebooks: [],
+      notes: [],
+      tags: [],
+      lastSyncUsn: 4,
+    );
+    var calls = 0;
+    var response = Completer<http.Response>();
+    final api = Api2Client(
+      httpClient: MockClient((request) {
+        calls++;
+        return response.future;
+      }),
+    );
+    final repo = AuthRepository(
+      api,
+      db,
+      MemorySessions(),
+      SyncCoordinator(api, db),
+    );
+    final session = StoredSession(account: account, token: 'test');
+    final first = repo.refreshAccountPresentation(session);
+    final second = repo.refreshAccountPresentation(session);
+    expect(identical(first, second), true);
+    final failure = expectLater(first, throwsA(isA<ApiException>()));
+    response.complete(http.Response('offline', 503));
+    await failure;
+    expect(calls, 1);
+    response = Completer<http.Response>();
+    final retry = repo.refreshAccountPresentation(session);
+    response.complete(
+      http.Response('{"UserId":"u","Username":"fresh","Logo":""}', 200),
+    );
+    await retry;
+    expect(calls, 2);
+    expect((await repo.cachedProfile(session)).username, 'fresh');
+    expect(await db.lastSyncUsn(account.cacheKey), 4);
+    expect(await db.dirtyNotes(account.cacheKey), isEmpty);
+  });
   for (final logo in [
     'https://other.test/avatar.png',
     '//other.test/a',

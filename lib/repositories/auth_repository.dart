@@ -27,7 +27,19 @@ class PendingLogin {
 }
 
 class AuthRepository {
-  const AuthRepository(this._api, this._database, this._sessions, this._sync);
+  AuthRepository(this._api, this._database, this._sessions, this._sync);
+
+  final Map<String, Future<void>> _presentationRefreshes = {};
+
+  Future<void> refreshAccountPresentation(StoredSession session) {
+    final key = session.account.cacheKey;
+    return _presentationRefreshes[key] ??= (() async {
+      final profile = await refreshProfile(session);
+      await refreshAvatar(session, profile);
+    })().whenComplete(() {
+      _presentationRefreshes.remove(key);
+    });
+  }
 
   final Api2Client _api;
   final AppDatabase _database;

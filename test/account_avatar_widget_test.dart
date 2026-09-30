@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -12,6 +13,14 @@ import 'package:gemsnote/ui/workspace_page.dart';
 class AvatarRepository implements AuthRepository {
   Uint8List? avatar;
   var reads = 0;
+  var refreshes = 0;
+  Completer<void>? refresh;
+  @override
+  Future<void> refreshAccountPresentation(StoredSession session) async {
+    refreshes++;
+    await refresh?.future;
+  }
+
   @override
   Future<Uint8List?> cachedAvatar(StoredSession session) async {
     reads++;
@@ -29,6 +38,39 @@ class AvatarRepository implements AuthRepository {
 }
 
 void main() {
+  testWidgets(
+    'fresh login refresh is nonblocking and failure does not mark notes dirty',
+    (tester) async {
+      final repo = AvatarRepository()..refresh = Completer<void>();
+      final account = Account(
+        userId: 'u',
+        server: Uri.parse('https://example.test/'),
+        username: 'u',
+        email: '',
+        logo: '',
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: WorkspacePage(
+            repository: repo,
+            session: StoredSession(account: account, token: 'test'),
+            refreshAvatarOnStart: true,
+            onSignedOut: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(repo.refreshes, 1);
+      expect(find.text('所有笔记'), findsOneWidget);
+      expect(find.byTooltip('立即同步'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      repo.refresh!.completeError(StateError('offline'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('头像刷新失败'), findsOneWidget);
+      expect(find.byTooltip('立即同步'), findsOneWidget);
+      expect(find.textContaining('同步失败：'), findsNothing);
+    },
+  );
   testWidgets('missing and corrupt cached images show fallback', (
     tester,
   ) async {
@@ -83,6 +125,7 @@ void main() {
         repo.avatar,
       );
       expect(repo.reads, 3); // Workspace, account page, then workspace refresh.
+      expect(repo.refreshes, 0);
     },
   );
 }

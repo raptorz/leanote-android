@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -26,12 +27,14 @@ class WorkspacePage extends StatefulWidget {
     required this.repository,
     required this.session,
     required this.onSignedOut,
+    this.refreshAvatarOnStart = false,
     super.key,
   });
 
   final AuthRepository repository;
   final StoredSession session;
   final VoidCallback onSignedOut;
+  final bool refreshAvatarOnStart;
 
   @override
   State<WorkspacePage> createState() => _WorkspacePageState();
@@ -53,6 +56,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
   int _pendingRead = 0;
   Uint8List? _avatar;
   int _avatarRead = 0;
+  String? _avatarError;
+  bool _refreshingAvatar = false;
   final _expandedNotebooks = <String>{};
 
   @override
@@ -61,6 +66,22 @@ class _WorkspacePageState extends State<WorkspacePage> {
     _notebooks = widget.repository.notebooks(widget.session.account.cacheKey);
     _refreshPending();
     _refreshAvatarCache();
+    if (widget.refreshAvatarOnStart) unawaited(_refreshRemoteAvatar());
+  }
+
+  Future<void> _refreshRemoteAvatar() async {
+    if (_refreshingAvatar || _loggingOut) return;
+    _refreshingAvatar = true;
+    try {
+      await widget.repository.refreshAccountPresentation(widget.session);
+      if (!mounted) return;
+      setState(() => _avatarError = null);
+      await _refreshAvatarCache();
+    } on Object catch (error) {
+      if (mounted) setState(() => _avatarError = '头像刷新失败（不影响笔记同步）：$error');
+    } finally {
+      _refreshingAvatar = false;
+    }
   }
 
   Future<void> _refreshAvatarCache() async {
@@ -107,7 +128,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
     child: const Icon(Icons.sync),
   );
 
-  PreferredSizeWidget? get _syncStatus => _syncError == null
+  PreferredSizeWidget? get _syncStatus =>
+      _syncError == null && _avatarError == null
       ? null
       : PreferredSize(
           preferredSize: const Size.fromHeight(48),
@@ -116,13 +138,16 @@ class _WorkspacePageState extends State<WorkspacePage> {
             child: ListTile(
               dense: true,
               title: Text(
-                _syncError!,
+                _syncError ?? _avatarError!,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
               trailing: IconButton(
                 tooltip: '关闭提示',
-                onPressed: () => setState(() => _syncError = null),
+                onPressed: () => setState(() {
+                  _syncError = null;
+                  _avatarError = null;
+                }),
                 icon: const Icon(Icons.close),
               ),
             ),
@@ -488,6 +513,7 @@ class _WorkspacePageState extends State<WorkspacePage> {
         _expandedNotebooks.clear();
       }
       await _reloadNotes();
+      unawaited(_refreshRemoteAvatar());
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('同步完成')));

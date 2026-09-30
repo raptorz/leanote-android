@@ -55,13 +55,11 @@ class _AccountPageState extends State<AccountPage> {
       _error = null;
     });
     try {
-      final profile = await widget.repository.refreshProfile(widget.session);
+      await widget.repository.refreshAccountPresentation(widget.session);
+      final profile = await widget.repository.cachedProfile(widget.session);
       if (mounted) setState(() => _account = profile);
       try {
-        final avatar = await widget.repository.refreshAvatar(
-          widget.session,
-          profile,
-        );
+        final avatar = await widget.repository.cachedAvatar(widget.session);
         if (mounted) setState(() => _avatar = avatar);
       } on Object catch (error) {
         if (mounted) setState(() => _error = '资料已刷新，但头像刷新失败，保留原头像：$error');
