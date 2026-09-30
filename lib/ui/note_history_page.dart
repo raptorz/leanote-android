@@ -95,6 +95,7 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
         MaterialPageRoute<void>(
           builder: (_) => NoteReaderPage(
             readOnly: true,
+            safeHtmlPreview: true,
             note: widget.note.copyWith(
               content: content,
               updatedTime: history.updatedTime,

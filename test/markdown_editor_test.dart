@@ -86,7 +86,7 @@ void main() {
   );
 
   testWidgets(
-    'rich-text editor has no Markdown formatting or preview controls',
+    'rich-text editor has a separate HTML preview and no Markdown controls',
     (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -101,6 +101,7 @@ void main() {
         ),
       );
       expect(find.byTooltip('预览 Markdown'), findsNothing);
+      expect(find.byTooltip('预览富文本'), findsOneWidget);
       expect(find.byTooltip('加粗'), findsNothing);
       expect(find.text('<p>Body</p>'), findsOneWidget);
     },

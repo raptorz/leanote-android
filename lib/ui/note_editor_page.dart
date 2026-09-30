@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../domain/models/note.dart';
 import 'markdown_editing.dart';
 import 'markdown_note_body.dart';
+import 'safe_html_note_body.dart';
 
 class NoteEditorPage extends StatefulWidget {
   const NoteEditorPage({required this.note, required this.saveText, super.key});
@@ -125,16 +126,19 @@ class _NoteEditorPageState extends State<NoteEditorPage>
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text(widget.note.isMarkdown ? '编辑 Markdown' : '编辑笔记'),
+      title: Text(widget.note.isMarkdown ? '编辑 Markdown' : '编辑 HTML 原文'),
       actions: [
-        if (widget.note.isMarkdown)
-          IconButton(
-            tooltip: _preview ? '继续编辑' : '预览 Markdown',
-            onPressed: _closing ? null : _togglePreview,
-            icon: Icon(
-              _preview ? Icons.edit_outlined : Icons.visibility_outlined,
-            ),
+        IconButton(
+          tooltip: _preview
+              ? '继续编辑'
+              : widget.note.isMarkdown
+              ? '预览 Markdown'
+              : '预览富文本',
+          onPressed: _closing ? null : _togglePreview,
+          icon: Icon(
+            _preview ? Icons.edit_outlined : Icons.visibility_outlined,
           ),
+        ),
         IconButton(
           tooltip: '保存到本地',
           onPressed: _closing ? null : _save,
@@ -166,6 +170,11 @@ class _NoteEditorPageState extends State<NoteEditorPage>
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 12),
+            if (!widget.note.isMarkdown)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text('编辑 HTML 原文，预览仅显示基本排版，不加载图片附件或执行脚本。原文将完整保存。'),
+              ),
             if (widget.note.isMarkdown && !_preview)
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -201,7 +210,9 @@ class _NoteEditorPageState extends State<NoteEditorPage>
               ),
             Expanded(
               child: _preview
-                  ? MarkdownNoteBody(content: _content.text)
+                  ? widget.note.isMarkdown
+                        ? MarkdownNoteBody(content: _content.text)
+                        : SafeHtmlNoteBody(content: _content.text)
                   : TextField(
                       focusNode: _contentFocus,
                       readOnly: _closing,
@@ -214,7 +225,7 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                       decoration: InputDecoration(
                         hintText: widget.note.isMarkdown
                             ? '使用 Markdown 开始记录…'
-                            : '开始记录…',
+                            : '输入 HTML 原文，例如 <p>开始记录…</p>',
                         border: InputBorder.none,
                       ),
                     ),
