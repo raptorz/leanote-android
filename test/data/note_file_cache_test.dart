@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -17,6 +18,7 @@ import 'package:gemsnote/domain/models/note_file.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   final account = Account(
     userId: 'u',
     server: Uri.parse('https://example.test'),
@@ -49,6 +51,66 @@ void main() {
     await seed(db);
   });
   tearDown(() => db.raw.close());
+  test('inline download coalesces, checks membership, caches decoded image and rejects external addresses', () async {
+    const id = '507f1f77bcf86cd799439011';
+    final bytes = File('assets/images/gemsnote_s.png').readAsBytesSync();
+    var downloads = 0;
+    var calls = 0;
+    final api = Api2Client(
+      httpClient: MockClient((request) async {
+        calls++;
+        if (request.url.path == '/api2/note/getNote') {
+          return http.Response(
+            jsonEncode({
+              'NoteId': 'n',
+              'UserId': 'u',
+              'Files': [
+                {
+                  'FileId': id,
+                  'Title': 'photo',
+                  'Type': 'png',
+                  'IsAttach': false,
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        expect(request.url.path, '/api2/file/getImage');
+        downloads++;
+        return http.Response.bytes(
+          bytes,
+          200,
+          headers: {'content-type': 'image/png'},
+        );
+      }),
+    );
+    final repo = AuthRepository(
+      api,
+      db,
+      MemorySessions(),
+      SyncCoordinator(api, db),
+    );
+    final session = StoredSession(account: account, token: 'test');
+    await expectLater(
+      repo.downloadInlineImage(
+        session,
+        'n',
+        Uri.parse('https://other.test/image'),
+      ),
+      throwsStateError,
+    );
+    expect(calls, 0);
+    final uri = Uri.parse('/api2/file/getImage?fileId=$id');
+    final result = await Future.wait([
+      repo.downloadInlineImage(session, 'n', uri),
+      repo.downloadInlineImage(session, 'n', uri),
+    ]);
+    expect(result.first, bytes);
+    expect(downloads, 1);
+    expect(await repo.cachedInlineImage(session, 'n', uri), bytes);
+    expect(await db.dirtyNotes(account.cacheKey), isEmpty);
+  });
   test('inline image cache requires current account, note and image membership without network', () async {
     const id = '507f1f77bcf86cd799439011';
     const image = NoteFile(

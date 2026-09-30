@@ -10,16 +10,21 @@ class CachedMarkdownImage extends StatefulWidget {
     required this.uri,
     required this.alt,
     required this.load,
+    this.download,
   });
   final Uri uri;
   final String? alt;
   final CachedImageLoader load;
+  final Future<Uint8List> Function()? download;
   @override
   State<CachedMarkdownImage> createState() => _CachedMarkdownImageState();
 }
 
 class _CachedMarkdownImageState extends State<CachedMarkdownImage> {
   late Future<Uint8List?> _bytes;
+  bool _downloading = false;
+  String? _error;
+  int _generation = 0;
   @override
   void initState() {
     super.initState();
@@ -30,15 +35,59 @@ class _CachedMarkdownImageState extends State<CachedMarkdownImage> {
   void didUpdateWidget(CachedMarkdownImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.uri != widget.uri || oldWidget.load != widget.load) {
+      _generation++;
+      _downloading = false;
+      _error = null;
       _bytes = widget.load(widget.uri);
+    }
+  }
+
+  Future<void> _download() async {
+    if (_downloading || widget.download == null) return;
+    final generation = _generation;
+    setState(() {
+      _downloading = true;
+      _error = null;
+    });
+    try {
+      final bytes = await widget.download!();
+      if (mounted && generation == _generation) {
+        setState(() {
+          _bytes = Future.value(bytes);
+        });
+      }
+    } on Object catch (error) {
+      if (mounted && generation == _generation) {
+        setState(() => _error = '下载失败：$error');
+      }
+    } finally {
+      if (mounted && generation == _generation) {
+        setState(() => _downloading = false);
+      }
     }
   }
 
   Widget _placeholder() => Container(
     padding: const EdgeInsets.all(12),
     color: const Color(0xffebe8dc),
-    child: Text(
-      '图片尚未缓存或无法读取${widget.alt == null || widget.alt!.isEmpty ? '' : '：${widget.alt}'}',
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '图片尚未缓存或无法读取${widget.alt == null || widget.alt!.isEmpty ? '' : '：${widget.alt}'}',
+        ),
+        if (_error != null)
+          Text(
+            _error!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        if (widget.download != null)
+          TextButton.icon(
+            onPressed: _downloading ? null : _download,
+            icon: const Icon(Icons.download_outlined),
+            label: Text(_downloading ? '正在下载…' : '下载图片'),
+          ),
+      ],
     ),
   );
   @override

@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
@@ -23,11 +24,15 @@ class MarkdownNoteBody extends StatelessWidget {
   const MarkdownNoteBody({
     required this.content,
     this.loadCachedImage,
+    this.downloadImage,
+    this.canDownloadImage,
     super.key,
   });
 
   final String content;
   final CachedImageLoader? loadCachedImage;
+  final Future<Uint8List> Function(Uri)? downloadImage;
+  final bool Function(Uri)? canDownloadImage;
 
   @override
   Widget build(BuildContext context) => Markdown(
@@ -37,7 +42,15 @@ class MarkdownNoteBody extends StatelessWidget {
     // Media requires account-aware downloading; never resolve arbitrary local
     // paths or contact third-party hosts through the renderer's defaults.
     imageBuilder: (uri, title, alt) => loadCachedImage != null
-        ? CachedMarkdownImage(uri: uri, alt: alt, load: loadCachedImage!)
+        ? CachedMarkdownImage(
+            uri: uri,
+            alt: alt,
+            load: loadCachedImage!,
+            download:
+                downloadImage != null && canDownloadImage?.call(uri) == true
+                ? () => downloadImage!(uri)
+                : null,
+          )
         : Container(
             padding: const EdgeInsets.all(12),
             color: const Color(0xffebe8dc),

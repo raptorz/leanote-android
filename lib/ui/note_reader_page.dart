@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -18,6 +20,8 @@ class NoteReaderPage extends StatefulWidget {
     this.onEditTags,
     this.onFiles,
     this.loadCachedImage,
+    this.downloadImage,
+    this.canDownloadImage,
     this.readOnly = false,
     this.safeHtmlPreview = false,
     super.key,
@@ -33,6 +37,8 @@ class NoteReaderPage extends StatefulWidget {
   final Future<bool> Function()? onEditTags;
   final Future<void> Function()? onFiles;
   final CachedImageLoader? loadCachedImage;
+  final Future<Uint8List> Function(Uri)? downloadImage;
+  final bool Function(Uri)? canDownloadImage;
   final bool readOnly;
   final bool safeHtmlPreview;
 
@@ -162,6 +168,8 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
                           key: ValueKey(_imageRevision),
                           content: note.content,
                           loadCachedImage: widget.loadCachedImage,
+                          downloadImage: widget.downloadImage,
+                          canDownloadImage: widget.canDownloadImage,
                         )
                 : widget.safeHtmlPreview
                 ? _showSource

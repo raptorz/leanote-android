@@ -1,12 +1,79 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/domain/models/note_image_reference.dart';
 import 'package:gemsnote/ui/markdown_note_body.dart';
+import 'package:gemsnote/ui/cached_markdown_image.dart';
 
 void main() {
+  testWidgets(
+    'download is explicit, duplicate taps blocked, failure can retry',
+    (tester) async {
+      var calls = 0;
+      var pending = Completer<Uint8List>();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CachedMarkdownImage(
+              uri: Uri.parse('/image'),
+              alt: 'photo',
+              load: (_) async => null,
+              download: () {
+                calls++;
+                return pending.future;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(calls, 0);
+      await tester.tap(find.text('下载图片'));
+      await tester.pump();
+      expect(calls, 1);
+      expect(
+        tester.widget<TextButton>(find.byType(TextButton)).onPressed,
+        isNull,
+      );
+      pending.completeError(StateError('offline'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('下载失败'), findsOneWidget);
+      pending = Completer<Uint8List>();
+      await tester.tap(find.text('下载图片'));
+      await tester.pump();
+      pending.complete(File('assets/images/gemsnote_s.png').readAsBytesSync());
+      await tester.pumpAndSettle();
+      expect(calls, 2);
+      expect(find.byType(Image), findsOneWidget);
+      expect(find.textContaining('下载失败'), findsNothing);
+    },
+  );
+  testWidgets('external Markdown references never get download action', (
+    tester,
+  ) async {
+    var calls = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MarkdownNoteBody(
+            content: '![external](https://other.test/a.png)',
+            loadCachedImage: (_) async => null,
+            canDownloadImage: (_) => false,
+            downloadImage: (_) async {
+              calls++;
+              return Uint8List(0);
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('下载图片'), findsNothing);
+    expect(calls, 0);
+  });
   final server = Uri.parse('https://example.test');
   const id = '507f1f77bcf86cd799439011';
   test('only same-origin known stored image references yield IDs', () {

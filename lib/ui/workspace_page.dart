@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../domain/models/note.dart';
+import '../domain/models/note_image_reference.dart';
 import '../domain/models/note_sort.dart';
 import '../domain/models/notebook.dart';
 import '../domain/models/notebook_tree.dart';
@@ -304,6 +305,14 @@ class _WorkspacePageState extends State<WorkspacePage>
       MaterialPageRoute<void>(
         builder: (_) => NoteReaderPage(
           note: note,
+          canDownloadImage: (uri) =>
+              note.usn > 0 &&
+              cachedImageFileId(uri, widget.session.account.server) != null,
+          downloadImage: (uri) => widget.repository.downloadInlineImage(
+            widget.session,
+            note.noteId,
+            uri,
+          ),
           loadCachedImage: (uri) => widget.repository.cachedInlineImage(
             widget.session,
             note.noteId,

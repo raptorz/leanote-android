@@ -35,6 +35,7 @@ class AuthRepository {
   final Map<String, Future<void>> _presentationRefreshes = {};
   final Map<String, Future<List<SharedNote>>> _sharedRefreshes = {};
   final Map<String, Future<List<NoteFile>>> _fileRefreshes = {};
+  final Map<String, Future<Uint8List>> _inlineDownloads = {};
 
   Future<void> refreshAccountPresentation(StoredSession session) {
     final key = session.account.cacheKey;
@@ -50,6 +51,34 @@ class AuthRepository {
   final Api2Client _api;
   final AppDatabase _database;
   final SessionStore _sessions;
+  Future<Uint8List> downloadInlineImage(
+    StoredSession session,
+    String noteId,
+    Uri uri,
+  ) {
+    final id = cachedImageFileId(uri, session.account.server);
+    if (id == null) return Future.error(StateError('不支持下载此图片地址'));
+    final key = '${session.account.cacheKey}:$noteId:$id';
+    return _inlineDownloads[key] ??=
+        (() async {
+          var files = await _database.cachedNoteFiles(
+            session.account.cacheKey,
+            noteId,
+          );
+          if (!files.any((file) => file.id == id && !file.isAttachment)) {
+            files = await noteFiles(session, noteId);
+          }
+          for (final file in files) {
+            if (file.id == id && !file.isAttachment) {
+              return noteImage(session, noteId, file);
+            }
+          }
+          throw StateError('图片不属于当前笔记，请同步后重试');
+        })().whenComplete(() {
+          _inlineDownloads.remove(key);
+        });
+  }
+
   Future<Uint8List?> cachedInlineImage(
     StoredSession session,
     String noteId,
