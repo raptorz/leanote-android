@@ -10,6 +10,7 @@ import '../domain/models/notebook_tree.dart';
 import '../repositories/auth_repository.dart';
 import 'note_editor_page.dart';
 import 'note_reader_page.dart';
+import 'note_files_page.dart';
 import 'note_tags_dialog.dart';
 import 'note_history_page.dart';
 import 'note_search_page.dart';
@@ -303,6 +304,17 @@ class _WorkspacePageState extends State<WorkspacePage>
       MaterialPageRoute<void>(
         builder: (_) => NoteReaderPage(
           note: note,
+          onFiles: note.usn <= 0
+              ? null
+              : () => Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (_) => NoteFilesPage(
+                      repository: widget.repository,
+                      session: widget.session,
+                      noteId: note.noteId,
+                    ),
+                  ),
+                ),
           onHistory: note.usn == 0
               ? null
               : () async {

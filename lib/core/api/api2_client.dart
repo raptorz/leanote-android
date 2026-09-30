@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../../domain/models/account.dart';
 import '../../domain/models/note.dart';
+import '../../domain/models/note_file.dart';
 import '../../domain/models/note_history.dart';
 import '../../domain/models/notebook.dart';
 import '../../domain/models/shared_note.dart';
@@ -30,6 +31,108 @@ class Api2Client {
 
   static const clientVersion = '1.0.0';
   final http.Client _http;
+
+  Future<List<NoteFile>> noteFiles({
+    required Uri server,
+    required String token,
+    required String noteId,
+    required String userId,
+  }) async {
+    final data = await _requestJson(
+      server: server,
+      path: '/api2/note/getNote',
+      method: 'GET',
+      token: token,
+      query: {'noteId': noteId},
+    );
+    if (data['NoteId'] != noteId ||
+        data['UserId'] != userId ||
+        !data.containsKey('Files') ||
+        (data['Files'] != null && data['Files'] is! List)) {
+      throw const ApiException('invalidResponse');
+    }
+    if (data['IsDeleted'] == true) throw const ApiException('notExists');
+    final result = <NoteFile>[];
+    final ids = <String>{};
+    try {
+      for (final item in data['Files'] as List? ?? []) {
+        final file = NoteFile.fromJson(_map(item));
+        if (!ids.add(file.id)) throw const FormatException('duplicateFile');
+        result.add(file);
+      }
+    } on FormatException {
+      throw const ApiException('invalidResponse');
+    }
+    return result;
+  }
+
+  Future<Uint8List> noteImage({
+    required Uri server,
+    required String token,
+    required String noteId,
+    required String userId,
+    required NoteFile file,
+  }) async {
+    // Recheck membership rather than trusting an old list or a body-supplied URL.
+    final files = await noteFiles(
+      server: server,
+      token: token,
+      noteId: noteId,
+      userId: userId,
+    );
+    if (file.isAttachment ||
+        !files.any((item) => item.id == file.id && !item.isAttachment)) {
+      throw const ApiException('imageNotInNote');
+    }
+    final request = http.Request(
+      'GET',
+      _uri(
+        server,
+        '/api2/file/getImage',
+        token: token,
+        query: {'fileId': file.id},
+      ),
+    )..followRedirects = false;
+    try {
+      final response = await _http
+          .send(request)
+          .timeout(const Duration(seconds: 15));
+      const maxBytes = 8 * 1024 * 1024;
+      if (response.statusCode != 200 ||
+          (response.contentLength ?? 0) > maxBytes ||
+          !{'image/png', 'image/jpeg', 'image/gif', 'image/webp'}.contains(
+            response.headers['content-type']
+                ?.split(';')
+                .first
+                .trim()
+                .toLowerCase(),
+          )) {
+        await response.stream.listen((_) {}).cancel();
+        throw const ApiException('invalidImageResponse');
+      }
+      final bytes = BytesBuilder(copy: false);
+      final chunks = StreamIterator(response.stream);
+      final timer = Stopwatch()..start();
+      try {
+        while (await chunks.moveNext().timeout(
+          const Duration(seconds: 15) - timer.elapsed,
+        )) {
+          if (bytes.length + chunks.current.length > maxBytes) {
+            throw const ApiException('imageTooLarge');
+          }
+          bytes.add(chunks.current);
+        }
+      } finally {
+        await chunks.cancel();
+      }
+      if (bytes.isEmpty) throw const ApiException('invalidImageResponse');
+      return bytes.takeBytes();
+    } on ApiException {
+      rethrow;
+    } on Exception {
+      throw const ApiException('imageDownloadFailed');
+    }
+  }
 
   Future<Uint8List?> downloadAvatar({
     required Uri server,

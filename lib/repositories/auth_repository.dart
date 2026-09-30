@@ -7,6 +7,7 @@ import '../data/database/app_database.dart';
 import '../data/session/session_store.dart';
 import '../domain/models/account.dart';
 import '../domain/models/note.dart';
+import '../domain/models/note_file.dart';
 import '../domain/models/note_history.dart';
 import '../domain/models/notebook.dart';
 import '../domain/models/notebook_tree.dart';
@@ -47,6 +48,25 @@ class AuthRepository {
   final Api2Client _api;
   final AppDatabase _database;
   final SessionStore _sessions;
+  Future<List<NoteFile>> noteFiles(StoredSession session, String noteId) =>
+      _api.noteFiles(
+        server: session.account.server,
+        token: session.token,
+        noteId: noteId,
+        userId: session.account.userId,
+      );
+
+  Future<Uint8List> noteImage(
+    StoredSession session,
+    String noteId,
+    NoteFile file,
+  ) => _api.noteImage(
+    server: session.account.server,
+    token: session.token,
+    noteId: noteId,
+    userId: session.account.userId,
+    file: file,
+  );
   final SyncCoordinator _sync;
 
   Future<List<SharedNote>> sharedNotes(
