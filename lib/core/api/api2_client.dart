@@ -8,6 +8,7 @@ import '../../domain/models/account.dart';
 import '../../domain/models/note.dart';
 import '../../domain/models/note_history.dart';
 import '../../domain/models/notebook.dart';
+import '../../domain/models/shared_note.dart';
 import 'api_exception.dart';
 
 class LoginResult {
@@ -167,6 +168,116 @@ class Api2Client {
       token: token,
       query: {'afterUsn': '$afterUsn', 'maxEntry': '$maxEntry'},
     );
+  }
+
+  Future<List<SharedNote>> sharedNotes({
+    required Uri server,
+    required String token,
+  }) async {
+    final capabilities = await _requestJson(
+      server: server,
+      path: '/api2/shared/capabilities',
+      method: 'GET',
+      token: token,
+    );
+    if (capabilities['Ok'] != true ||
+        capabilities['ProtocolVersion'] != 1 ||
+        capabilities['Snapshot'] != true) {
+      throw const ApiException('sharedProtocolUnsupported');
+    }
+    final snapshot = await _requestJson(
+      server: server,
+      path: '/api2/shared/snapshots',
+      method: 'POST',
+      token: token,
+      body: {},
+    );
+    final id = snapshot['SnapshotId'];
+    final total = snapshot['Total'];
+    if (snapshot['Ok'] != true ||
+        id is! String ||
+        !RegExp(r'^[a-zA-Z0-9_-]{1,128}$').hasMatch(id) ||
+        total is! int ||
+        total < 0 ||
+        total > 10000) {
+      throw const ApiException('invalidSharedSnapshot');
+    }
+    final result = <SharedNote>[];
+    final ids = <String>{};
+    var received = 0;
+    var cursor = '';
+    while (true) {
+      final page = await _requestJson(
+        server: server,
+        path: '/api2/shared/snapshots/$id/items',
+        method: 'GET',
+        token: token,
+        query: {'pageToken': cursor},
+      );
+      if (page['Ok'] != true ||
+          page['Items'] is! List ||
+          page['Total'] != total ||
+          page['Complete'] is! bool ||
+          page['NextPageToken'] is! String) {
+        throw const ApiException('invalidSharedSnapshot');
+      }
+      final items = page['Items'] as List;
+      received += items.length;
+      if (received > total) throw const ApiException('invalidSharedSnapshot');
+      for (final item in items) {
+        final data = _map(item);
+        if (data['Kind'] == 'note') {
+          final note = SharedNote.fromJson(_map(data['Note']));
+          if (!ids.add(note.note.noteId)) {
+            throw const ApiException('duplicateSharedNote');
+          }
+          result.add(note);
+        } else if (data['Kind'] != 'notebook' && data['Kind'] != 'file') {
+          throw const ApiException('invalidSharedSnapshot');
+        }
+      }
+      if (page['Complete'] == true) {
+        if (received != total || page['NextPageToken'] != '') {
+          throw const ApiException('invalidSharedSnapshot');
+        }
+        break;
+      }
+      if (items.isEmpty ||
+          received >= total ||
+          page['NextPageToken'] != '$received') {
+        throw const ApiException('invalidSharedSnapshot');
+      }
+      cursor = page['NextPageToken'] as String;
+    }
+    result.sort((a, b) {
+      final order = a.note.title.toLowerCase().compareTo(
+        b.note.title.toLowerCase(),
+      );
+      return order == 0 ? a.note.noteId.compareTo(b.note.noteId) : order;
+    });
+    return result;
+  }
+
+  Future<Note> sharedContent({
+    required Uri server,
+    required String token,
+    required SharedNote shared,
+  }) async {
+    final data = await _requestJson(
+      server: server,
+      path: '/api2/shared/notes/${shared.note.noteId}/content',
+      method: 'GET',
+      token: token,
+    );
+    if (data['Ok'] != true ||
+        data['NoteId'] != shared.note.noteId ||
+        data['Content'] is! String) {
+      throw const ApiException('invalidResponse');
+    }
+    if (data['Version'] != shared.version || data['Digest'] != shared.version) {
+      throw const ApiException('共享笔记已更新，请刷新列表后重试');
+    }
+    return shared.note.copyWith(content: data['Content'] as String);
   }
 
   Future<void> logout({required Uri server, required String token}) async {

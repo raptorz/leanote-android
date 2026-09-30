@@ -17,6 +17,7 @@ import 'notebook_dialog.dart';
 import 'move_notebook_dialog.dart';
 import 'account_page.dart';
 import 'account_avatar.dart';
+import 'shared_notes_page.dart';
 import 'tags_page.dart';
 import 'sync_progress_dialog.dart';
 import 'logout_confirmation_dialog.dart';
@@ -778,8 +779,15 @@ class _WorkspacePageState extends State<WorkspacePage> {
           if (index == 1) {
             _openStarred();
           } else if (index == 2) {
-            ScaffoldMessenger.of(context)
-                .showSnackBar(const SnackBar(content: Text('共享笔记将在后续阶段开放')));
+            Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => SharedNotesPage(
+                  repository: widget.repository,
+                  session: widget.session,
+                ),
+              ),
+            );
           }
         },
         destinations: const [

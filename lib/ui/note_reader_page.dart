@@ -15,6 +15,7 @@ class NoteReaderPage extends StatefulWidget {
     this.onDeleteForever,
     this.onEditTags,
     this.readOnly = false,
+    this.htmlSourceOnly = false,
     super.key,
   });
 
@@ -27,6 +28,7 @@ class NoteReaderPage extends StatefulWidget {
   final Future<bool> Function()? onDeleteForever;
   final Future<bool> Function()? onEditTags;
   final bool readOnly;
+  final bool htmlSourceOnly;
 
   @override
   State<NoteReaderPage> createState() => _NoteReaderPageState();
@@ -39,7 +41,7 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
   @override
   void initState() {
     super.initState();
-    if (!widget.note.isMarkdown) {
+    if (!widget.note.isMarkdown && !widget.htmlSourceOnly) {
       _webView = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.disabled)
         ..setBackgroundColor(const Color(0xfff6f4eb))
@@ -144,6 +146,11 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
                           ),
                         )
                       : MarkdownNoteBody(content: note.content)
+                : widget.htmlSourceOnly
+                ? SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: SelectableText(note.content),
+                  )
                 : WebViewWidget(controller: _webView!),
           ),
           if (note.tags.isNotEmpty)

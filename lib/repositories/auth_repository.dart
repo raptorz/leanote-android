@@ -10,6 +10,7 @@ import '../domain/models/note.dart';
 import '../domain/models/note_history.dart';
 import '../domain/models/notebook.dart';
 import '../domain/models/notebook_tree.dart';
+import '../domain/models/shared_note.dart';
 import '../sync/sync_coordinator.dart';
 
 class StoredSession {
@@ -33,18 +34,29 @@ class AuthRepository {
 
   Future<void> refreshAccountPresentation(StoredSession session) {
     final key = session.account.cacheKey;
-    return _presentationRefreshes[key] ??= (() async {
-      final profile = await refreshProfile(session);
-      await refreshAvatar(session, profile);
-    })().whenComplete(() {
-      _presentationRefreshes.remove(key);
-    });
+    return _presentationRefreshes[key] ??=
+        (() async {
+          final profile = await refreshProfile(session);
+          await refreshAvatar(session, profile);
+        })().whenComplete(() {
+          _presentationRefreshes.remove(key);
+        });
   }
 
   final Api2Client _api;
   final AppDatabase _database;
   final SessionStore _sessions;
   final SyncCoordinator _sync;
+
+  Future<List<SharedNote>> sharedNotes(StoredSession session) =>
+      _api.sharedNotes(server: session.account.server, token: session.token);
+
+  Future<Note> sharedContent(StoredSession session, SharedNote note) =>
+      _api.sharedContent(
+        server: session.account.server,
+        token: session.token,
+        shared: note,
+      );
 
   Future<StoredSession?> restore() async {
     final account = await _database.activeAccount();
