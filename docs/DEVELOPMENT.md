@@ -40,9 +40,17 @@ flutter build ios
 ## Markdown 阅读
 
 Markdown 阅读使用 [flutter_markdown_plus](https://pub.dev/packages/flutter_markdown_plus)
-原生组件，并保留可复制的原文模式。图片渲染覆盖为占位组件，链接仅展示地址并
-允许用户复制；接入账号隔离的媒体缓存前，不启用渲染器默认的网络/本地文件加载。
+原生组件，并保留可复制的原文模式。个人笔记图片由账号隔离的缓存组件处理；
+未缓存时由用户手动点击、经 API2 校验后下载，不启用渲染器默认的网络/本地文件加载。
+共享、历史及编辑预览中的图片仍为占位。链接仅展示地址并允许用户复制。
 此实现不支持 Markdown 中内嵌 HTML 的浏览器渲染，富文本笔记继续使用原有阅读组件。
+
+## 原文导出
+
+`NoteExporter` 调用已锁定依赖版本的 `FilePicker.saveFile`，使用返回的 URI 判断
+是否保存，取消返回 null；不把 Android content URI 当作本地路径写文件。
+测试可注入保存回调验证字节、文件名、取消和失败行为。导出不执行 HTML，也不下载附件。
+iOS 保存对话框只能在 macOS/iOS 环境完成构建和真机验收。
 
 ## 测试原则
 

@@ -9,6 +9,7 @@ import '../domain/models/note_sort.dart';
 import '../domain/models/notebook.dart';
 import '../domain/models/notebook_tree.dart';
 import '../repositories/auth_repository.dart';
+import '../services/note_exporter.dart';
 import 'note_editor_page.dart';
 import 'note_reader_page.dart';
 import 'note_files_page.dart';
@@ -305,6 +306,7 @@ class _WorkspacePageState extends State<WorkspacePage>
       MaterialPageRoute<void>(
         builder: (_) => NoteReaderPage(
           note: note,
+          onExport: () => NoteExporter().export(note),
           canDownloadImage: (uri) =>
               note.usn > 0 &&
               cachedImageFileId(uri, widget.session.account.server) != null,

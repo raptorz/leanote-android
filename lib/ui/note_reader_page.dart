@@ -19,6 +19,7 @@ class NoteReaderPage extends StatefulWidget {
     this.onDeleteForever,
     this.onEditTags,
     this.onFiles,
+    this.onExport,
     this.loadCachedImage,
     this.downloadImage,
     this.canDownloadImage,
@@ -36,6 +37,7 @@ class NoteReaderPage extends StatefulWidget {
   final Future<bool> Function()? onDeleteForever;
   final Future<bool> Function()? onEditTags;
   final Future<void> Function()? onFiles;
+  final Future<bool> Function()? onExport;
   final CachedImageLoader? loadCachedImage;
   final Future<Uint8List> Function(Uri)? downloadImage;
   final bool Function(Uri)? canDownloadImage;
@@ -50,6 +52,27 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
   WebViewController? _webView;
   bool _showSource = false;
   int _imageRevision = 0;
+  bool _exporting = false;
+
+  Future<void> _export() async {
+    if (_exporting || widget.onExport == null) return;
+    setState(() => _exporting = true);
+    try {
+      final saved = await widget.onExport!();
+      if (mounted && saved) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('笔记已导出')));
+      }
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('导出失败，请检查保存位置或可用空间后重试')));
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
 
   @override
   void initState() {
@@ -93,6 +116,9 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
             PopupMenuButton<String>(
               onSelected: (value) async {
                 switch (value) {
+                  case 'export':
+                    await _export();
+                    return;
                   case 'files':
                     await widget.onFiles?.call();
                     if (mounted) setState(() => _imageRevision++);
@@ -125,6 +151,12 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
                 if (context.mounted) Navigator.of(context).pop();
               },
               itemBuilder: (_) => [
+                if (widget.onExport != null)
+                  PopupMenuItem(
+                    value: 'export',
+                    enabled: !_exporting,
+                    child: Text(_exporting ? '正在导出…' : '导出原文'),
+                  ),
                 if (widget.onFiles != null)
                   const PopupMenuItem(value: 'files', child: Text('图片与附件')),
                 if (widget.onEditTags != null)
