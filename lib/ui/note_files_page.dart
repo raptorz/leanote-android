@@ -24,6 +24,8 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
   bool _loading = false;
   String? _opening;
   String? _error;
+  bool _cachedOnly = false;
+  int _generation = 0;
   @override
   void initState() {
     super.initState();
@@ -31,7 +33,8 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
   }
 
   Future<void> _load() async {
-    if (_loading || _opening != null) return;
+    if (_opening != null) return;
+    final generation = ++_generation;
     setState(() {
       _loading = true;
       _error = null;
@@ -41,12 +44,17 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
       final files = await widget.repository.noteFiles(
         widget.session,
         widget.noteId,
+        cachedOnly: _cachedOnly,
       );
-      if (mounted) setState(() => _files = files);
+      if (mounted && generation == _generation) setState(() => _files = files);
     } on Object catch (error) {
-      if (mounted) setState(() => _error = '读取文件列表失败：$error');
+      if (mounted && generation == _generation) {
+        setState(() => _error = '读取文件列表失败：$error');
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && generation == _generation) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -61,6 +69,7 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
         widget.session,
         widget.noteId,
         file,
+        cachedOnly: _cachedOnly,
       );
       if (!mounted) return;
       await Navigator.push(
@@ -90,9 +99,22 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
     ),
     body: Column(
       children: [
+        SwitchListTile(
+          title: const Text('离线缓存'),
+          subtitle: const Text('仅查看缓存，可能不是最新内容；未缓存图片需联网查看。'),
+          value: _cachedOnly,
+          onChanged: _opening != null
+              ? null
+              : (value) {
+                  setState(() => _cachedOnly = value);
+                  _load();
+                },
+        ),
         const Padding(
           padding: EdgeInsets.all(12),
-          child: Text('联网查看；点击图片预览（最多 8 MiB）。附件暂仅显示列表，不下载到本地。'),
+          child: Text(
+            '已查看图片可离线预览（每张最多 8 MiB，缓存总计 64 MiB）。联网刷新会清除本笔记旧图片缓存。附件暂仅显示列表。',
+          ),
         ),
         if (_loading) const LinearProgressIndicator(),
         if (_error != null)

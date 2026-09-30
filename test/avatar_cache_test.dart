@@ -231,6 +231,7 @@ void main() {
       );
       await original.raw.execute('DROP TABLE account_avatars');
       await original.raw.execute('DROP TABLE shared_notes');
+      await original.raw.execute('DROP TABLE note_files');
       await original.raw.setVersion(2);
       await original.raw.close();
       final db = await AppDatabase.open(databasePath: path);

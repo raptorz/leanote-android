@@ -33,6 +33,7 @@ class AuthRepository {
 
   final Map<String, Future<void>> _presentationRefreshes = {};
   final Map<String, Future<List<SharedNote>>> _sharedRefreshes = {};
+  final Map<String, Future<List<NoteFile>>> _fileRefreshes = {};
 
   Future<void> refreshAccountPresentation(StoredSession session) {
     final key = session.account.cacheKey;
@@ -48,25 +49,88 @@ class AuthRepository {
   final Api2Client _api;
   final AppDatabase _database;
   final SessionStore _sessions;
-  Future<List<NoteFile>> noteFiles(StoredSession session, String noteId) =>
-      _api.noteFiles(
-        server: session.account.server,
-        token: session.token,
-        noteId: noteId,
-        userId: session.account.userId,
-      );
+  Future<List<NoteFile>> noteFiles(
+    StoredSession session,
+    String noteId, {
+    bool cachedOnly = false,
+  }) async {
+    if (cachedOnly) {
+      return _database.cachedNoteFiles(session.account.cacheKey, noteId);
+    }
+    final key = '${session.account.cacheKey}:$noteId';
+    return _fileRefreshes[key] ??=
+        (() async {
+          try {
+            final files = await _api.noteFiles(
+              server: session.account.server,
+              token: session.token,
+              noteId: noteId,
+              userId: session.account.userId,
+            );
+            await _database.replaceNoteFiles(
+              session.account.cacheKey,
+              noteId,
+              files,
+            );
+          } on ApiException catch (error) {
+            if (error.code == 'notExists' || error.code == 'noPermission') {
+              await _database.replaceNoteFiles(
+                session.account.cacheKey,
+                noteId,
+                [],
+              );
+            }
+            rethrow;
+          }
+          return _database.cachedNoteFiles(session.account.cacheKey, noteId);
+        })().whenComplete(() {
+          _fileRefreshes.remove(key);
+        });
+  }
 
   Future<Uint8List> noteImage(
     StoredSession session,
     String noteId,
-    NoteFile file,
-  ) => _api.noteImage(
-    server: session.account.server,
-    token: session.token,
-    noteId: noteId,
-    userId: session.account.userId,
-    file: file,
-  );
+    NoteFile file, {
+    bool cachedOnly = false,
+  }) async {
+    if (cachedOnly) {
+      return _database.cachedNoteImage(session.account.cacheKey, noteId, file);
+    }
+    try {
+      final bytes = await _api.noteImage(
+        server: session.account.server,
+        token: session.token,
+        noteId: noteId,
+        userId: session.account.userId,
+        file: file,
+      );
+      final codec = await ui.instantiateImageCodec(bytes, targetWidth: 256);
+      try {
+        final frame = await codec.getNextFrame();
+        frame.image.dispose();
+      } finally {
+        codec.dispose();
+      }
+      await _database.cacheNoteImage(
+        session.account.cacheKey,
+        noteId,
+        file,
+        bytes,
+      );
+      return bytes;
+    } on ApiException catch (error) {
+      if ({
+        'notExists',
+        'noPermission',
+        'imageNotInNote',
+      }.contains(error.code)) {
+        await _database.replaceNoteFiles(session.account.cacheKey, noteId, []);
+      }
+      rethrow;
+    }
+  }
+
   final SyncCoordinator _sync;
 
   Future<List<SharedNote>> sharedNotes(

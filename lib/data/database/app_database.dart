@@ -8,6 +8,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../../domain/models/account.dart';
 import '../../domain/models/note.dart';
+import '../../domain/models/note_file.dart';
 import '../../domain/models/note_history.dart';
 import '../../domain/models/notebook.dart';
 import '../../domain/models/shared_note.dart';
@@ -15,7 +16,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 4;
+  static const schemaVersion = 5;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -38,10 +39,109 @@ class AppDatabase {
         if (oldVersion < 2) await db.execute(_historySchema);
         if (oldVersion < 3) await db.execute(_avatarSchema);
         if (oldVersion < 4) await db.execute(_sharedSchema);
+        if (oldVersion < 5) await db.execute(_fileCacheSchema);
       },
     );
     return AppDatabase._(database);
   }
+
+  Future<void> replaceNoteFiles(
+    String accountId,
+    String noteId,
+    List<NoteFile> files,
+  ) => raw.transaction((txn) async {
+    final generation = _objectId();
+    await txn.delete(
+      'note_files',
+      where: 'account_id = ? AND note_id = ?',
+      whereArgs: [accountId, noteId],
+    );
+    for (final file in files) {
+      await txn.insert('note_files', {
+        'account_id': accountId,
+        'note_id': noteId,
+        'file_id': file.id,
+        'title': file.title,
+        'type': file.type,
+        'is_attachment': file.isAttachment ? 1 : 0,
+        'generation': generation,
+      });
+    }
+  });
+
+  Future<List<NoteFile>> cachedNoteFiles(
+    String accountId,
+    String noteId,
+  ) async {
+    final rows = await raw.query(
+      'note_files',
+      where: 'account_id = ? AND note_id = ?',
+      whereArgs: [accountId, noteId],
+      orderBy: 'title, file_id',
+    );
+    return rows
+        .map(
+          (row) => NoteFile(
+            id: row['file_id'] as String,
+            title: row['title'] as String,
+            type: row['type'] as String,
+            isAttachment: row['is_attachment'] == 1,
+            cacheGeneration: row['generation'] as String,
+          ),
+        )
+        .toList();
+  }
+
+  Future<Uint8List> cachedNoteImage(
+    String accountId,
+    String noteId,
+    NoteFile file,
+  ) async {
+    final rows = await raw.query(
+      'note_files',
+      columns: ['bytes'],
+      where: 'account_id = ? AND note_id = ? AND file_id = ? AND generation = ? AND is_attachment = 0',
+      whereArgs: [accountId, noteId, file.id, file.cacheGeneration],
+    );
+    if (rows.isEmpty || rows.single['bytes'] == null) {
+      throw StateError('图片尚未缓存或缓存已失效，请联网查看');
+    }
+    return rows.single['bytes'] as Uint8List;
+  }
+
+  Future<void> cacheNoteImage(
+    String accountId,
+    String noteId,
+    NoteFile file,
+    Uint8List bytes,
+  ) => raw.transaction((txn) async {
+    if (bytes.isEmpty || bytes.length > 8 * 1024 * 1024) {
+      throw StateError('invalidImageSize');
+    }
+    final changed = await txn.update(
+      'note_files',
+      {'bytes': bytes, 'cached_at': DateTime.now().microsecondsSinceEpoch},
+      where: 'account_id = ? AND note_id = ? AND file_id = ? AND generation = ? AND is_attachment = 0',
+      whereArgs: [accountId, noteId, file.id, file.cacheGeneration],
+    );
+    if (changed != 1) throw StateError('文件列表已变化，请刷新后重试');
+    // Bound binary data across all accounts. Eviction never deletes note text.
+    final rows = await txn.rawQuery(
+      'SELECT rowid, length(bytes) AS size FROM note_files WHERE bytes IS NOT NULL ORDER BY cached_at DESC, rowid DESC',
+    );
+    var total = 0;
+    for (final row in rows) {
+      total += row['size'] as int;
+      if (total > 64 * 1024 * 1024) {
+        await txn.update(
+          'note_files',
+          {'bytes': null},
+          where: 'rowid = ?',
+          whereArgs: [row['rowid']],
+        );
+      }
+    }
+  });
 
   Future<void> replaceSharedSnapshot(
     String accountId,
@@ -1023,6 +1123,14 @@ class AppDatabase {
     FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
   )''';
 
+  static const _fileCacheSchema = '''CREATE TABLE note_files (
+    account_id TEXT NOT NULL, note_id TEXT NOT NULL, file_id TEXT NOT NULL,
+    title TEXT NOT NULL, type TEXT NOT NULL, is_attachment INTEGER NOT NULL,
+    generation TEXT NOT NULL, bytes BLOB, cached_at INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (account_id, note_id, file_id),
+    FOREIGN KEY (account_id, note_id) REFERENCES notes(account_id, server_id) ON DELETE CASCADE
+  )''';
+
   static const _schema = <String>[
     '''CREATE TABLE accounts (
       account_id TEXT PRIMARY KEY,
@@ -1078,5 +1186,6 @@ class AppDatabase {
     _historySchema,
     _avatarSchema,
     _sharedSchema,
+    _fileCacheSchema,
   ];
 }

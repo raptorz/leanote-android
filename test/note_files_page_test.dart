@@ -12,8 +12,15 @@ class FilesRepository implements AuthRepository {
   bool deny = false;
   bool badImage = false;
   int downloads = 0;
+  final listModes = <bool>[];
+  final imageModes = <bool>[];
   @override
-  Future<List<NoteFile>> noteFiles(StoredSession session, String noteId) async {
+  Future<List<NoteFile>> noteFiles(
+    StoredSession session,
+    String noteId, {
+    bool cachedOnly = false,
+  }) async {
+    listModes.add(cachedOnly);
     expect(noteId, 'note');
     if (deny) throw StateError('noPermission');
     return const [
@@ -31,8 +38,10 @@ class FilesRepository implements AuthRepository {
   Future<Uint8List> noteImage(
     StoredSession session,
     String noteId,
-    NoteFile file,
-  ) async {
+    NoteFile file, {
+    bool cachedOnly = false,
+  }) async {
+    imageModes.add(cachedOnly);
     downloads++;
     if (deny) throw StateError('noPermission');
     return badImage
@@ -45,6 +54,36 @@ class FilesRepository implements AuthRepository {
 }
 
 void main() {
+  testWidgets('explicit offline toggle reaches cached list and image methods', (
+    tester,
+  ) async {
+    final repo = FilesRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NoteFilesPage(
+          repository: repo,
+          session: StoredSession(
+            account: Account(
+              userId: 'u',
+              server: Uri.parse('https://example.test'),
+              username: 'u',
+              email: '',
+              logo: '',
+            ),
+            token: 'test',
+          ),
+          noteId: 'note',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('离线缓存'));
+    await tester.pumpAndSettle();
+    expect(repo.listModes, [false, true]);
+    await tester.tap(find.text('Photo'));
+    await tester.pumpAndSettle();
+    expect(repo.imageModes, [true]);
+  });
   Future<void> mount(WidgetTester tester, FilesRepository repo) async {
     await tester.pumpWidget(
       MaterialApp(

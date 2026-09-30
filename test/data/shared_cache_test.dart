@@ -183,6 +183,7 @@ void main() {
         isMarkdown: true,
       );
       await old.raw.execute('DROP TABLE shared_notes');
+      await old.raw.execute('DROP TABLE note_files');
       await old.raw.setVersion(3);
       await old.raw.close();
       final upgraded = await AppDatabase.open(databasePath: path);

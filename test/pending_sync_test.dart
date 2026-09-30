@@ -108,8 +108,18 @@ void main() {
       expect(find.byTooltip('本地修改尚未上传'), findsOneWidget);
       await tester.runAsync(() async {
         await tester.tap(find.byTooltip('立即同步'));
-        await tester.pump();
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+        // SQLite FFI runs on real event-loop time. A single 100ms delay can
+        // leave it pending when pumpAndSettle switches to virtual time.
+        // Wait for the existing failure UI, bounded, without weakening assertions.
+        for (var attempt = 0; attempt < 100; attempt++) {
+          await tester.pump(const Duration(milliseconds: 50));
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          if (find.byTooltip('关闭提示').evaluate().isNotEmpty &&
+              find.byType(CircularProgressIndicator).evaluate().isEmpty &&
+              find.byType(LinearProgressIndicator).evaluate().isEmpty) {
+            break;
+          }
+        }
       });
       await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 5));

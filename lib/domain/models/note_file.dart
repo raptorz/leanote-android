@@ -4,11 +4,13 @@ class NoteFile {
     required this.title,
     required this.type,
     required this.isAttachment,
+    this.cacheGeneration = '',
   });
   final String id;
   final String title;
   final String type;
   final bool isAttachment;
+  final String cacheGeneration;
 
   factory NoteFile.fromJson(Map<String, Object?> json) {
     if (json['FileId'] is! String ||
