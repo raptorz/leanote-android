@@ -41,7 +41,8 @@ class WorkspacePage extends StatefulWidget {
   State<WorkspacePage> createState() => _WorkspacePageState();
 }
 
-class _WorkspacePageState extends State<WorkspacePage> {
+class _WorkspacePageState extends State<WorkspacePage>
+    with WidgetsBindingObserver {
   late Future<List<Notebook>> _notebooks;
   List<Note> _notes = const [];
   Notebook? _selectedNotebook;
@@ -60,14 +61,55 @@ class _WorkspacePageState extends State<WorkspacePage> {
   String? _avatarError;
   bool _refreshingAvatar = false;
   final _expandedNotebooks = <String>{};
+  Timer? _autoSyncTimer;
+  bool _autoSyncEnabled = false;
+  bool _signedOut = false;
+  bool _foreground = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _foreground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
     _notebooks = widget.repository.notebooks(widget.session.account.cacheKey);
     _refreshPending();
     _refreshAvatarCache();
     if (widget.refreshAvatarOnStart) unawaited(_refreshRemoteAvatar());
+  }
+
+  @override
+  void dispose() {
+    _autoSyncTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    _scheduleAutoSync();
+  }
+
+  void _toggleAutoSync() {
+    setState(() => _autoSyncEnabled = !_autoSyncEnabled);
+    _scheduleAutoSync();
+  }
+
+  void _scheduleAutoSync() {
+    _autoSyncTimer?.cancel();
+    if (!_autoSyncEnabled || !_foreground || _signedOut) return;
+    // Do not synchronize immediately on enable/resume. In particular, choosing
+    // to skip synchronization at login remains meaningful.
+    _autoSyncTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (!mounted || _signedOut || !_foreground || _syncing || _loggingOut) {
+        return;
+      }
+      // Editors, readers, account pages and confirmation/menu routes must not
+      // be interrupted by automatic refreshes of their underlying note data.
+      if (ModalRoute.of(context)?.isCurrent != true) return;
+      unawaited(_sync(automatic: true));
+    });
   }
 
   Future<void> _refreshRemoteAvatar() async {
@@ -480,8 +522,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
     await _editNote(note);
   }
 
-  Future<void> _sync({bool reset = false}) async {
-    if (_syncing || _loggingOut) return;
+  Future<void> _sync({bool reset = false, bool automatic = false}) async {
+    if (_syncing || _loggingOut || _signedOut) return;
     setState(() {
       _syncing = true;
       _syncError = null;
@@ -489,18 +531,22 @@ class _WorkspacePageState extends State<WorkspacePage> {
     try {
       if (reset && !await confirmResetSync(context)) return;
       if (!mounted) return;
-      await showSyncProgress(
-        context,
-        synchronize: (progress) => reset
-            ? widget.repository.resetFromServer(
-                widget.session,
-                onProgress: progress,
-              )
-            : widget.repository.synchronize(
-                widget.session,
-                onProgress: progress,
-              ),
-      );
+      if (automatic) {
+        await widget.repository.synchronize(widget.session);
+      } else {
+        await showSyncProgress(
+          context,
+          synchronize: (progress) => reset
+              ? widget.repository.resetFromServer(
+                  widget.session,
+                  onProgress: progress,
+                )
+              : widget.repository.synchronize(
+                  widget.session,
+                  onProgress: progress,
+                ),
+        );
+      }
       if (!mounted) return;
       _notebooks = widget.repository.notebooks(widget.session.account.cacheKey);
       await _refreshAvatarCache();
@@ -515,16 +561,18 @@ class _WorkspacePageState extends State<WorkspacePage> {
       }
       await _reloadNotes();
       unawaited(_refreshRemoteAvatar());
-      if (mounted) {
+      if (mounted && !automatic) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('同步完成')));
       }
     } on Object catch (error) {
       if (mounted) {
         setState(() => _syncError = '同步失败：$error');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('同步失败：$error'), backgroundColor: Colors.red),
-        );
+        if (!automatic) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('同步失败：$error'), backgroundColor: Colors.red),
+          );
+        }
       }
     } finally {
       await _refreshPending();
@@ -561,6 +609,8 @@ class _WorkspacePageState extends State<WorkspacePage> {
         widget.session,
         discardSessionWithPendingChanges: leavePending,
       );
+      _signedOut = true;
+      _autoSyncTimer?.cancel();
       if (mounted) widget.onSignedOut();
     } on Object catch (error) {
       if (mounted) setState(() => _syncError = '退出登录失败：$error');
@@ -658,15 +708,21 @@ class _WorkspacePageState extends State<WorkspacePage> {
               }
               if (value == 'sync') _sync();
               if (value == 'resetSync') _sync(reset: true);
+              if (value == 'autoSync') _toggleAutoSync();
               if (value == 'trash') _openTrash();
               if (value == 'logout') _logout();
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'account', child: Text('账号')),
-              PopupMenuItem(value: 'sync', child: Text('立即同步')),
-              PopupMenuItem(value: 'resetSync', child: Text('重新同步')),
-              PopupMenuItem(value: 'trash', child: Text('回收站')),
-              PopupMenuItem(value: 'logout', child: Text('退出')),
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'account', child: Text('账号')),
+              const PopupMenuItem(value: 'sync', child: Text('立即同步')),
+              CheckedPopupMenuItem(
+                value: 'autoSync',
+                checked: _autoSyncEnabled,
+                child: const Text('前台自动同步（每分钟）'),
+              ),
+              const PopupMenuItem(value: 'resetSync', child: Text('重新同步')),
+              const PopupMenuItem(value: 'trash', child: Text('回收站')),
+              const PopupMenuItem(value: 'logout', child: Text('退出')),
             ],
             child: Padding(
               padding: const EdgeInsets.all(12),
