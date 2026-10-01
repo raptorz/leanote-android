@@ -81,6 +81,12 @@ iOS 保存对话框只能在 macOS/iOS 环境完成构建和真机验收。
 
 ## 测试原则
 
+系统分享使用锁定的 `share_plus` 版本及 `SharePlus.instance.share(ShareParams(...))`，
+仅传个人笔记标题、正文纯文本与当前菜单按钮位置（iPad popover 必需），不共享附件或凭据。
+文本 UTF-8 上限 256 KiB，避免 Android 大文本 Intent 超限；不截断，超限改用导出原文。
+原生结果只是面板交互结果，不是发送成功回执，因此不显示“分享成功”。测试注入分享回调，
+验证载荷、取消/未知结果、失败及防重复操作；实际 Android/iOS 分享面板需真机验收。
+
 `NotebookTargetPicker` 是笔记与笔记本移动的共用目标选择组件，复用 `NotebookTree`
 的展示树；搜索只过滤显示并保留祖先，不重写层级或 ID。`canSelect` 控制合法目标，
 笔记本移动继续使用 `canMoveNotebook` 检查原始父级链，不能只依赖展示树防止循环。

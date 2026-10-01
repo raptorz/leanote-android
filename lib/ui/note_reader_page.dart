@@ -20,6 +20,7 @@ class NoteReaderPage extends StatefulWidget {
     this.onEditTags,
     this.onFiles,
     this.onExport,
+    this.onSystemShare,
     this.loadCachedImage,
     this.downloadImage,
     this.canDownloadImage,
@@ -38,6 +39,7 @@ class NoteReaderPage extends StatefulWidget {
   final Future<bool> Function()? onEditTags;
   final Future<void> Function()? onFiles;
   final Future<bool> Function()? onExport;
+  final Future<void> Function(Rect origin)? onSystemShare;
   final CachedImageLoader? loadCachedImage;
   final Future<Uint8List> Function(Uri)? downloadImage;
   final bool Function(Uri)? canDownloadImage;
@@ -53,6 +55,26 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
   bool _showSource = false;
   int _imageRevision = 0;
   bool _exporting = false;
+  bool _sharing = false;
+  final _menuKey = GlobalKey();
+
+  Future<void> _share() async {
+    if (_sharing || widget.onSystemShare == null) return;
+    setState(() => _sharing = true);
+    try {
+      final box = _menuKey.currentContext?.findRenderObject();
+      if (box is! RenderBox || !box.hasSize) throw StateError('分享位置不可用');
+      await widget.onSystemShare!(box.localToGlobal(Offset.zero) & box.size);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('系统分享失败，请重试；较大笔记请使用导出原文（分享最多 256 KiB）')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
+  }
 
   Future<void> _export() async {
     if (_exporting || widget.onExport == null) return;
@@ -114,8 +136,12 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
               icon: const Icon(Icons.edit_outlined),
             ),
             PopupMenuButton<String>(
+              key: _menuKey,
               onSelected: (value) async {
                 switch (value) {
+                  case 'systemShare':
+                    await _share();
+                    return;
                   case 'export':
                     await _export();
                     return;
@@ -151,6 +177,12 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
                 if (context.mounted) Navigator.of(context).pop();
               },
               itemBuilder: (_) => [
+                if (widget.onSystemShare != null)
+                  PopupMenuItem(
+                    value: 'systemShare',
+                    enabled: !_sharing,
+                    child: Text(_sharing ? '正在分享…' : '系统分享原文'),
+                  ),
                 if (widget.onExport != null)
                   PopupMenuItem(
                     value: 'export',
