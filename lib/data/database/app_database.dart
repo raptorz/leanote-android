@@ -96,15 +96,34 @@ class AppDatabase {
     String accountId,
     String noteId,
     NoteFile file,
+  ) => _cachedNoteFile(accountId, noteId, file, false);
+
+  Future<Uint8List> cachedNoteAttachment(
+    String accountId,
+    String noteId,
+    NoteFile file,
+  ) => _cachedNoteFile(accountId, noteId, file, true);
+
+  Future<Uint8List> _cachedNoteFile(
+    String accountId,
+    String noteId,
+    NoteFile file,
+    bool attachment,
   ) async {
     final rows = await raw.query(
       'note_files',
       columns: ['bytes'],
-      where: 'account_id = ? AND note_id = ? AND file_id = ? AND generation = ? AND is_attachment = 0',
-      whereArgs: [accountId, noteId, file.id, file.cacheGeneration],
+      where: 'account_id = ? AND note_id = ? AND file_id = ? AND generation = ? AND is_attachment = ?',
+      whereArgs: [
+        accountId,
+        noteId,
+        file.id,
+        file.cacheGeneration,
+        attachment ? 1 : 0,
+      ],
     );
     if (rows.isEmpty || rows.single['bytes'] == null) {
-      throw StateError('图片尚未缓存或缓存已失效，请联网查看');
+      throw StateError('文件尚未缓存或缓存已失效，请联网下载');
     }
     return rows.single['bytes'] as Uint8List;
   }
@@ -114,15 +133,37 @@ class AppDatabase {
     String noteId,
     NoteFile file,
     Uint8List bytes,
+  ) => _cacheNoteFile(accountId, noteId, file, bytes, false);
+
+  Future<void> cacheNoteAttachment(
+    String accountId,
+    String noteId,
+    NoteFile file,
+    Uint8List bytes,
+  ) => _cacheNoteFile(accountId, noteId, file, bytes, true);
+
+  Future<void> _cacheNoteFile(
+    String accountId,
+    String noteId,
+    NoteFile file,
+    Uint8List bytes,
+    bool attachment,
   ) => raw.transaction((txn) async {
-    if (bytes.isEmpty || bytes.length > 8 * 1024 * 1024) {
-      throw StateError('invalidImageSize');
+    if ((!attachment && bytes.isEmpty) ||
+        bytes.length > (attachment ? 32 : 8) * 1024 * 1024) {
+      throw StateError('invalidFileSize');
     }
     final changed = await txn.update(
       'note_files',
       {'bytes': bytes, 'cached_at': DateTime.now().microsecondsSinceEpoch},
-      where: 'account_id = ? AND note_id = ? AND file_id = ? AND generation = ? AND is_attachment = 0',
-      whereArgs: [accountId, noteId, file.id, file.cacheGeneration],
+      where: 'account_id = ? AND note_id = ? AND file_id = ? AND generation = ? AND is_attachment = ?',
+      whereArgs: [
+        accountId,
+        noteId,
+        file.id,
+        file.cacheGeneration,
+        attachment ? 1 : 0,
+      ],
     );
     if (changed != 1) throw StateError('文件列表已变化，请刷新后重试');
     // Bound binary data across all accounts. Eviction never deletes note text.

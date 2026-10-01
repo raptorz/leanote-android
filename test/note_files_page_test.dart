@@ -16,12 +16,15 @@ class FilesRepository implements AuthRepository {
   bool badImage = false;
   int downloads = 0;
   int attachmentDownloads = 0;
+  final attachmentModes = <bool>[];
   @override
   Future<Uint8List> noteAttachment(
     StoredSession session,
     String noteId,
-    NoteFile file,
-  ) async {
+    NoteFile file, {
+    bool cachedOnly = false,
+  }) async {
+    attachmentModes.add(cachedOnly);
     attachmentDownloads++;
     if (deny) throw StateError('noPermission');
     return Uint8List.fromList([1, 2, 3]);
@@ -129,7 +132,9 @@ void main() {
   }
 
   for (final result in ['success', 'cancel', 'error', 'downloadError']) {
-    testWidgets('attachment save $result and offline guard', (tester) async {
+    testWidgets('attachment save $result using explicit offline mode', (
+      tester,
+    ) async {
       final repo = FilesRepository();
       var calls = 0;
       final pending = Completer<Uri?>();
@@ -150,10 +155,8 @@ void main() {
         of: find.text('Document'),
         matching: find.byType(ListTile),
       );
-      expect(tester.widget<ListTile>(item).onTap, isNull);
+      expect(tester.widget<ListTile>(item).onTap, isNotNull);
       expect(repo.attachmentDownloads, 0);
-      await tester.tap(find.text('离线缓存'));
-      await tester.pumpAndSettle();
       repo.deny = result == 'downloadError';
       await tester.tap(find.text('Document'));
       await tester.pump();
@@ -170,6 +173,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(calls, result == 'downloadError' ? 0 : 1);
       expect(repo.attachmentDownloads, 1);
+      expect(repo.attachmentModes, [true]);
       expect(
         find.text('附件已保存'),
         result == 'success' ? findsOneWidget : findsNothing,

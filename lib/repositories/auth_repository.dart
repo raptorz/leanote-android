@@ -191,14 +191,42 @@ class AuthRepository {
   Future<Uint8List> noteAttachment(
     StoredSession session,
     String noteId,
-    NoteFile file,
-  ) => _api.noteAttachment(
-    server: session.account.server,
-    token: session.token,
-    noteId: noteId,
-    userId: session.account.userId,
-    file: file,
-  );
+    NoteFile file, {
+    bool cachedOnly = false,
+  }) async {
+    if (cachedOnly) {
+      return _database.cachedNoteAttachment(
+        session.account.cacheKey,
+        noteId,
+        file,
+      );
+    }
+    try {
+      final bytes = await _api.noteAttachment(
+        server: session.account.server,
+        token: session.token,
+        noteId: noteId,
+        userId: session.account.userId,
+        file: file,
+      );
+      await _database.cacheNoteAttachment(
+        session.account.cacheKey,
+        noteId,
+        file,
+        bytes,
+      );
+      return bytes;
+    } on ApiException catch (error) {
+      if ({
+        'notExists',
+        'noPermission',
+        'attachmentNotInNote',
+      }.contains(error.code)) {
+        await _database.replaceNoteFiles(session.account.cacheKey, noteId, []);
+      }
+      rethrow;
+    }
+  }
 
   final SyncCoordinator _sync;
 

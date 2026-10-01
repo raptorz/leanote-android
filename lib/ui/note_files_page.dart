@@ -96,7 +96,7 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
   }
 
   Future<void> _saveAttachment(NoteFile file) async {
-    if (_opening != null || _cachedOnly) return;
+    if (_opening != null) return;
     setState(() {
       _opening = file.id;
       _error = null;
@@ -106,6 +106,7 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
         widget.session,
         widget.noteId,
         file,
+        cachedOnly: _cachedOnly,
       );
       if (!mounted) return;
       final saved = await (widget.attachmentExporter ?? AttachmentExporter())
@@ -116,7 +117,11 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
       }
     } on Object {
       if (mounted) {
-        setState(() => _error = '保存附件失败，请检查网络、文件权限或保存位置后重试（最大 32 MiB）');
+        setState(
+          () => _error = _cachedOnly
+              ? '保存附件失败：附件未缓存、缓存已失效或无法写入保存位置，请联网下载后重试'
+              : '保存附件失败，请检查网络、文件权限或保存位置后重试（最大 32 MiB）',
+        );
       }
     } finally {
       if (mounted) setState(() => _opening = null);
@@ -151,7 +156,7 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
         const Padding(
           padding: EdgeInsets.all(12),
           child: Text(
-            '已查看图片可离线预览（每张最多 8 MiB，缓存总计 64 MiB）。联网刷新会清除本笔记旧图片缓存。点击附件联网下载并保存（最大 32 MiB），不提供离线缓存。',
+            '图片最多 8 MiB，附件最多 32 MiB，缓存合计 64 MiB。已下载附件可离线保存，取消系统保存也保留缓存。联网刷新会清除本笔记旧文件缓存。',
           ),
         ),
         if (_loading) const LinearProgressIndicator(),
@@ -190,8 +195,7 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
                           : file.isAttachment
                           ? const Icon(Icons.save_alt)
                           : null,
-                      onTap:
-                          (file.isAttachment && _cachedOnly) || _opening != null
+                      onTap: _opening != null
                           ? null
                           : () => file.isAttachment
                                 ? _saveAttachment(file)

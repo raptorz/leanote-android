@@ -51,6 +51,166 @@ void main() {
     await seed(db);
   });
   tearDown(() => db.raw.close());
+  test('attachment cache isolates account/type, supports empty bytes and rejects stale writes', () async {
+    const attach = NoteFile(
+      id: 'a',
+      title: 'file',
+      type: 'bin',
+      isAttachment: true,
+    );
+    await db.replaceNoteFiles(account.cacheKey, 'n', [attach]);
+    final current = (await db.cachedNoteFiles(account.cacheKey, 'n')).single;
+    await db.cacheNoteAttachment(account.cacheKey, 'n', current, Uint8List(0));
+    expect(
+      await db.cachedNoteAttachment(account.cacheKey, 'n', current),
+      isEmpty,
+    );
+    await expectLater(
+      db.cachedNoteAttachment('other', 'n', current),
+      throwsStateError,
+    );
+    await expectLater(
+      db.cachedNoteImage(account.cacheKey, 'n', current),
+      throwsStateError,
+    );
+    await expectLater(
+      db.cacheNoteImage(
+        account.cacheKey,
+        'n',
+        current,
+        Uint8List.fromList([1]),
+      ),
+      throwsStateError,
+    );
+    await db.replaceNoteFiles(account.cacheKey, 'n', [attach]);
+    await expectLater(
+      db.cachedNoteAttachment(account.cacheKey, 'n', current),
+      throwsStateError,
+    );
+    await expectLater(
+      db.cacheNoteAttachment(account.cacheKey, 'n', current, Uint8List(0)),
+      throwsStateError,
+    );
+    final fresh = (await db.cachedNoteFiles(account.cacheKey, 'n')).single;
+    await db.cacheNoteAttachment(
+      account.cacheKey,
+      'n',
+      fresh,
+      Uint8List.fromList([5]),
+    );
+    await seed(db);
+    await expectLater(
+      db.cachedNoteAttachment(account.cacheKey, 'n', fresh),
+      throwsStateError,
+    );
+  });
+  test('images and attachments share the 64 MiB byte budget', () async {
+    const a = NoteFile(id: 'a', title: 'a', type: 'bin', isAttachment: true);
+    const b = NoteFile(id: 'b', title: 'b', type: 'bin', isAttachment: true);
+    await db.replaceNoteFiles(account.cacheKey, 'n', [a, b, file]);
+    final files = await db.cachedNoteFiles(account.cacheKey, 'n');
+    final first = files.firstWhere((f) => f.id == 'a');
+    final second = files.firstWhere((f) => f.id == 'b');
+    final image = files.firstWhere((f) => f.id == file.id);
+    await db.cacheNoteAttachment(
+      account.cacheKey,
+      'n',
+      first,
+      Uint8List(32 * 1024 * 1024),
+    );
+    await db.cacheNoteAttachment(
+      account.cacheKey,
+      'n',
+      second,
+      Uint8List(32 * 1024 * 1024),
+    );
+    await db.cacheNoteImage(
+      account.cacheKey,
+      'n',
+      image,
+      Uint8List.fromList([1]),
+    );
+    await expectLater(
+      db.cachedNoteAttachment(account.cacheKey, 'n', first),
+      throwsStateError,
+    );
+    expect(
+      (await db.cachedNoteAttachment(account.cacheKey, 'n', second)).length,
+      32 * 1024 * 1024,
+    );
+    expect((await db.cachedNoteFiles(account.cacheKey, 'n')).length, 3);
+  });
+  test('repository downloads attachment then reads offline without network; revocation clears cache', () async {
+    const id = '507f1f77bcf86cd799439011';
+    var offline = false;
+    var removed = false;
+    var calls = 0;
+    final api = Api2Client(
+      httpClient: MockClient((request) async {
+        calls++;
+        if (offline) throw const SocketException('offline');
+        if (request.url.path == '/api2/note/getNote') {
+          return http.Response(
+            jsonEncode({
+              'NoteId': 'n',
+              'UserId': 'u',
+              'Files': removed
+                  ? []
+                  : [
+                      {
+                        'FileId': id,
+                        'Title': 'file.bin',
+                        'Type': 'bin',
+                        'IsAttach': true,
+                      },
+                    ],
+            }),
+            200,
+          );
+        }
+        expect(request.url.path, '/api2/file/getAttach');
+        return http.Response.bytes(
+          [1, 2],
+          200,
+          headers: {'content-disposition': 'attachment; filename="file.bin"'},
+        );
+      }),
+    );
+    final repo = AuthRepository(
+      api,
+      db,
+      MemorySessions(),
+      SyncCoordinator(api, db),
+    );
+    final session = StoredSession(account: account, token: 'test');
+    final attach = (await repo.noteFiles(session, 'n')).single;
+    expect(await repo.noteAttachment(session, 'n', attach), [1, 2]);
+    offline = true;
+    final previous = calls;
+    expect(await repo.noteAttachment(session, 'n', attach, cachedOnly: true), [
+      1,
+      2,
+    ]);
+    expect(calls, previous);
+    await expectLater(
+      repo.noteAttachment(session, 'n', attach),
+      throwsA(anything),
+    );
+    expect(await repo.noteAttachment(session, 'n', attach, cachedOnly: true), [
+      1,
+      2,
+    ]);
+    offline = false;
+    removed = true;
+    await expectLater(
+      repo.noteAttachment(session, 'n', attach),
+      throwsA(anything),
+    );
+    await expectLater(
+      repo.noteAttachment(session, 'n', attach, cachedOnly: true),
+      throwsStateError,
+    );
+  });
   test('inline download coalesces, checks membership, caches decoded image and rejects external addresses', () async {
     const id = '507f1f77bcf86cd799439011';
     final bytes = File('assets/images/gemsnote_s.png').readAsBytesSync();
