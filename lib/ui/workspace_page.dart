@@ -360,6 +360,9 @@ class _WorkspacePageState extends State<WorkspacePage>
                 barrierDismissible: false,
                 builder: (_) => NoteTagsDialog(
                   tags: note.tags,
+                  loadSuggestions: () => widget.repository.tagCounts(
+                    widget.session.account.cacheKey,
+                  ),
                   onSave: (tags) => widget.repository.saveNoteTags(
                     widget.session,
                     note.noteId,
