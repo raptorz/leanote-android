@@ -9,11 +9,24 @@ import 'package:gemsnote/domain/models/note_file.dart';
 import 'package:gemsnote/repositories/auth_repository.dart';
 import 'package:gemsnote/ui/note_files_page.dart';
 import 'package:gemsnote/services/image_exporter.dart';
+import 'package:gemsnote/services/attachment_exporter.dart';
 
 class FilesRepository implements AuthRepository {
   bool deny = false;
   bool badImage = false;
   int downloads = 0;
+  int attachmentDownloads = 0;
+  @override
+  Future<Uint8List> noteAttachment(
+    StoredSession session,
+    String noteId,
+    NoteFile file,
+  ) async {
+    attachmentDownloads++;
+    if (deny) throw StateError('noPermission');
+    return Uint8List.fromList([1, 2, 3]);
+  }
+
   final listModes = <bool>[];
   final imageModes = <bool>[];
   @override
@@ -90,6 +103,7 @@ void main() {
     WidgetTester tester,
     FilesRepository repo, {
     ImageExporter? exporter,
+    AttachmentExporter? attachmentExporter,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -107,10 +121,67 @@ void main() {
           ),
           noteId: 'note',
           imageExporter: exporter,
+          attachmentExporter: attachmentExporter,
         ),
       ),
     );
     await tester.pumpAndSettle();
+  }
+
+  for (final result in ['success', 'cancel', 'error', 'downloadError']) {
+    testWidgets('attachment save $result and offline guard', (tester) async {
+      final repo = FilesRepository();
+      var calls = 0;
+      final pending = Completer<Uri?>();
+      await mount(
+        tester,
+        repo,
+        attachmentExporter: AttachmentExporter(
+          save: ({required fileName, required bytes, required mimeType}) {
+            calls++;
+            expect(bytes, [1, 2, 3]);
+            return pending.future;
+          },
+        ),
+      );
+      await tester.tap(find.text('离线缓存'));
+      await tester.pumpAndSettle();
+      final item = find.ancestor(
+        of: find.text('Document'),
+        matching: find.byType(ListTile),
+      );
+      expect(tester.widget<ListTile>(item).onTap, isNull);
+      expect(repo.attachmentDownloads, 0);
+      await tester.tap(find.text('离线缓存'));
+      await tester.pumpAndSettle();
+      repo.deny = result == 'downloadError';
+      await tester.tap(find.text('Document'));
+      await tester.pump();
+      if (result != 'downloadError') {
+        expect(tester.widget<ListTile>(item).onTap, isNull);
+        if (result == 'error') {
+          pending.completeError(StateError('disk full'));
+        } else {
+          pending.complete(
+            result == 'success' ? Uri.parse('content://saved/file') : null,
+          );
+        }
+      }
+      await tester.pumpAndSettle();
+      expect(calls, result == 'downloadError' ? 0 : 1);
+      expect(repo.attachmentDownloads, 1);
+      expect(
+        find.text('附件已保存'),
+        result == 'success' ? findsOneWidget : findsNothing,
+      );
+      expect(
+        find.textContaining('保存附件失败'),
+        ['error', 'downloadError'].contains(result)
+            ? findsOneWidget
+            : findsNothing,
+      );
+      expect(tester.widget<ListTile>(item).onTap, isNotNull);
+    });
   }
 
   for (final result in ['success', 'cancel', 'error']) {
@@ -189,7 +260,7 @@ void main() {
           matching: find.byType(ListTile),
         ),
       );
-      expect(attachment.onTap, isNull);
+      expect(attachment.onTap, isNotNull);
       await tester.tap(find.text('Photo'));
       await tester.pumpAndSettle();
       expect(repo.downloads, 1);

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../domain/models/note_file.dart';
 import '../repositories/auth_repository.dart';
 import '../services/image_exporter.dart';
+import '../services/attachment_exporter.dart';
 
 class NoteFilesPage extends StatefulWidget {
   const NoteFilesPage({
@@ -13,11 +14,13 @@ class NoteFilesPage extends StatefulWidget {
     required this.session,
     required this.noteId,
     this.imageExporter,
+    this.attachmentExporter,
   });
   final AuthRepository repository;
   final StoredSession session;
   final String noteId;
   final ImageExporter? imageExporter;
+  final AttachmentExporter? attachmentExporter;
   @override
   State<NoteFilesPage> createState() => _NoteFilesPageState();
 }
@@ -92,6 +95,34 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
     }
   }
 
+  Future<void> _saveAttachment(NoteFile file) async {
+    if (_opening != null || _cachedOnly) return;
+    setState(() {
+      _opening = file.id;
+      _error = null;
+    });
+    try {
+      final bytes = await widget.repository.noteAttachment(
+        widget.session,
+        widget.noteId,
+        file,
+      );
+      if (!mounted) return;
+      final saved = await (widget.attachmentExporter ?? AttachmentExporter())
+          .save(file.title, bytes);
+      if (mounted && saved) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('附件已保存')));
+      }
+    } on Object {
+      if (mounted) {
+        setState(() => _error = '保存附件失败，请检查网络、文件权限或保存位置后重试（最大 32 MiB）');
+      }
+    } finally {
+      if (mounted) setState(() => _opening = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -120,7 +151,7 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
         const Padding(
           padding: EdgeInsets.all(12),
           child: Text(
-            '已查看图片可离线预览（每张最多 8 MiB，缓存总计 64 MiB）。联网刷新会清除本笔记旧图片缓存。附件暂仅显示列表。',
+            '已查看图片可离线预览（每张最多 8 MiB，缓存总计 64 MiB）。联网刷新会清除本笔记旧图片缓存。点击附件联网下载并保存（最大 32 MiB），不提供离线缓存。',
           ),
         ),
         if (_loading) const LinearProgressIndicator(),
@@ -156,10 +187,15 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
                               dimension: 20,
                               child: CircularProgressIndicator(),
                             )
+                          : file.isAttachment
+                          ? const Icon(Icons.save_alt)
                           : null,
-                      onTap: file.isAttachment || _opening != null
+                      onTap:
+                          (file.isAttachment && _cachedOnly) || _opening != null
                           ? null
-                          : () => _open(file),
+                          : () => file.isAttachment
+                                ? _saveAttachment(file)
+                                : _open(file),
                     );
                   },
                 ),

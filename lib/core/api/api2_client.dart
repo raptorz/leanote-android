@@ -134,6 +134,74 @@ class Api2Client {
     }
   }
 
+  Future<Uint8List> noteAttachment({
+    required Uri server,
+    required String token,
+    required String noteId,
+    required String userId,
+    required NoteFile file,
+  }) async {
+    final files = await noteFiles(
+      server: server,
+      token: token,
+      noteId: noteId,
+      userId: userId,
+    );
+    if (!file.isAttachment ||
+        !files.any((item) => item.id == file.id && item.isAttachment)) {
+      throw const ApiException('attachmentNotInNote');
+    }
+    final request = http.Request(
+      'GET',
+      _uri(
+        server,
+        '/api2/file/getAttach',
+        token: token,
+        query: {'fileId': file.id},
+      ),
+    )..followRedirects = false;
+    try {
+      final response = await _http
+          .send(request)
+          .timeout(const Duration(seconds: 30));
+      const maxBytes = 32 * 1024 * 1024;
+      // This endpoint also returns HTTP 200 for errors. Only an actual download
+      // has Content-Disposition: attachment; never save an error/login response.
+      if (response.statusCode != 200 ||
+          (response.contentLength ?? 0) > maxBytes ||
+          response.headers['content-disposition']
+                  ?.split(';')
+                  .first
+                  .trim()
+                  .toLowerCase() !=
+              'attachment') {
+        await response.stream.listen((_) {}).cancel();
+        throw const ApiException('invalidAttachmentResponse');
+      }
+      final bytes = BytesBuilder(copy: false);
+      final chunks = StreamIterator(response.stream);
+      final timer = Stopwatch()..start();
+      try {
+        while (await chunks.moveNext().timeout(
+          const Duration(seconds: 60) - timer.elapsed,
+        )) {
+          if (bytes.length + chunks.current.length > maxBytes) {
+            throw const ApiException('attachmentTooLarge');
+          }
+          bytes.add(chunks.current);
+        }
+      } finally {
+        await chunks.cancel();
+      }
+      // Empty files are valid attachments, unlike images.
+      return bytes.takeBytes();
+    } on ApiException {
+      rethrow;
+    } on Exception {
+      throw const ApiException('attachmentDownloadFailed');
+    }
+  }
+
   Future<Uint8List?> downloadAvatar({
     required Uri server,
     required String logo,

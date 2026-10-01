@@ -188,6 +188,18 @@ class AuthRepository {
     }
   }
 
+  Future<Uint8List> noteAttachment(
+    StoredSession session,
+    String noteId,
+    NoteFile file,
+  ) => _api.noteAttachment(
+    server: session.account.server,
+    token: session.token,
+    noteId: noteId,
+    userId: session.account.userId,
+    file: file,
+  );
+
   final SyncCoordinator _sync;
 
   Future<List<SharedNote>> sharedNotes(
