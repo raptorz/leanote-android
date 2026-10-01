@@ -24,7 +24,7 @@ class NoteReaderPage extends StatefulWidget {
     this.downloadImage,
     this.canDownloadImage,
     this.readOnly = false,
-    this.safeHtmlPreview = false,
+    this.safeHtmlPreview = true,
     super.key,
   });
 
@@ -209,7 +209,13 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
                           padding: const EdgeInsets.all(20),
                           child: SelectableText(note.content),
                         )
-                      : SafeHtmlNoteBody(content: note.content)
+                      : SafeHtmlNoteBody(
+                          key: ValueKey(_imageRevision),
+                          content: note.content,
+                          loadCachedImage: widget.loadCachedImage,
+                          downloadImage: widget.downloadImage,
+                          canDownloadImage: widget.canDownloadImage,
+                        )
                 : WebViewWidget(controller: _webView!),
           ),
           if (note.tags.isNotEmpty)

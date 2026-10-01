@@ -1,13 +1,26 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html;
 
-/// Native text-only HTML preview: no browser, CSS, navigation or resource I/O.
+import 'cached_markdown_image.dart';
+
+/// Native HTML preview; optional media callbacks enforce account-scoped access.
 /// Unknown wrappers retain their text; active/embedded content is omitted.
 class SafeHtmlNoteBody extends StatelessWidget {
-  const SafeHtmlNoteBody({required this.content, super.key});
+  const SafeHtmlNoteBody({
+    required this.content,
+    this.loadCachedImage,
+    this.downloadImage,
+    this.canDownloadImage,
+    super.key,
+  });
 
   final String content;
+  final CachedImageLoader? loadCachedImage;
+  final Future<Uint8List> Function(Uri)? downloadImage;
+  final bool Function(Uri)? canDownloadImage;
 
   static const _omitted = {
     'script',
@@ -52,6 +65,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
     List<dom.Node> nodes, {
     int depth = 0,
     bool pre = false,
+    List<dom.Element>? images,
   }) {
     final spans = <InlineSpan>[];
     var listIndex = 0;
@@ -73,10 +87,13 @@ class SafeHtmlNoteBody extends StatelessWidget {
         continue;
       }
       if (tag == 'img' || tag == 'video' || tag == 'audio') {
+        final collected = tag == 'img' && images != null && images.length < 100;
+        if (collected) images.add(node);
         final alt = node.attributes['alt'];
         spans.add(
           TextSpan(
-            text: '[媒体尚未缓存${alt == null || alt.isEmpty ? '' : '：$alt'}]',
+            text:
+                '[${collected ? '图片见下方' : '媒体尚未缓存'}${alt == null || alt.isEmpty ? '' : '：$alt'}]',
           ),
         );
         continue;
@@ -120,6 +137,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
             node.nodes,
             depth: depth + 1,
             pre: pre || tag == 'pre',
+            images: images,
           ),
         ),
       );
@@ -137,14 +155,48 @@ class SafeHtmlNoteBody extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    padding: const EdgeInsets.all(20),
-    child: SelectableText.rich(
-      TextSpan(
-        style: DefaultTextStyle.of(context).style
-            .copyWith(fontSize: 16, height: 1.65),
-        children: _render(html.parseFragment(content).nodes),
+  Widget build(BuildContext context) {
+    final images = <dom.Element>[];
+    final spans = _render(
+      html.parseFragment(content).nodes,
+      images: loadCachedImage == null ? null : images,
+    );
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SelectableText.rich(
+            TextSpan(
+              style: DefaultTextStyle.of(context).style
+                  .copyWith(fontSize: 16, height: 1.65),
+              children: spans,
+            ),
+          ),
+          if (images.isNotEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text('正文图片（最多显示 100 张）'),
+            ),
+          for (final image in images) _image(image),
+        ],
       ),
-    ),
-  );
+    );
+  }
+
+  Widget _image(dom.Element element) {
+    final uri = Uri.tryParse(element.attributes['src'] ?? '');
+    if (uri == null || uri.toString().isEmpty) return const Text('图片地址无效');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: CachedMarkdownImage(
+        uri: uri,
+        alt: element.attributes['alt'],
+        load: loadCachedImage!,
+        download: downloadImage != null && canDownloadImage?.call(uri) == true
+            ? () => downloadImage!(uri)
+            : null,
+      ),
+    );
+  }
 }
