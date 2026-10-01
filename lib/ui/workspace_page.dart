@@ -13,6 +13,7 @@ import '../services/note_exporter.dart';
 import 'note_editor_page.dart';
 import 'note_reader_page.dart';
 import 'note_files_page.dart';
+import 'notebook_target_picker.dart';
 import 'note_tags_dialog.dart';
 import 'note_history_page.dart';
 import 'note_search_page.dart';
@@ -483,38 +484,39 @@ class _WorkspacePageState extends State<WorkspacePage>
       widget.session.account.cacheKey,
     );
     if (!mounted) return;
-    final selected = await showDialog<Notebook>(
+    String? target;
+    final selected = await showDialog<String>(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('移动到笔记本'),
-        children: notebooks
-            .map(
-              (notebook) => SimpleDialogOption(
-                onPressed: () => Navigator.pop(context, notebook),
-                child: Row(
-                  children: [
-                    Icon(
-                      notebook.notebookId == note.notebookId
-                          ? Icons.folder
-                          : Icons.folder_outlined,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        notebook.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-            .toList(growable: false),
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: const Text('移动到笔记本'),
+          content: SizedBox(
+            width: 320,
+            height: 320,
+            child: NotebookTargetPicker(
+              notebooks: notebooks,
+              selected: target,
+              canSelect: (id) => id != note.notebookId,
+              onSelected: (id) => update(() => target = id),
+            ),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: target == null
+                  ? null
+                  : () => Navigator.pop(context, target),
+              child: const Text('移动'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+          ],
+        ),
       ),
     );
-    if (selected != null && selected.notebookId != note.notebookId) {
-      await _saveMetadata(note.copyWith(notebookId: selected.notebookId));
+    if (selected != null && selected != note.notebookId) {
+      await _saveMetadata(note.copyWith(notebookId: selected));
     }
   }
 

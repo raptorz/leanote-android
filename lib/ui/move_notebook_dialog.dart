@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../domain/models/notebook.dart';
 import '../domain/models/notebook_tree.dart';
 import '../repositories/auth_repository.dart';
+import 'notebook_target_picker.dart';
 
 class MoveNotebookDialog extends StatefulWidget {
   const MoveNotebookDialog({
@@ -54,16 +55,6 @@ class _MoveNotebookDialogState extends State<MoveNotebookDialog> {
     }
   }
 
-  Widget _target(String id, String title, {int depth = 0}) => ListTile(
-    title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-    contentPadding: EdgeInsets.only(left: 8 + depth.clamp(0, 5) * 12.0),
-    trailing: Icon(
-      _parent == id ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-    ),
-    enabled: !_busy && id != widget.notebook.parentNotebookId,
-    onTap: () => setState(() => _parent = id),
-  );
-
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
@@ -95,24 +86,19 @@ class _MoveNotebookDialogState extends State<MoveNotebookDialog> {
                       return const Center(child: CircularProgressIndicator());
                     }
                     final notebooks = snapshot.data!;
-                    final rows = NotebookTree(
-                      notebooks,
-                    ).visibleRows(notebooks.map((n) => n.notebookId).toSet());
-                    return ListView(
-                      children: [
-                        _target('', '根目录'),
-                        for (final row in rows)
-                          if (canMoveNotebook(
+                    return NotebookTargetPicker(
+                      notebooks: notebooks,
+                      selected: _parent,
+                      enabled: !_busy,
+                      allowRoot: true,
+                      canSelect: (id) =>
+                          id != widget.notebook.parentNotebookId &&
+                          canMoveNotebook(
                             notebooks,
                             widget.notebook.notebookId,
-                            row.notebook.notebookId,
-                          ))
-                            _target(
-                              row.notebook.notebookId,
-                              row.notebook.title,
-                              depth: row.depth,
-                            ),
-                      ],
+                            id,
+                          ),
+                      onSelected: (id) => setState(() => _parent = id),
                     );
                   },
                 ),
@@ -128,13 +114,13 @@ class _MoveNotebookDialogState extends State<MoveNotebookDialog> {
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: _busy ? null : () => Navigator.pop(context),
-          child: const Text('取消'),
-        ),
         FilledButton(
           onPressed: _busy || _parent == null ? null : _move,
           child: const Text('移动'),
+        ),
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('取消'),
         ),
       ],
     ),
