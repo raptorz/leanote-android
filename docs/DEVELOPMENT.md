@@ -37,6 +37,31 @@ flutter build ios
 
 首次登录按 USN 分页下载笔记本、含正文笔记和标签，并在单个 SQLite 事务中替换该账号快照。token 只在完整快照成功落库后写入系统安全存储，避免残缺缓存被当成有效登录。
 
+## 应用图标
+
+高分辨率源图为 `assets/branding/gemsnote.png`，来自项目提供的透明背景 Gemsnote 图标。
+该目录仅用于构建维护，不作为 Flutter 运行时资源打包；页面仍使用 `assets/images/gemsnote_s.png`。
+安装 ImageMagick（Ubuntu/Debian：`sudo apt install imagemagick`；macOS：`brew install imagemagick`）后运行：
+
+```sh
+bash scripts/generate_icons.sh --help
+bash scripts/generate_icons.sh
+flutter test test/launcher_icons_test.dart
+```
+
+脚本可从任意工作目录调用，支持 ImageMagick 6 的 `convert` 和 7 的 `magick`，
+不下载外部资源，只覆盖 Flutter Android/iOS 的图标 PNG，不修改 `legacy-android/`。
+生成物提交到 Git，因此普通构建无需安装 ImageMagick。
+
+Android 提供五档密度的传统图标和前景图，以及 API 26+ 自适应图标 XML。
+前景置于 108dp 画布的中央 46dp 方形内，保证完整主体位于 66dp 安全圆内，
+背景使用 `#193b35`；参见 [Android 自适应图标规范](https://developer.android.com/develop/ui/compose/system/icon_design_adaptive)。
+iOS 保留现有 asset catalog 的全部尺寸及 1024px 图标，输出无透明通道 RGB PNG，
+不预先裁圆角；参见 [Apple AppIcon 资源目录说明](https://developer.apple.com/documentation/xcode/configuring-your-app-icon)。
+当前未提供 Android 主题单色层或新的 iOS 分层外观。
+更新图标后需要重新构建/安装应用，不会通过 Flutter 热重载替换桌面图标；
+iOS 编译仍需 macOS/Xcode，桌面遮罩及安装后的显示需真机验证。
+
 ## Markdown 阅读
 
 Markdown 阅读使用 [flutter_markdown_plus](https://pub.dev/packages/flutter_markdown_plus)

@@ -160,7 +160,7 @@
 
 ### 第四阶段：发布
 
-- 使用 Gemsnote 正式图标生成 Android adaptive icon 和 iOS AppIcon
+- [x] 使用 Gemsnote 正式图标生成 Android 多密度传统图标、adaptive icon 和 iOS AppIcon；保留独立高分辨率源图与生成脚本。Android 圆形入口复用自适应图标，深绿色背景，主体保留安全留白；iOS 当前使用无透明通道的静态图标资源。Android 各厂商桌面遮罩及 iOS 安装显示仍待真机验收，不包含主题单色图标或 iOS 分层图标。
 - Android 签名、AAB/APK 构建和 iOS 签名归档
 - 真机离线、弱网、升级、冲突及大数据量回归测试
 - GitHub Actions 自动测试；Android 自动构建，iOS 使用 macOS runner 构建
