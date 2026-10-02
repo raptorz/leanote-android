@@ -52,7 +52,7 @@ void main() {
 
   for (final scenario in [
     'same body',
-    'different body',
+    'different body with image',
     'changed format',
     'changed trash',
     'remote deleted',
@@ -130,8 +130,8 @@ void main() {
               'NoteId': id,
               'UserId': scenario == 'wrong owner' ? 'other' : 'user',
               if (scenario != 'missing body')
-                'Content': scenario == 'different body'
-                    ? 'remote body'
+                'Content': scenario == 'different body with image'
+                    ? 'remote ![image](/image.png)'
                     : 'same body',
             }),
             200,

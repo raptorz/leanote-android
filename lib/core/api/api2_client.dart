@@ -617,7 +617,7 @@ class Api2Client {
 
   /// Bracket the body read with metadata reads: these API2 endpoints are
   /// separate requests and must not combine different remote revisions.
-  Future<Note> getConflictSnapshot({
+  Future<({Note note, bool filesConfirmedEmpty})> getConflictSnapshot({
     required Uri server,
     required String token,
     required String noteId,
@@ -673,7 +673,14 @@ class Api2Client {
     if (before['Usn'] != after['Usn']) {
       throw const ApiException('conflict');
     }
-    return Note.fromJson({...after, 'Content': body['Content']});
+    return (
+      note: Note.fromJson({...after, 'Content': body['Content']}),
+      filesConfirmedEmpty:
+          before['Files'] is List &&
+          (before['Files'] as List).isEmpty &&
+          after['Files'] is List &&
+          (after['Files'] as List).isEmpty,
+    );
   }
 
   Future<Note> updateNote({

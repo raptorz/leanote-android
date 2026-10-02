@@ -966,20 +966,20 @@ class AppDatabase {
     return rows.map(_noteFromRow).toList(growable: false);
   }
 
-  /// Only resolve metadata-only conflicts. A changed body/format or an edit
-  /// made while the remote snapshot was downloading must remain pending.
-  Future<void> acceptRemoteMetadata(
+  /// Atomically preserve a safe local body copy before accepting the remote note.
+  /// Unsupported resource/format conflicts and concurrent edits remain dirty.
+  Future<Note?> resolveNoteConflict(
     String accountId,
     Note local,
-    Note remote,
-  ) => raw.transaction((txn) async {
+    Note remote, {
+    required bool filesConfirmedEmpty,
+  }) => raw.transaction((txn) async {
     if (remote.noteId != local.noteId ||
         remote.userId != local.userId ||
         remote.usn <= local.usn ||
         local.usn <= 0 ||
         remote.isDeleted ||
         local.isDeleted ||
-        remote.content != local.content ||
         remote.isMarkdown != local.isMarkdown ||
         remote.isTrash != local.isTrash) {
       throw StateError('unresolvedNoteConflict');
@@ -994,10 +994,49 @@ class AppDatabase {
             _noteFingerprint(local)) {
       throw StateError('localChangesDuringConflict');
     }
+    Note? copy;
+    if (remote.content != local.content) {
+      // Conservative until resource cloning exists: brackets/HTML may encode
+      // images, reference links or embedded media, including legacy URLs.
+      final markup = RegExp(r'[\[<]');
+      final files = await txn.query(
+        'note_files',
+        columns: ['file_id'],
+        where: 'account_id = ? AND note_id = ?',
+        whereArgs: [accountId, local.noteId],
+        limit: 1,
+      );
+      if (!filesConfirmedEmpty ||
+          !local.isMarkdown ||
+          local.isTrash ||
+          markup.hasMatch(local.content) ||
+          markup.hasMatch(remote.content) ||
+          files.isNotEmpty) {
+        throw StateError('unresolvedNoteConflict');
+      }
+      final now = DateTime.now().toUtc().toIso8601String();
+      copy = local.copyWith(
+        noteId: _objectId(),
+        title: '${local.title}（本地冲突副本）',
+        usn: 0,
+        createdTime: now,
+        updatedTime: now,
+      );
+    }
     final batch = txn.batch();
+    if (copy != null) {
+      _insertNote(batch, accountId, copy);
+      batch.update(
+        'notes',
+        {'is_dirty': 1, 'local_is_new': 1},
+        where: 'account_id = ? AND server_id = ?',
+        whereArgs: [accountId, copy.noteId],
+      );
+    }
     _insertNote(batch, accountId, remote);
     await batch.commit(noResult: true);
     // Do not advance the account cursor: other remote changes are still unread.
+    return copy;
   });
 
   static String _noteFingerprint(Note note) => jsonEncode([

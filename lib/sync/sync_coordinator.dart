@@ -164,7 +164,22 @@ class SyncCoordinator {
           token: token,
           noteId: local.noteId,
         );
-        await _database.acceptRemoteMetadata(account.cacheKey, local, remote);
+        final copy = await _database.resolveNoteConflict(
+          account.cacheKey,
+          local,
+          remote.note,
+          filesConfirmedEmpty: remote.filesConfirmedEmpty,
+        );
+        if (copy != null) {
+          // Persist the copy first. Failed/lost uploads leave this same ID dirty
+          // for the next attempt, rather than creating another conflict copy.
+          final uploaded = await _api.addNote(
+            server: account.server,
+            token: token,
+            note: copy,
+          );
+          await _database.markNoteUploaded(account.cacheKey, copy, uploaded);
+        }
       }
       onProgress?.call(SyncProgress(SyncStage.uploading, index + 1));
     }
