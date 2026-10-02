@@ -588,6 +588,15 @@ class AuthRepository {
     );
   }
 
+  Future<void> synchronizeFull(
+    StoredSession session, {
+    SyncProgressCallback? onProgress,
+  }) => _sync.synchronizeFull(
+    account: session.account,
+    token: session.token,
+    onProgress: onProgress,
+  );
+
   Future<void> synchronize(
     StoredSession session, {
     SyncProgressCallback? onProgress,

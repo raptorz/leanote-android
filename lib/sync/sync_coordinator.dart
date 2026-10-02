@@ -24,6 +24,28 @@ class SyncCoordinator {
   Future<void>? _running;
   bool _uploadingOnly = false;
   bool _resetting = false;
+  bool _fullSync = false;
+
+  /// Upload dirty notes, then merge all remote rows without clearing local data.
+  Future<void> synchronizeFull({
+    required Account account,
+    required String token,
+    SyncProgressCallback? onProgress,
+  }) {
+    if (_fullSync) return _running!;
+    if (_running != null) return Future.error(StateError('syncInProgress'));
+    _fullSync = true;
+    return _running =
+        _synchronize(
+          account: account,
+          token: token,
+          onProgress: onProgress,
+          full: true,
+        ).whenComplete(() {
+          _running = null;
+          _fullSync = false;
+        });
+  }
 
   Future<void> synchronize({
     required Account account,
@@ -48,8 +70,10 @@ class SyncCoordinator {
     required Account account,
     required String token,
     SyncProgressCallback? onProgress,
+    bool full = false,
   }) async {
-    final afterUsn = await _database.lastSyncUsn(account.cacheKey);
+    final previousUsn = await _database.lastSyncUsn(account.cacheKey);
+    final afterUsn = full ? 0 : previousUsn;
     await _uploadChanges(account, token, onProgress);
     // Fix the checkpoint before reading separate resource streams. A change
     // arriving later must remain eligible for the next incremental download.
@@ -57,7 +81,7 @@ class SyncCoordinator {
       server: account.server,
       token: token,
     );
-    if (checkpoint < afterUsn) throw StateError('serverSyncStateReset');
+    if (checkpoint < previousUsn) throw StateError('serverSyncStateReset');
     final notebooks = await _allNotebooks(
       account,
       token,

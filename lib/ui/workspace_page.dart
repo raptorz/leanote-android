@@ -557,7 +557,11 @@ class _WorkspacePageState extends State<WorkspacePage>
     await _editNote(note);
   }
 
-  Future<void> _sync({bool reset = false, bool automatic = false}) async {
+  Future<void> _sync({
+    bool reset = false,
+    bool full = false,
+    bool automatic = false,
+  }) async {
     if (_syncing || _loggingOut || _signedOut) return;
     setState(() {
       _syncing = true;
@@ -573,6 +577,11 @@ class _WorkspacePageState extends State<WorkspacePage>
           context,
           synchronize: (progress) => reset
               ? widget.repository.resetFromServer(
+                  widget.session,
+                  onProgress: progress,
+                )
+              : full
+              ? widget.repository.synchronizeFull(
                   widget.session,
                   onProgress: progress,
                 )
@@ -742,6 +751,7 @@ class _WorkspacePageState extends State<WorkspacePage>
                 _openAccount();
               }
               if (value == 'sync') _sync();
+              if (value == 'fullSync') _sync(full: true);
               if (value == 'resetSync') _sync(reset: true);
               if (value == 'autoSync') _toggleAutoSync();
               if (value == 'trash') _openTrash();
@@ -750,6 +760,7 @@ class _WorkspacePageState extends State<WorkspacePage>
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'account', child: Text('账号')),
               const PopupMenuItem(value: 'sync', child: Text('立即同步')),
+              const PopupMenuItem(value: 'fullSync', child: Text('完全同步（合并）')),
               CheckedPopupMenuItem(
                 value: 'autoSync',
                 checked: _autoSyncEnabled,
