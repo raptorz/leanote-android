@@ -6,6 +6,7 @@ import '../domain/models/note_file.dart';
 import '../repositories/auth_repository.dart';
 import '../services/image_exporter.dart';
 import '../services/attachment_exporter.dart';
+import '../services/file_cache_batch.dart';
 
 class NoteFilesPage extends StatefulWidget {
   const NoteFilesPage({
@@ -32,6 +33,58 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
   String? _error;
   bool _cachedOnly = false;
   int _generation = 0;
+  FileCacheBatch? _batch;
+  FileCacheProgress? _batchProgress;
+  List<NoteFile> _failedFiles = [];
+  String? _batchMessage;
+
+  @override
+  void dispose() {
+    _batch?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _cacheFiles({bool retry = false}) async {
+    if (_batch != null || _loading || _opening != null || _cachedOnly) return;
+    final files = List<NoteFile>.of(retry ? _failedFiles : _files);
+    if (files.isEmpty) return;
+    final batch = FileCacheBatch();
+    setState(() {
+      _batch = batch;
+      _batchMessage = null;
+      _error = null;
+      _failedFiles = [];
+    });
+    final result = await batch.run(
+      files,
+      download: (file) async {
+        if (file.isAttachment) {
+          await widget.repository.noteAttachment(
+            widget.session,
+            widget.noteId,
+            file,
+          );
+        } else {
+          await widget.repository.noteImage(
+            widget.session,
+            widget.noteId,
+            file,
+          );
+        }
+      },
+      onProgress: (progress) {
+        if (mounted) setState(() => _batchProgress = progress);
+      },
+    );
+    if (!mounted) return;
+    setState(() {
+      _batch = null;
+      _failedFiles = result.failed;
+      _batchMessage =
+          '${result.cancelled ? "已停止" : "下载处理完成"}：已处理 ${result.completed} 个，失败 ${result.failed.length} 个。缓存最多 64 MiB，较早文件可能被淘汰。';
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -39,12 +92,15 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
   }
 
   Future<void> _load() async {
-    if (_opening != null) return;
+    if (_opening != null || _batch != null) return;
     final generation = ++_generation;
     setState(() {
       _loading = true;
       _error = null;
       _files = [];
+      _failedFiles = [];
+      _batchProgress = null;
+      _batchMessage = null;
     });
     try {
       final files = await widget.repository.noteFiles(
@@ -65,7 +121,7 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
   }
 
   Future<void> _open(NoteFile file) async {
-    if (_opening != null || file.isAttachment) return;
+    if (_opening != null || _batch != null || file.isAttachment) return;
     setState(() {
       _opening = file.id;
       _error = null;
@@ -96,7 +152,7 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
   }
 
   Future<void> _saveAttachment(NoteFile file) async {
-    if (_opening != null) return;
+    if (_opening != null || _batch != null) return;
     setState(() {
       _opening = file.id;
       _error = null;
@@ -135,7 +191,9 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
       actions: [
         IconButton(
           tooltip: '刷新文件列表',
-          onPressed: _loading || _opening != null ? null : _load,
+          onPressed: _loading || _opening != null || _batch != null
+              ? null
+              : _load,
           icon: const Icon(Icons.refresh),
         ),
       ],
@@ -146,7 +204,7 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
           title: const Text('离线缓存'),
           subtitle: const Text('仅查看缓存，可能不是最新内容；未缓存图片需联网查看。'),
           value: _cachedOnly,
-          onChanged: _opening != null
+          onChanged: _opening != null || _batch != null
               ? null
               : (value) {
                   setState(() => _cachedOnly = value);
@@ -160,6 +218,58 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
           ),
         ),
         if (_loading) const LinearProgressIndicator(),
+        if (!_cachedOnly) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12),
+            child: Text('批量缓存会使用网络流量，最多并行下载 3 个文件；离开页面将停止安排后续下载。'),
+          ),
+          Wrap(
+            spacing: 8,
+            children: [
+              TextButton.icon(
+                onPressed:
+                    _loading ||
+                        _opening != null ||
+                        _batch != null ||
+                        _files.isEmpty
+                    ? null
+                    : () => _cacheFiles(),
+                icon: const Icon(Icons.download),
+                label: const Text('缓存当前笔记文件'),
+              ),
+              if (_failedFiles.isNotEmpty)
+                TextButton(
+                  onPressed: _batch != null
+                      ? null
+                      : () => _cacheFiles(retry: true),
+                  child: const Text('重试失败文件'),
+                ),
+              if (_batch != null)
+                TextButton(
+                  onPressed: () {
+                    _batch?.cancel();
+                    setState(() => _batchMessage = '正在停止，等待已开始的下载结束…');
+                  },
+                  child: const Text('停止下载'),
+                ),
+            ],
+          ),
+        ],
+        if (_batch != null && _batchProgress != null) ...[
+          LinearProgressIndicator(
+            value: _batchProgress!.total == 0
+                ? 0
+                : _batchProgress!.completed / _batchProgress!.total,
+          ),
+          Text(
+            '已处理 ${_batchProgress!.completed}/${_batchProgress!.total}，失败 ${_batchProgress!.failed}',
+          ),
+        ],
+        if (_batchMessage != null)
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(_batchMessage!),
+          ),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.all(12),
@@ -195,7 +305,7 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
                           : file.isAttachment
                           ? const Icon(Icons.save_alt)
                           : null,
-                      onTap: _opening != null
+                      onTap: _opening != null || _batch != null
                           ? null
                           : () => file.isAttachment
                                 ? _saveAttachment(file)
