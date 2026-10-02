@@ -106,6 +106,18 @@ Markdown 阅读使用 [flutter_markdown_plus](https://pub.dev/packages/flutter_m
 图片集合跳过脚本、iframe 等被省略内容，不使用 `srcset`、CSS 图片或外部资源自动加载。
 返回文件页后更新缓存显示；共享、历史及编辑预览不传入下载能力，仍显示占位。
 
+## 编辑撤销与重做
+
+`NoteEditorPage` 为标题和正文分别持有 Flutter `UndoHistoryController`，工具栏
+根据最后获得焦点的输入框选择对应历史；无可用历史及离开保存期间禁用按钮。
+初始 `TextEditingValue` 必须具有有效 selection，否则首个修改前的原文不会入栈。
+正文输入框通过 `IndexedStack` 在预览时保留状态，避免销毁输入框导致历史丢失。
+
+文本历史合并、输入法和键盘快捷键沿用 Flutter 内建行为；Markdown 格式工具也
+修改同一控制器，撤销/重做继续触发既有自动保存，保存失败保留文本并显示重试。
+历史只存在于当前编辑页内存，不写数据库，不跨笔记或跨会话保留，不替代服务端
+历史版本。Android/iOS 输入法及原生撤销手势仍需真机验收。
+
 ## 原文导入
 
 笔记本的新建菜单可通过系统文件选择器导入 UTF-8 Markdown、TXT、HTML，单文件

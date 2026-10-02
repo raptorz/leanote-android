@@ -30,16 +30,34 @@ class _NoteEditorPageState extends State<NoteEditorPage>
   String? _error;
   bool _preview = false;
   final _contentFocus = FocusNode();
+  final _titleFocus = FocusNode();
+  final _titleUndo = UndoHistoryController();
+  final _contentUndo = UndoHistoryController();
+  bool _editingTitle = false;
 
   @override
   void initState() {
     super.initState();
-    _title = TextEditingController(text: widget.note.title);
-    _content = TextEditingController(text: widget.note.content);
+    // A valid initial selection lets Flutter record the original text before
+    // the first edit (including a toolbar edit made before the field is focused).
+    _title = TextEditingController.fromValue(
+      TextEditingValue(
+        text: widget.note.title,
+        selection: TextSelection.collapsed(offset: widget.note.title.length),
+      ),
+    );
+    _content = TextEditingController.fromValue(
+      TextEditingValue(
+        text: widget.note.content,
+        selection: TextSelection.collapsed(offset: widget.note.content.length),
+      ),
+    );
     _savedTitle = widget.note.title;
     _savedContent = widget.note.content;
     _title.addListener(_changed);
     _content.addListener(_changed);
+    _titleFocus.addListener(_trackFocus);
+    _contentFocus.addListener(_trackFocus);
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -48,6 +66,9 @@ class _NoteEditorPageState extends State<NoteEditorPage>
     WidgetsBinding.instance.removeObserver(this);
     _debounce?.cancel();
     _contentFocus.dispose();
+    _titleFocus.dispose();
+    _titleUndo.dispose();
+    _contentUndo.dispose();
     _title.dispose();
     _content.dispose();
     super.dispose();
@@ -56,6 +77,34 @@ class _NoteEditorPageState extends State<NoteEditorPage>
   void _changed() {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 600), _flush);
+  }
+
+  void _trackFocus() {
+    if (_titleFocus.hasFocus || _contentFocus.hasFocus) {
+      setState(() => _editingTitle = _titleFocus.hasFocus);
+    }
+  }
+
+  Widget _historyButtons() {
+    final history = _editingTitle ? _titleUndo : _contentUndo;
+    return ValueListenableBuilder<UndoHistoryValue>(
+      valueListenable: history,
+      builder: (_, value, _) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: '撤销',
+            onPressed: !_closing && value.canUndo ? history.undo : null,
+            icon: const Icon(Icons.undo),
+          ),
+          IconButton(
+            tooltip: '重做',
+            onPressed: !_closing && value.canRedo ? history.redo : null,
+            icon: const Icon(Icons.redo),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -163,6 +212,8 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                 ],
               ),
             TextField(
+              focusNode: _titleFocus,
+              undoController: _titleUndo,
               readOnly: _closing,
               controller: _title,
               autofocus: widget.note.title.isEmpty,
@@ -175,60 +226,72 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                 padding: EdgeInsets.only(bottom: 8),
                 child: Text('编辑 HTML 原文，预览仅显示基本排版，不加载图片附件或执行脚本。原文将完整保存。'),
               ),
-            if (widget.note.isMarkdown && !_preview)
+            if (!_preview)
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    _formatButton(
-                      '加粗',
-                      Icons.format_bold,
-                      (value) => wrapMarkdown(value, '**'),
-                    ),
-                    _formatButton(
-                      '斜体',
-                      Icons.format_italic,
-                      (value) => wrapMarkdown(value, '*'),
-                    ),
-                    _formatButton(
-                      '行内代码',
-                      Icons.code,
-                      (value) => wrapMarkdown(value, '`'),
-                    ),
-                    _formatButton(
-                      '标题',
-                      Icons.title,
-                      (value) => prefixMarkdownLines(value, '# '),
-                    ),
-                    _formatButton(
-                      '无序列表',
-                      Icons.format_list_bulleted,
-                      (value) => prefixMarkdownLines(value, '- '),
-                    ),
+                    _historyButtons(),
+                    if (widget.note.isMarkdown) ...[
+                      _formatButton(
+                        '加粗',
+                        Icons.format_bold,
+                        (value) => wrapMarkdown(value, '**'),
+                      ),
+                      _formatButton(
+                        '斜体',
+                        Icons.format_italic,
+                        (value) => wrapMarkdown(value, '*'),
+                      ),
+                      _formatButton(
+                        '行内代码',
+                        Icons.code,
+                        (value) => wrapMarkdown(value, '`'),
+                      ),
+                      _formatButton(
+                        '标题',
+                        Icons.title,
+                        (value) => prefixMarkdownLines(value, '# '),
+                      ),
+                      _formatButton(
+                        '无序列表',
+                        Icons.format_list_bulleted,
+                        (value) => prefixMarkdownLines(value, '- '),
+                      ),
+                    ],
                   ],
                 ),
               ),
             Expanded(
-              child: _preview
-                  ? widget.note.isMarkdown
+              child: IndexedStack(
+                index: _preview ? 1 : 0,
+                sizing: StackFit.expand,
+                children: [
+                  TextField(
+                    undoController: _contentUndo,
+                    focusNode: _contentFocus,
+                    readOnly: _closing,
+                    controller: _content,
+                    expands: true,
+                    maxLines: null,
+                    minLines: null,
+                    textAlignVertical: TextAlignVertical.top,
+                    keyboardType: TextInputType.multiline,
+                    decoration: InputDecoration(
+                      hintText: widget.note.isMarkdown
+                          ? '使用 Markdown 开始记录…'
+                          : '输入 HTML 原文，例如 <p>开始记录…</p>',
+                      border: InputBorder.none,
+                    ),
+                  ),
+                  if (_preview)
+                    widget.note.isMarkdown
                         ? MarkdownNoteBody(content: _content.text)
                         : SafeHtmlNoteBody(content: _content.text)
-                  : TextField(
-                      focusNode: _contentFocus,
-                      readOnly: _closing,
-                      controller: _content,
-                      expands: true,
-                      maxLines: null,
-                      minLines: null,
-                      textAlignVertical: TextAlignVertical.top,
-                      keyboardType: TextInputType.multiline,
-                      decoration: InputDecoration(
-                        hintText: widget.note.isMarkdown
-                            ? '使用 Markdown 开始记录…'
-                            : '输入 HTML 原文，例如 <p>开始记录…</p>',
-                        border: InputBorder.none,
-                      ),
-                    ),
+                  else
+                    const SizedBox.shrink(),
+                ],
+              ),
             ),
           ],
         ),
