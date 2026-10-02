@@ -546,10 +546,14 @@ class AuthRepository {
     StoredSession session, {
     required String notebookId,
     required bool isMarkdown,
+    String title = '',
+    String content = '',
   }) => _database.createLocalNote(
     account: session.account,
     notebookId: notebookId,
     isMarkdown: isMarkdown,
+    title: title,
+    content: content,
   );
 
   Future<void> saveEditedText(

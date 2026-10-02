@@ -106,6 +106,18 @@ Markdown 阅读使用 [flutter_markdown_plus](https://pub.dev/packages/flutter_m
 图片集合跳过脚本、iframe 等被省略内容，不使用 `srcset`、CSS 图片或外部资源自动加载。
 返回文件页后更新缓存显示；共享、历史及编辑预览不传入下载能力，仍显示占位。
 
+## 原文导入
+
+笔记本的新建菜单可通过系统文件选择器导入 UTF-8 Markdown、TXT、HTML，单文件
+最多 32 MiB；同时检查文件扩展名、声明大小和实际流式字节数，拒绝无效 UTF-8 和
+含 NUL 的二进制内容，去除 UTF-8 BOM。TXT 按 Markdown 保存，HTML 保持原文，
+预览沿用安全渲染，不执行脚本、不自动读取关联资源。
+
+选择文件不写库，确认后将标题、正文与新建/dirty 标记一次写入当前账号 SQLite，
+后续沿用现有上传流程，不新增 API2 接口。取消不创建笔记；失败保留对话框可重试。
+不导入附件、历史或其他元数据，也不注册系统分享接收入口；原生选择器及内容 URI
+读取仍需 Android/iOS 真机验收。
+
 ## 原文导出
 
 `NoteExporter` 调用已锁定依赖版本的 `FilePicker.saveFile`，使用返回的 URI 判断

@@ -699,14 +699,16 @@ class AppDatabase {
     required Account account,
     required String notebookId,
     required bool isMarkdown,
+    String title = '',
+    String content = '',
   }) async {
     final now = DateTime.now().toUtc().toIso8601String();
     final note = Note(
       noteId: _objectId(),
       notebookId: notebookId,
       userId: account.userId,
-      title: '',
-      content: '',
+      title: title,
+      content: content,
       tags: const [],
       usn: 0,
       isMarkdown: isMarkdown,

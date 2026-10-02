@@ -12,6 +12,7 @@ import '../repositories/auth_repository.dart';
 import '../services/note_exporter.dart';
 import '../services/note_sharer.dart';
 import 'note_editor_page.dart';
+import 'import_note_dialog.dart';
 import 'note_reader_page.dart';
 import 'note_files_page.dart';
 import 'notebook_target_picker.dart';
@@ -557,6 +558,38 @@ class _WorkspacePageState extends State<WorkspacePage>
     await _editNote(note);
   }
 
+  Future<void> _importNote() async {
+    final book = _selectedNotebook;
+    if (book == null || _syncing || _loggingOut) return;
+    final note = await showDialog<Note>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ImportNoteDialog(
+        onImport: (source) async {
+          final books = await widget.repository.notebooks(
+            widget.session.account.cacheKey,
+          );
+          if (!books.any(
+            (item) => item.notebookId == book.notebookId && !item.isDeleted,
+          )) {
+            throw StateError('目标笔记本已不存在，请返回重新选择');
+          }
+          return widget.repository.createNote(
+            widget.session,
+            notebookId: book.notebookId,
+            isMarkdown: source.isMarkdown,
+            title: source.title,
+            content: source.content,
+          );
+        },
+      ),
+    );
+    if (note == null || !mounted) return;
+    await _reloadNotes();
+    await _refreshPending();
+    if (mounted) await _openReader(note);
+  }
+
   Future<void> _sync({
     bool reset = false,
     bool full = false,
@@ -1043,6 +1076,16 @@ class _WorkspacePageState extends State<WorkspacePage>
                           Navigator.pop(context);
                           _createNote(true);
                         },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.file_open_outlined),
+                        title: const Text('导入笔记原文'),
+                        onTap: _syncing || _loggingOut
+                            ? null
+                            : () {
+                                Navigator.pop(context);
+                                _importNote();
+                              },
                       ),
                     ],
                   ),
