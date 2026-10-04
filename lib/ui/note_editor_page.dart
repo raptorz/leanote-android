@@ -3,15 +3,23 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../domain/models/note.dart';
+import 'cached_markdown_image.dart';
 import 'markdown_editing.dart';
 import 'markdown_note_body.dart';
 import 'safe_html_note_body.dart';
 
 class NoteEditorPage extends StatefulWidget {
-  const NoteEditorPage({required this.note, required this.saveText, super.key});
+  const NoteEditorPage({
+    required this.note,
+    required this.saveText,
+    this.loadCachedImage,
+    super.key,
+  });
 
   final Note note;
   final Future<void> Function(String title, String content) saveText;
+  // Preview is cache-only: editing arbitrary image URLs must never fetch them.
+  final CachedImageLoader? loadCachedImage;
 
   @override
   State<NoteEditorPage> createState() => _NoteEditorPageState();
@@ -224,7 +232,7 @@ class _NoteEditorPageState extends State<NoteEditorPage>
             if (!widget.note.isMarkdown)
               const Padding(
                 padding: EdgeInsets.only(bottom: 8),
-                child: Text('编辑 HTML 原文，预览仅显示基本排版，不加载图片附件或执行脚本。原文将完整保存。'),
+                child: Text('编辑 HTML 原文，预览显示基本排版及已缓存图片，不联网加载资源或执行脚本。原文将完整保存。'),
               ),
             if (!_preview)
               SingleChildScrollView(
@@ -286,8 +294,14 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                   ),
                   if (_preview)
                     widget.note.isMarkdown
-                        ? MarkdownNoteBody(content: _content.text)
-                        : SafeHtmlNoteBody(content: _content.text)
+                        ? MarkdownNoteBody(
+                            content: _content.text,
+                            loadCachedImage: widget.loadCachedImage,
+                          )
+                        : SafeHtmlNoteBody(
+                            content: _content.text,
+                            loadCachedImage: widget.loadCachedImage,
+                          )
                   else
                     const SizedBox.shrink(),
                 ],

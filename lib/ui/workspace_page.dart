@@ -462,6 +462,11 @@ class _WorkspacePageState extends State<WorkspacePage>
       MaterialPageRoute(
         builder: (_) => NoteEditorPage(
           note: note,
+          loadCachedImage: (uri) => widget.repository.cachedInlineImage(
+            widget.session,
+            note.noteId,
+            uri,
+          ),
           saveText: (title, content) => widget.repository.saveEditedText(
             widget.session,
             note.noteId,
