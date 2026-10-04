@@ -14,6 +14,8 @@
 
 迁移路线和当前边界见 [docs/MIGRATION.md](docs/MIGRATION.md)，开发环境与验证命令见 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)。
 
+Android 签名构建与版本 tag 自动发布见 [docs/RELEASE.md](docs/RELEASE.md)。普通分支 push/PR 只运行检查与测试；iOS 正式发布仍待实现。
+
 旧版代码只作为功能和交互参考，不再继续开发，说明见 [legacy-android/README.md](legacy-android/README.md)。
 
 本项目源自 Leanote Android 客户端，但网络、存储和界面层将由 Flutter 版本重新实现。

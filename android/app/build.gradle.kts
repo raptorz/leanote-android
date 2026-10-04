@@ -4,6 +4,22 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val releaseStorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+val releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+
+// Debug builds never require production credentials; release cannot fall back.
+gradle.taskGraph.whenReady {
+    if (allTasks.any { it.project == project && it.name.contains("Release") }) {
+        check(listOf(releaseStorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword)
+            .all { !it.isNullOrBlank() }) {
+            "Release signing requires ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD"
+        }
+        check(file(releaseStorePath!!).isFile) { "Release keystore file does not exist" }
+    }
+}
+
 android {
     namespace = "com.github.gemsnote"
     compileSdk = flutter.compileSdkVersion
@@ -29,11 +45,18 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = releaseStorePath?.let { file(it) }
+            storePassword = releaseStorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

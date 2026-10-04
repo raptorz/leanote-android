@@ -174,10 +174,10 @@
 ### 第四阶段：发布
 
 - [x] 使用 Gemsnote 正式图标生成 Android 多密度传统图标、adaptive icon 和 iOS AppIcon；保留独立高分辨率源图与生成脚本。Android 圆形入口复用自适应图标，深绿色背景，主体保留安全留白；iOS 当前使用无透明通道的静态图标资源。Android 各厂商桌面遮罩及 iOS 安装显示仍待真机验收，不包含主题单色图标或 iOS 分层图标。
-- Android 签名、AAB/APK 构建和 iOS 签名归档
+- [x] Android Release 签名配置及 APK/AAB tag 发布工作流：密钥由环境变量/GitHub Secrets 提供，缺失时失败，不回退 debug 签名；正式密钥配置与远端发布仍待用户完成和验证。
 - 真机离线、弱网、升级、冲突及大数据量回归测试
-- [x] GitHub Actions 自动静态分析、全量 Flutter 测试及 Android debug APK 构建：独立 mobile 仓库 push/PR/手动触发，测试通过后构建并保留测试 APK 7 天；不发布 Release、不使用正式签名密钥。远端工作流首次运行仍待推送验证。
-- [x] 配置 iOS macOS runner 模拟器编译检查：Android job（含全量 Dart 测试）通过后，构建无证书签名的 debug 模拟器应用，打包保留 7 天；这是 CI 配置已完成，实际 Xcode 编译及远端首次运行仍待验证，不等于真机可安装或已发布。
+- [x] GitHub Actions 分支 push/PR/手动触发只做静态分析和全量测试，不构建安装包。正式无 `v` tag 通过版本校验与测试后才构建发布；远端首次运行待验证。
+- iOS 模拟器构建保留本地 macOS 命令，不在普通 push/PR 上构建测试包。
 - [ ] iOS 正式签名发布、模拟器运行及真机验收
 
 ## 小屏交互

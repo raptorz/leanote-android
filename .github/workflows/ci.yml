@@ -5,66 +5,23 @@ on:
     branches: ['**']
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
 
 env:
-  # Match hosted URLs recorded in pubspec.lock when enforcing the lockfile.
   PUB_HOSTED_URL: https://pub.flutter-io.cn
   FLUTTER_STORAGE_BASE_URL: https://storage.flutter-io.cn
 
 concurrency:
-  group: mobile-ci-${{ github.workflow }}-${{ github.ref }}
+  group: mobile-tests-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
-  android:
+  test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.47.5'
-          channel: stable
-          cache: true
-      - name: Configure Android toolchain
-        run: |
-          flutter config --jdk-dir "$JAVA_HOME"
-          flutter --version
-          flutter doctor -v
-      - name: Resolve locked dependencies
-        run: flutter pub get --enforce-lockfile
-      - name: Analyze Flutter application
-        run: flutter analyze --no-pub
-      - name: Run all tests
-        run: flutter test --no-pub
-      - name: Build Android debug APK
-        env:
-          # Keep Gradle below hosted-runner memory limits, without changing
-          # developers' local Gradle defaults. No production signing keys used.
-          GRADLE_OPTS: '-Dorg.gradle.jvmargs="-Xmx3G -XX:MaxMetaspaceSize=1G" -Dorg.gradle.workers.max=2'
-        run: flutter build apk --debug --no-pub
-      - name: Upload test APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: gemsnote-mobile-debug-${{ github.sha }}
-          path: build/app/outputs/flutter-apk/app-debug.apk
-          if-no-files-found: error
-          retention-days: 7
-
-  ios-simulator:
-    # Do not spend macOS build time until the shared Dart tests have passed.
-    needs: android
-    runs-on: macos-15
-    timeout-minutes: 40
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -74,24 +31,6 @@ jobs:
           flutter-version: '3.47.5'
           channel: stable
           cache: true
-      - name: Inspect Apple toolchain
-        run: |
-          xcodebuild -version
-          xcrun --sdk iphonesimulator --show-sdk-version
-          flutter doctor -v
-      - name: Resolve locked dependencies
-        run: flutter pub get --enforce-lockfile
-      - name: Build iOS simulator application
-        run: flutter build ios --simulator --debug --no-codesign --no-pub
-      - name: Package simulator application
-        run: |
-          test -d build/ios/iphonesimulator/Runner.app
-          # Archive the app bundle before upload to preserve symlinks and modes.
-          ditto -c -k --keepParent build/ios/iphonesimulator/Runner.app build/gemsnote-ios-simulator.zip
-      - name: Upload simulator application
-        uses: actions/upload-artifact@v4
-        with:
-          name: gemsnote-ios-simulator-${{ runner.arch }}-${{ github.sha }}
-          path: build/gemsnote-ios-simulator.zip
-          if-no-files-found: error
-          retention-days: 7
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter analyze --no-pub
+      - run: flutter test --no-pub
