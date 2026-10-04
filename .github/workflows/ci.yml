@@ -1,0 +1,61 @@
+name: Mobile CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Match hosted URLs recorded in pubspec.lock when enforcing the lockfile.
+  PUB_HOSTED_URL: https://pub.flutter-io.cn
+  FLUTTER_STORAGE_BASE_URL: https://storage.flutter-io.cn
+
+concurrency:
+  group: mobile-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Configure Android toolchain
+        run: |
+          flutter config --jdk-dir "$JAVA_HOME"
+          flutter --version
+          flutter doctor -v
+      - name: Resolve locked dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Analyze Flutter application
+        run: flutter analyze --no-pub
+      - name: Run all tests
+        run: flutter test --no-pub
+      - name: Build Android debug APK
+        env:
+          # Keep Gradle below hosted-runner memory limits, without changing
+          # developers' local Gradle defaults. No production signing keys used.
+          GRADLE_OPTS: '-Dorg.gradle.jvmargs="-Xmx3G -XX:MaxMetaspaceSize=1G" -Dorg.gradle.workers.max=2'
+        run: flutter build apk --debug --no-pub
+      - name: Upload test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemsnote-mobile-debug-${{ github.sha }}
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
