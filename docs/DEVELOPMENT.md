@@ -31,6 +31,14 @@ iOS 工程只能在 macOS 上构建：
 flutter build ios
 ```
 
+## 应用版本信息
+
+安装包版本由 `pubspec.yaml` 的 `version` 定义，构建时可用 Flutter 的
+`--build-name` / `--build-number` 覆盖。“关于”通过
+[package_info_plus](https://pub.dev/packages/package_info_plus) 读取实际安装包版本和构建号，
+不使用源码常量代替。API2 协议版本仍由 `Api2Client.clientVersion` 定义并单独显示，
+修改应用发布版本不应误改协议兼容规则。版本读取不请求 Gemsnote 服务端。
+
 ## 服务端要求
 
 客户端要求 Gemsnote API2 v1.0.0。登录接口 `/api2/auth/login` 一次返回 token、用户资料和服务端版本；旧 `/api` 与旧 Leanote 服务端不在支持范围内。

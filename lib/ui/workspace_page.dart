@@ -22,6 +22,7 @@ import 'note_search_page.dart';
 import 'notebook_dialog.dart';
 import 'move_notebook_dialog.dart';
 import 'account_page.dart';
+import 'about_dialog.dart';
 import 'account_avatar.dart';
 import 'shared_notes_page.dart';
 import 'tags_page.dart';
@@ -793,6 +794,12 @@ class _WorkspacePageState extends State<WorkspacePage>
               if (value == 'resetSync') _sync(reset: true);
               if (value == 'autoSync') _toggleAutoSync();
               if (value == 'trash') _openTrash();
+              if (value == 'about') {
+                showDialog<void>(
+                  context: context,
+                  builder: (_) => const MobileAboutDialog(),
+                );
+              }
               if (value == 'logout') _logout();
             },
             itemBuilder: (_) => [
@@ -806,6 +813,7 @@ class _WorkspacePageState extends State<WorkspacePage>
               ),
               const PopupMenuItem(value: 'resetSync', child: Text('重新同步')),
               const PopupMenuItem(value: 'trash', child: Text('回收站')),
+              const PopupMenuItem(value: 'about', child: Text('关于')),
               const PopupMenuItem(value: 'logout', child: Text('退出')),
             ],
             child: Padding(
