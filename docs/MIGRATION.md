@@ -177,7 +177,8 @@
 - Android 签名、AAB/APK 构建和 iOS 签名归档
 - 真机离线、弱网、升级、冲突及大数据量回归测试
 - [x] GitHub Actions 自动静态分析、全量 Flutter 测试及 Android debug APK 构建：独立 mobile 仓库 push/PR/手动触发，测试通过后构建并保留测试 APK 7 天；不发布 Release、不使用正式签名密钥。远端工作流首次运行仍待推送验证。
-- [ ] iOS macOS runner 构建及正式签名发布
+- [x] 配置 iOS macOS runner 模拟器编译检查：Android job（含全量 Dart 测试）通过后，构建无证书签名的 debug 模拟器应用，打包保留 7 天；这是 CI 配置已完成，实际 Xcode 编译及远端首次运行仍待验证，不等于真机可安装或已发布。
+- [ ] iOS 正式签名发布、模拟器运行及真机验收
 
 ## 小屏交互
 

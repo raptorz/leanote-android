@@ -64,10 +64,35 @@ flutter build apk --debug --no-pub
 不要为安装测试包直接卸载正在使用的实例。
 
 工作流只授予仓库内容读取权限，不使用部署或签名凭据，也不自动发布。
-新推送会取消同一分支尚未完成的旧任务。此阶段不包含 iOS 构建、签名和真机测试。
+新推送会取消同一分支尚未完成的旧任务。此阶段不包含正式签名和真机测试。
 工作流沿用上文镜像，确保 Pub 下载源与 `pubspec.lock` 中记录的地址一致；
 切换源时应统一更新锁文件并重新验证，不能忽略 `--enforce-lockfile` 失败。
 升级 Flutter 时需同时核对工作流固定版本、Dart SDK 约束和 Android 工具链。
+
+### iOS 模拟器编译检查
+
+Android job（包含 Dart 测试和 APK 构建）通过后，`ios-simulator` job 在
+`macos-15` 上使用相同 Flutter 版本执行：
+
+```sh
+flutter pub get --enforce-lockfile
+flutter build ios --simulator --debug --no-codesign --no-pub
+ditto -c -k --keepParent build/ios/iphonesimulator/Runner.app build/gemsnote-ios-simulator.zip
+```
+
+工程使用 Flutter 的 Swift Package Manager 集成；不要复制本地生成的
+`ios/Flutter/ephemeral` 或插件注册文件到仓库。Flutter 构建负责生成这些文件；
+如插件需要 CocoaPods 回退，macOS 环境还需提供 CocoaPods。
+
+成功后上传 `gemsnote-ios-simulator-<runner 架构>-<commit SHA>`，保留 7 天。
+先下载 Actions artifact，再解开其中的 `gemsnote-ios-simulator.zip` 可得到 `Runner.app`。
+模拟器包不是 IPA，不能安装到 iPhone 或上传 App Store/TestFlight；不需要提供开发者证书。
+产物架构以实际 runner 和 Xcode 构建结果为准，使用兼容架构的 Mac/iOS 模拟器测试。
+当前工作流只编译，不启动模拟器或运行真机集成测试。
+
+本地执行这些命令需要 macOS/Xcode，见 [Flutter iOS 构建说明](https://docs.flutter.dev/deployment/ios)。
+Linux 上只能检查工作流与工程文件，不能据此宣称 iOS 编译或安装验证通过；
+此 job 的首次远端构建仍需在推送后核对。
 
 ## 应用图标
 

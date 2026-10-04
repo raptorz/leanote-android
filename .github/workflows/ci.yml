@@ -59,3 +59,39 @@ jobs:
           path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 7
+
+  ios-simulator:
+    # Do not spend macOS build time until the shared Dart tests have passed.
+    needs: android
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Inspect Apple toolchain
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
+          flutter doctor -v
+      - name: Resolve locked dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Build iOS simulator application
+        run: flutter build ios --simulator --debug --no-codesign --no-pub
+      - name: Package simulator application
+        run: |
+          test -d build/ios/iphonesimulator/Runner.app
+          # Archive the app bundle before upload to preserve symlinks and modes.
+          ditto -c -k --keepParent build/ios/iphonesimulator/Runner.app build/gemsnote-ios-simulator.zip
+      - name: Upload simulator application
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemsnote-ios-simulator-${{ runner.arch }}-${{ github.sha }}
+          path: build/gemsnote-ios-simulator.zip
+          if-no-files-found: error
+          retention-days: 7
