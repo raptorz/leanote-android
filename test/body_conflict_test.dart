@@ -50,6 +50,44 @@ void main() {
   });
   tearDown(() => db.raw.close());
 
+  for (final localMarkdown in [true, false]) {
+    for (final resourceInLocal in [true, false]) {
+      test(
+        'format conflict preserves resources: MD=$localMarkdown local=$resourceInLocal',
+        () async {
+          String resource(bool markdown) =>
+              markdown ? '![image](/files/image)' : '<img src="/files/image">';
+          final pending = local.copyWith(
+            isMarkdown: localMarkdown,
+            content: resourceInLocal ? resource(localMarkdown) : 'Plain text',
+          );
+          await db.saveLocalNote(account.cacheKey, pending);
+          final remote = pending.copyWith(
+            isMarkdown: !localMarkdown,
+            content: resourceInLocal ? 'Remote text' : resource(!localMarkdown),
+            usn: 6,
+          );
+          await expectLater(
+            db.resolveNoteConflict(
+              account.cacheKey,
+              pending,
+              remote,
+              filesConfirmedEmpty: true,
+            ),
+            throwsStateError,
+          );
+          final retained = (await db.dirtyNotes(account.cacheKey)).single;
+          expect(retained.noteId, id);
+          expect(retained.content, pending.content);
+          expect(retained.isMarkdown, localMarkdown);
+          expect(retained.usn, 5);
+          expect(await db.notes(account.cacheKey), hasLength(1));
+          expect(await db.lastSyncUsn(account.cacheKey), 5);
+        },
+      );
+    }
+  }
+
   for (final mode in [
     'success',
     'lostCopyResponse',
@@ -63,20 +101,32 @@ void main() {
     'htmlLocalResource',
     'htmlLocalFiles',
     'htmlLocalEdit',
+    'htmlToMarkdown',
+    'htmlToMarkdownSameBody',
+    'markdownToHtml',
+    'markdownToHtmlSameBody',
+    'htmlToMarkdownLostCopyResponse',
     'localImage',
   ]) {
     test('body conflict preserves local data: $mode', () async {
       final rich = mode.startsWith('html');
-      final localBody = mode == 'htmlLocalResource'
+      final changedFormat = mode.contains('To');
+      final remoteMarkdown = changedFormat ? rich : !rich;
+      final sameBody = mode.endsWith('SameBody');
+      final localBody = sameBody
+          ? 'Same source, different format'
+          : mode == 'htmlLocalResource'
           ? '<p><img src="/files/local"></p>'
           : rich
           ? '<p><strong>Local &amp; body</strong></p>'
           : local.content;
-      final remoteBody = rich
-          ? '<div><em>Remote body</em></div>'
-          : 'Remote body';
+      final remoteBody = sameBody
+          ? localBody
+          : remoteMarkdown
+          ? 'Remote body'
+          : '<div><em>Remote body</em></div>';
       var failCopy =
-          mode == 'lostCopyResponse' || mode == 'htmlLostCopyResponse';
+          mode == 'lostCopyResponse' || mode.endsWith('LostCopyResponse');
       final uploadedIds = <String>[];
       if (mode == 'localFiles' || mode == 'htmlLocalFiles') {
         await db.replaceNoteFiles(account.cacheKey, id, [
@@ -96,10 +146,10 @@ void main() {
           '![img](/api/file/getImage?id=file)',
         );
       }
-      if (rich) {
+      if (rich || sameBody) {
         await db.saveLocalNote(
           account.cacheKey,
-          local.copyWith(isMarkdown: false, content: localBody),
+          local.copyWith(isMarkdown: !rich, content: localBody),
         );
       }
       final api = Api2Client(
@@ -124,7 +174,7 @@ void main() {
                 'NotebookId': 'remote-book',
                 'Title': 'remote',
                 'Content': 'ignored',
-                'IsMarkdown': !rich,
+                'IsMarkdown': remoteMarkdown,
                 'IsStar': true,
                 'IsTrash': false,
                 'IsDeleted': false,
@@ -166,6 +216,7 @@ void main() {
       final sync = SyncCoordinator(api, db);
       final task = sync.uploadPending(account: account, token: 'test');
       if (mode == 'success' ||
+          changedFormat ||
           mode == 'lostCopyResponse' ||
           mode == 'html' ||
           mode == 'htmlLostCopyResponse') {
@@ -185,6 +236,7 @@ void main() {
         final original = notes.firstWhere((n) => n.noteId == id);
         expect(original.title, 'remote');
         expect(original.content, remoteBody);
+        expect(original.isMarkdown, remoteMarkdown);
         expect(original.tags, ['remote']);
         expect(original.notebookId, 'remote-book');
         final copy = notes.firstWhere((n) => n.noteId != id);

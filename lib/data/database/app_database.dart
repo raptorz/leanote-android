@@ -970,7 +970,7 @@ class AppDatabase {
   }
 
   /// Atomically preserve a safe local body copy before accepting the remote note.
-  /// Unsupported resource/format conflicts and concurrent edits remain dirty.
+  /// Unsupported resource/deletion conflicts and concurrent edits remain dirty.
   Future<Note?> resolveNoteConflict(
     String accountId,
     Note local,
@@ -983,7 +983,6 @@ class AppDatabase {
         local.usn <= 0 ||
         remote.isDeleted ||
         local.isDeleted ||
-        remote.isMarkdown != local.isMarkdown ||
         remote.isTrash != local.isTrash) {
       throw StateError('unresolvedNoteConflict');
     }
@@ -998,7 +997,8 @@ class AppDatabase {
       throw StateError('localChangesDuringConflict');
     }
     Note? copy;
-    if (remote.content != local.content) {
+    if (remote.content != local.content ||
+        remote.isMarkdown != local.isMarkdown) {
       // Resource cloning is not implemented. Validate both original sources;
       // never sanitize a conflict copy and silently discard unsupported data.
       final files = await txn.query(

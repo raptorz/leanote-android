@@ -53,7 +53,7 @@ void main() {
   for (final scenario in [
     'same body',
     'different body with image',
-    'changed format',
+    'changed format with unknown files',
     'changed trash',
     'remote deleted',
     'remote changed during read',
@@ -95,7 +95,10 @@ void main() {
           if (request.url.path == '/api2/note/getNote') {
             reads++;
             if (scenario == 'post conflict' && reads == 1) remote['Usn'] = 5;
-            if (scenario == 'changed format') remote['IsMarkdown'] = false;
+            if (scenario == 'changed format with unknown files') {
+              remote['IsMarkdown'] = false;
+              remote.remove('Files');
+            }
             if (scenario == 'changed trash') remote['IsTrash'] = true;
             if (scenario == 'remote deleted') remote['IsDeleted'] = true;
             if (scenario == 'missing metadata') remote.remove('Title');
