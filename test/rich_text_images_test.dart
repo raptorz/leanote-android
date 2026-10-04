@@ -11,6 +11,51 @@ import 'package:webview_flutter/webview_flutter.dart';
 void main() {
   const src = '/api2/file/getImage?fileId=507f1f77bcf86cd799439011';
   testWidgets(
+    'images retain nested document order with selectable text on a small screen',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 280,
+              child: SafeHtmlNoteBody(
+                content:
+                    '<p>Before<strong><img src="$src" alt="first">Middle</strong>'
+                    '<img src="$src" alt="second">After</p>',
+                loadCachedImage: (_) async =>
+                    File('assets/images/gemsnote_s.png').readAsBytesSync(),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final bodyText = tester.widget<Text>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Text &&
+              widget.textSpan?.toPlainText().contains('Before') == true,
+        ),
+      );
+      expect(
+        bodyText.textSpan!.toPlainText(),
+        '\nBefore\n\uFFFC\nMiddle\n\uFFFC\nAfter\n',
+      );
+      expect(find.byType(SelectionArea), findsOneWidget);
+      expect(find.textContaining('正文图片（'), findsNothing);
+      final images = find.byType(CachedMarkdownImage);
+      expect(images, findsNWidgets(2));
+      expect(
+        tester.getTopLeft(images.first).dy,
+        lessThan(tester.getTopLeft(images.last).dy),
+      );
+      expect(tester.getSize(images.first).width, lessThanOrEqualTo(240));
+      expect(find.text('下载图片'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'personal rich reader defaults to native preview and manual image download',
     (tester) async {
       var downloads = 0;

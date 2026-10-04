@@ -66,6 +66,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
     int depth = 0,
     bool pre = false,
     List<dom.Element>? images,
+    double imageWidth = 0,
   }) {
     final spans = <InlineSpan>[];
     var listIndex = 0;
@@ -88,12 +89,21 @@ class SafeHtmlNoteBody extends StatelessWidget {
       }
       if (tag == 'img' || tag == 'video' || tag == 'audio') {
         final collected = tag == 'img' && images != null && images.length < 100;
-        if (collected) images.add(node);
+        if (collected) {
+          images.add(node);
+          spans.add(const TextSpan(text: '\n'));
+          spans.add(
+            WidgetSpan(
+              child: SizedBox(width: imageWidth, child: _image(node)),
+            ),
+          );
+          spans.add(const TextSpan(text: '\n'));
+          continue;
+        }
         final alt = node.attributes['alt'];
         spans.add(
           TextSpan(
-            text:
-                '[${collected ? '图片见下方' : '媒体尚未缓存'}${alt == null || alt.isEmpty ? '' : '：$alt'}]',
+            text: '[媒体尚未缓存${alt == null || alt.isEmpty ? '' : '：$alt'}]',
           ),
         );
         continue;
@@ -138,6 +148,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
             depth: depth + 1,
             pre: pre || tag == 'pre',
             images: images,
+            imageWidth: imageWidth,
           ),
         ),
       );
@@ -155,34 +166,31 @@ class SafeHtmlNoteBody extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final images = <dom.Element>[];
-    final spans = _render(
-      html.parseFragment(content).nodes,
-      images: loadCachedImage == null ? null : images,
-    );
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SelectableText.rich(
-            TextSpan(
-              style: DefaultTextStyle.of(context).style
-                  .copyWith(fontSize: 16, height: 1.65),
-              children: spans,
-            ),
-          ),
-          if (images.isNotEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('正文图片（最多显示 100 张）'),
-            ),
-          for (final image in images) _image(image),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(20),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final images = <dom.Element>[];
+        final spans = _render(
+          html.parseFragment(content).nodes,
+          images: loadCachedImage == null ? null : images,
+          imageWidth: constraints.maxWidth,
+        );
+        final text = TextSpan(
+          style: DefaultTextStyle.of(context).style
+              .copyWith(fontSize: 16, height: 1.65),
+          children: spans,
+        );
+        return SingleChildScrollView(
+          // SelectableText supports only TextSpans. SelectionArea with Text.rich
+          // retains native text selection around embedded image widgets.
+          child: images.isEmpty
+              ? SelectableText.rich(text)
+              : SelectionArea(child: Text.rich(text)),
+        );
+      },
+    ),
+  );
 
   Widget _image(dom.Element element) {
     final uri = Uri.tryParse(element.attributes['src'] ?? '');
