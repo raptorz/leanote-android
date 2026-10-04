@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../domain/models/account.dart';
+import '../../domain/models/conflict_copy.dart';
 import '../../domain/models/note.dart';
 import '../../domain/models/note_file.dart';
 import '../../domain/models/note_history.dart';
@@ -998,9 +999,8 @@ class AppDatabase {
     }
     Note? copy;
     if (remote.content != local.content) {
-      // Conservative until resource cloning exists: brackets/HTML may encode
-      // images, reference links or embedded media, including legacy URLs.
-      final markup = RegExp(r'[\[<]');
+      // Resource cloning is not implemented. Validate both original sources;
+      // never sanitize a conflict copy and silently discard unsupported data.
       final files = await txn.query(
         'note_files',
         columns: ['file_id'],
@@ -1009,10 +1009,9 @@ class AppDatabase {
         limit: 1,
       );
       if (!filesConfirmedEmpty ||
-          !local.isMarkdown ||
           local.isTrash ||
-          markup.hasMatch(local.content) ||
-          markup.hasMatch(remote.content) ||
+          !canCopyConflictBody(local.content, isMarkdown: local.isMarkdown) ||
+          !canCopyConflictBody(remote.content, isMarkdown: remote.isMarkdown) ||
           files.isNotEmpty) {
         throw StateError('unresolvedNoteConflict');
       }

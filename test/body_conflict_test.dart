@@ -58,12 +58,27 @@ void main() {
     'localFiles',
     'localEdit',
     'html',
+    'htmlLostCopyResponse',
+    'htmlResource',
+    'htmlLocalResource',
+    'htmlLocalFiles',
+    'htmlLocalEdit',
     'localImage',
   ]) {
     test('body conflict preserves local data: $mode', () async {
-      var failCopy = mode == 'lostCopyResponse';
+      final rich = mode.startsWith('html');
+      final localBody = mode == 'htmlLocalResource'
+          ? '<p><img src="/files/local"></p>'
+          : rich
+          ? '<p><strong>Local &amp; body</strong></p>'
+          : local.content;
+      final remoteBody = rich
+          ? '<div><em>Remote body</em></div>'
+          : 'Remote body';
+      var failCopy =
+          mode == 'lostCopyResponse' || mode == 'htmlLostCopyResponse';
       final uploadedIds = <String>[];
-      if (mode == 'localFiles') {
+      if (mode == 'localFiles' || mode == 'htmlLocalFiles') {
         await db.replaceNoteFiles(account.cacheKey, id, [
           const NoteFile(
             id: 'file',
@@ -81,10 +96,10 @@ void main() {
           '![img](/api/file/getImage?id=file)',
         );
       }
-      if (mode == 'html') {
+      if (rich) {
         await db.saveLocalNote(
           account.cacheKey,
-          local.copyWith(isMarkdown: false),
+          local.copyWith(isMarkdown: false, content: localBody),
         );
       }
       final api = Api2Client(
@@ -95,7 +110,8 @@ void main() {
             final copyId = fields['ClientNoteId']!;
             uploadedIds.add(copyId);
             expect(copyId, isNot(id));
-            expect(fields['Content'], local.content);
+            expect(fields['Content'], localBody);
+            expect(fields['IsMarkdown'], '${!rich}');
             expect(fields['Title'], 'local（本地冲突副本）');
             if (failCopy) throw const FormatException('connection lost');
             return http.Response(jsonEncode({'NoteId': copyId, 'Usn': 7}), 200);
@@ -108,7 +124,7 @@ void main() {
                 'NotebookId': 'remote-book',
                 'Title': 'remote',
                 'Content': 'ignored',
-                'IsMarkdown': mode != 'html',
+                'IsMarkdown': !rich,
                 'IsStar': true,
                 'IsTrash': false,
                 'IsDeleted': false,
@@ -127,7 +143,7 @@ void main() {
             );
           }
           expect(request.url.path, '/api2/note/getNoteContent');
-          if (mode == 'localEdit') {
+          if (mode == 'localEdit' || mode == 'htmlLocalEdit') {
             await db.saveEditedText(
               account.cacheKey,
               id,
@@ -136,19 +152,28 @@ void main() {
             );
           }
           return http.Response(
-            jsonEncode({'NoteId': id, 'UserId': 'u', 'Content': 'Remote body'}),
+            jsonEncode({
+              'NoteId': id,
+              'UserId': 'u',
+              'Content': mode == 'htmlResource'
+                  ? '<img src="/files/image">'
+                  : remoteBody,
+            }),
             200,
           );
         }),
       );
       final sync = SyncCoordinator(api, db);
       final task = sync.uploadPending(account: account, token: 'test');
-      if (mode == 'success' || mode == 'lostCopyResponse') {
+      if (mode == 'success' ||
+          mode == 'lostCopyResponse' ||
+          mode == 'html' ||
+          mode == 'htmlLostCopyResponse') {
         if (failCopy) {
           await expectLater(task, throwsA(anything));
           final dirty = (await db.dirtyNotes(account.cacheKey)).single;
           expect(dirty.noteId, uploadedIds.single);
-          expect(dirty.content, local.content);
+          expect(dirty.content, localBody);
           failCopy = false;
           await sync.uploadPending(account: account, token: 'test');
           expect(uploadedIds, [dirty.noteId, dirty.noteId]);
@@ -159,11 +184,12 @@ void main() {
         expect(notes, hasLength(2));
         final original = notes.firstWhere((n) => n.noteId == id);
         expect(original.title, 'remote');
-        expect(original.content, 'Remote body');
+        expect(original.content, remoteBody);
         expect(original.tags, ['remote']);
         expect(original.notebookId, 'remote-book');
         final copy = notes.firstWhere((n) => n.noteId != id);
-        expect(copy.content, local.content);
+        expect(copy.content, localBody);
+        expect(copy.isMarkdown, !rich);
         expect(copy.tags, local.tags);
         expect(copy.notebookId, local.notebookId);
         expect(copy.usn, 7);
@@ -175,13 +201,13 @@ void main() {
         expect(uploadedIds, isEmpty);
         expect(await db.notes(account.cacheKey), hasLength(1));
         expect(await db.pendingNoteIds(account.cacheKey), {id});
-        if (mode == 'localEdit') {
+        if (mode == 'localEdit' || mode == 'htmlLocalEdit') {
           expect(
             (await db.notes(account.cacheKey)).single.content,
             'new local body',
           );
         }
-        if (mode == 'localFiles') {
+        if (mode == 'localFiles' || mode == 'htmlLocalFiles') {
           expect(await db.cachedNoteFiles(account.cacheKey, id), hasLength(1));
         }
       }
