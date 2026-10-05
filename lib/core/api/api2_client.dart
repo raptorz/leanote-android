@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:io' show Cookie;
 
 import 'package:http/http.dart' as http;
 
@@ -31,6 +32,94 @@ class Api2Client {
 
   static const clientVersion = '1.0.0';
   final http.Client _http;
+
+  /// Operation-local browser session; never persist cookies or passwords.
+  Future<void> updateUsername({
+    required Uri server,
+    required String userId,
+    required String identity,
+    required String password,
+    required String username,
+  }) async {
+    final cookies = <String, String>{};
+    Future<Map<String, Object?>> call(
+      String path, {
+      Map<String, String>? body,
+      bool form = false,
+    }) async {
+      final request = http.Request(
+        body == null ? 'GET' : 'POST',
+        server.resolve(path),
+      )..followRedirects = false;
+      if (cookies.isNotEmpty) {
+        request.headers['Cookie'] = cookies.entries
+            .map((e) => '${e.key}=${e.value}')
+            .join('; ');
+      }
+      if (body != null) {
+        if (form) {
+          request.bodyFields = body;
+        } else {
+          request.headers['Content-Type'] = 'application/json';
+          request.body = jsonEncode(body);
+        }
+      }
+      late http.Response response;
+      try {
+        response = await (() async => http.Response.fromStream(
+          await _http.send(request),
+        ))().timeout(const Duration(seconds: 60));
+      } on Exception {
+        throw const ApiException('networkUnavailable');
+      }
+      final header = response.headers['set-cookie'];
+      if (header != null) {
+        // Split combined cookie fields, but not commas within Expires dates.
+        for (final part in header.split(RegExp(r',(?=\s*[^\s;,=]+=)'))) {
+          try {
+            final cookie = Cookie.fromSetCookieValue(part.trim());
+            cookies[cookie.name] = cookie.value;
+          } on FormatException {
+            throw const ApiException('invalidSessionCookie');
+          }
+        }
+      }
+      return _decodeMapResponse(response);
+    }
+
+    try {
+      final login = await call(
+        '/api2/auth/session',
+        body: {'email': identity, 'pwd': password},
+      );
+      if (login['Ok'] != true || cookies.isEmpty) {
+        throw const ApiException('invalidSession');
+      }
+      final bootstrap = await call('/api2/bootstrap');
+      final user = bootstrap['User'];
+      if (bootstrap['Ok'] != true || user is! Map || user['UserId'] != userId) {
+        throw const ApiException('accountMismatch');
+      }
+      final result = await call(
+        '/api2/user/updateUsername',
+        body: {'username': username},
+        form: true, // This API2 v1 action still uses Revel form binding, like Web.
+      );
+      if (result['Ok'] != true) throw const ApiException('invalidResponse');
+    } finally {
+      if (cookies.isNotEmpty) {
+        try {
+          await call(
+            '/api2/logout',
+            body: {},
+          ).timeout(const Duration(seconds: 5));
+        } on Object {
+          /* best effort; do not retry a mutation */
+        }
+      }
+      cookies.clear();
+    }
+  }
 
   Future<List<NoteFile>> noteFiles({
     required Uri server,

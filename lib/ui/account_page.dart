@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../domain/models/account.dart';
 import '../repositories/auth_repository.dart';
 import 'account_avatar.dart';
+import 'username_dialog.dart';
 
 class AccountPage extends StatefulWidget {
   const AccountPage({
@@ -107,6 +108,35 @@ class _AccountPageState extends State<AccountPage> {
           ),
         _field('服务器地址', _account.server.toString()),
         _field('用户名', _account.username),
+        OutlinedButton(
+          onPressed: _busy
+              ? null
+              : () async {
+                  final saved = await showDialog<bool>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (_) => UsernameDialog(
+                      identity: _account.email.isEmpty
+                          ? _account.username
+                          : _account.email,
+                      username: _account.username,
+                      save: (identity, password, username) =>
+                          widget.repository.updateUsername(
+                            widget.session,
+                            identity: identity,
+                            password: password,
+                            username: username,
+                          ),
+                    ),
+                  );
+                  if (saved == true && context.mounted) {
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(const SnackBar(content: Text('用户名已更新')));
+                    await _refresh();
+                  }
+                },
+          child: const Text('修改用户名'),
+        ),
         _field('邮箱', _account.email),
         _field('用户 ID', _account.userId),
         const Divider(),

@@ -473,6 +473,26 @@ class AuthRepository {
     return content;
   }
 
+  Future<void> updateUsername(
+    StoredSession session, {
+    required String identity,
+    required String password,
+    required String username,
+  }) {
+    if (identity.trim().isEmpty ||
+        password.isEmpty ||
+        username.trim().isEmpty) {
+      throw const FormatException('请填写登录账号、当前密码和新用户名');
+    }
+    return _api.updateUsername(
+      server: session.account.server,
+      userId: session.account.userId,
+      identity: identity.trim(),
+      password: password,
+      username: username.trim(),
+    );
+  }
+
   Future<void> saveNotebook(
     StoredSession session, {
     required String title,
