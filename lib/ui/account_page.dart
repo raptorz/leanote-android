@@ -7,15 +7,19 @@ import '../repositories/auth_repository.dart';
 import 'account_avatar.dart';
 import 'account_field_dialog.dart';
 import 'password_change_dialog.dart';
+import 'avatar_upload_dialog.dart';
+import '../services/avatar_picker.dart';
 
 class AccountPage extends StatefulWidget {
   const AccountPage({
     super.key,
     required this.repository,
     required this.session,
+    this.avatarPicker,
   });
   final AuthRepository repository;
   final StoredSession session;
+  final AvatarPicker? avatarPicker;
   @override
   State<AccountPage> createState() => _AccountPageState();
 }
@@ -26,6 +30,50 @@ class _AccountPageState extends State<AccountPage> {
   String? _error;
   Uint8List? _avatar;
   bool _passwordChanged = false;
+
+  Future<void> _uploadAvatar() async {
+    if (_busy || _passwordChanged) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    bool uploaded = false;
+    try {
+      final bytes = await (widget.avatarPicker ?? AvatarPicker()).pick();
+      if (bytes == null || !mounted) return;
+      uploaded =
+          await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => AvatarUploadDialog(
+              identity: _account.email.isEmpty
+                  ? _account.username
+                  : _account.email,
+              bytes: bytes,
+              upload: (identity, password) => widget.repository.uploadAvatar(
+                widget.session,
+                identity: identity,
+                password: password,
+                bytes: bytes,
+              ),
+            ),
+          ) ==
+          true;
+      if (uploaded && mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('头像已上传，正在刷新')));
+      }
+    } on Object {
+      if (mounted) {
+        setState(
+          () => _error = '无法读取头像。请选择不超过 2 MiB、4096×4096 的有效 PNG/JPEG 图片。',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (uploaded && mounted) await _refresh();
+  }
 
   Future<void> _finishPasswordChange() async {
     setState(() {
@@ -138,6 +186,10 @@ class _AccountPageState extends State<AccountPage> {
               children: [
                 if (_busy) const LinearProgressIndicator(),
                 Center(child: AccountAvatar(bytes: _avatar, size: 80)),
+                OutlinedButton(
+                  onPressed: _busy ? null : _uploadAvatar,
+                  child: const Text('更换头像'),
+                ),
                 if (_error != null)
                   Text(
                     _error!,

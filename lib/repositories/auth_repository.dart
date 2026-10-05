@@ -533,6 +533,24 @@ class AuthRepository {
     );
   }
 
+  Future<void> uploadAvatar(
+    StoredSession session, {
+    required String identity,
+    required String password,
+    required Uint8List bytes,
+  }) {
+    if (identity.trim().isEmpty || password.isEmpty) {
+      throw const FormatException('请填写当前账号和密码');
+    }
+    return _api.uploadAvatar(
+      server: session.account.server,
+      userId: session.account.userId,
+      identity: identity.trim(),
+      password: password,
+      bytes: bytes,
+    );
+  }
+
   Future<void> saveNotebook(
     StoredSession session, {
     required String title,

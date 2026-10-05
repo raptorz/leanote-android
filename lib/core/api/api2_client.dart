@@ -79,6 +79,27 @@ class Api2Client {
     fields: {'oldPwd': oldPassword, 'pwd': password},
   );
 
+  Future<void> uploadAvatar({
+    required Uri server,
+    required String userId,
+    required String identity,
+    required String password,
+    required Uint8List bytes,
+  }) {
+    if (bytes.isEmpty || bytes.length > 2 * 1024 * 1024) {
+      throw const ApiException('invalidAvatarSize');
+    }
+    return _accountFormAction(
+      server: server,
+      userId: userId,
+      identity: identity,
+      password: password,
+      path: '/api2/avatar',
+      fields: {},
+      avatar: bytes,
+    );
+  }
+
   Future<void> _accountFormAction({
     required Uri server,
     required String userId,
@@ -86,29 +107,45 @@ class Api2Client {
     required String password,
     required String path,
     required Map<String, String> fields,
+    Uint8List? avatar,
   }) async {
     final cookies = <String, String>{};
     Future<Map<String, Object?>> call(
       String path, {
       Map<String, String>? body,
       bool form = false,
+      Uint8List? upload,
     }) async {
-      final request = http.Request(
-        body == null ? 'GET' : 'POST',
-        server.resolve(path),
-      )..followRedirects = false;
+      final http.BaseRequest request;
+      if (upload != null) {
+        request = http.MultipartRequest('POST', server.resolve(path))
+          ..files.add(
+            http.MultipartFile.fromBytes(
+              'file',
+              upload,
+              filename: 'avatar.png',
+            ),
+          );
+      } else {
+        final plain = http.Request(
+          body == null ? 'GET' : 'POST',
+          server.resolve(path),
+        );
+        if (body != null) {
+          if (form) {
+            plain.bodyFields = body;
+          } else {
+            plain.headers['Content-Type'] = 'application/json';
+            plain.body = jsonEncode(body);
+          }
+        }
+        request = plain;
+      }
+      request.followRedirects = false;
       if (cookies.isNotEmpty) {
         request.headers['Cookie'] = cookies.entries
             .map((e) => '${e.key}=${e.value}')
             .join('; ');
-      }
-      if (body != null) {
-        if (form) {
-          request.bodyFields = body;
-        } else {
-          request.headers['Content-Type'] = 'application/json';
-          request.body = jsonEncode(body);
-        }
       }
       late http.Response response;
       try {
@@ -149,6 +186,7 @@ class Api2Client {
       final result = await call(
         path,
         body: fields,
+        upload: avatar,
         form: true, // This API2 v1 action still uses Revel form binding, like Web.
       );
       if (result['Ok'] != true) throw const ApiException('invalidResponse');
