@@ -75,7 +75,13 @@ void main() {
   Future<void> toggle(WidgetTester tester) async {
     await tester.tap(find.byTooltip('账号菜单'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(CheckedPopupMenuItem<String>));
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is CheckedPopupMenuItem<String> &&
+            widget.value == 'autoSync',
+      ),
+    );
     await tester.pumpAndSettle();
   }
 
@@ -143,6 +149,7 @@ void main() {
     expect(repo.calls, 1);
     // The account-menu action also uses the same workspace lock.
     await tester.tap(find.byTooltip('账号菜单'));
+    await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('立即同步'));
     await tester.pump(const Duration(milliseconds: 300));

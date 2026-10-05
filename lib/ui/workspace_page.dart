@@ -11,6 +11,7 @@ import '../domain/models/notebook_tree.dart';
 import '../repositories/auth_repository.dart';
 import '../services/note_exporter.dart';
 import '../services/note_sharer.dart';
+import '../services/account_file_cache.dart';
 import 'note_editor_page.dart';
 import 'import_note_dialog.dart';
 import 'note_reader_page.dart';
@@ -72,6 +73,64 @@ class _WorkspacePageState extends State<WorkspacePage>
   bool _autoSyncEnabled = false;
   bool _signedOut = false;
   bool _foreground = true;
+  bool _autoCacheFiles = false;
+  AccountFileCache? _fileQueue;
+  Future<void>? _fileTask;
+  String? _fileStatus;
+
+  Future<void> _stopFileCache() async {
+    _fileQueue?.cancel();
+    await _fileTask;
+  }
+
+  void _startFileCache() {
+    if (!_autoCacheFiles ||
+        !_foreground ||
+        _signedOut ||
+        _loggingOut ||
+        _fileTask != null) {
+      return;
+    }
+    final queue = _fileQueue = AccountFileCache();
+    setState(() => _fileStatus = '正在准备离线资源缓存…');
+    _fileTask = (() async {
+      try {
+        final notes = await widget.repository.notes(
+          widget.session.account.cacheKey,
+        );
+        await queue.run(
+          notes.where((n) => n.usn > 0).map((n) => n.noteId).toList(),
+          listFiles: (id) => widget.repository.noteFiles(widget.session, id),
+          download: (id, file) async {
+            if (file.isAttachment) {
+              await widget.repository.noteAttachment(widget.session, id, file);
+            } else {
+              await widget.repository.noteImage(widget.session, id, file);
+            }
+          },
+          onProgress: (notes, files, failures) {
+            if (mounted) {
+              setState(
+                () =>
+                    _fileStatus = '资源缓存：已处理 $notes 篇、$files 个文件，失败 $failures 项',
+              );
+            }
+          },
+        );
+        if (mounted) {
+          setState(
+            () => _fileStatus =
+                '${_fileStatus ?? "资源缓存"}（${queue.cancelled ? "已停止" : "已结束"}；缓存限额 64 MiB）',
+          );
+        }
+      } on Object catch (error) {
+        if (mounted) setState(() => _fileStatus = '资源缓存失败（不影响笔记同步）：$error');
+      } finally {
+        _fileQueue = null;
+        _fileTask = null;
+      }
+    })();
+  }
 
   @override
   void initState() {
@@ -87,6 +146,7 @@ class _WorkspacePageState extends State<WorkspacePage>
 
   @override
   void dispose() {
+    _fileQueue?.cancel();
     _autoSyncTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -95,6 +155,7 @@ class _WorkspacePageState extends State<WorkspacePage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
+    if (!_foreground) _fileQueue?.cancel();
     _scheduleAutoSync();
   }
 
@@ -179,16 +240,18 @@ class _WorkspacePageState extends State<WorkspacePage>
   );
 
   PreferredSizeWidget? get _syncStatus =>
-      _syncError == null && _avatarError == null
+      _syncError == null && _avatarError == null && _fileStatus == null
       ? null
       : PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: Material(
-            color: Theme.of(context).colorScheme.errorContainer,
+            color: _syncError != null || _avatarError != null
+                ? Theme.of(context).colorScheme.errorContainer
+                : Theme.of(context).colorScheme.secondaryContainer,
             child: ListTile(
               dense: true,
               title: Text(
-                _syncError ?? _avatarError!,
+                _syncError ?? _avatarError ?? _fileStatus!,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -197,6 +260,7 @@ class _WorkspacePageState extends State<WorkspacePage>
                 onPressed: () => setState(() {
                   _syncError = null;
                   _avatarError = null;
+                  _fileStatus = null;
                 }),
                 icon: const Icon(Icons.close),
               ),
@@ -222,11 +286,11 @@ class _WorkspacePageState extends State<WorkspacePage>
 
   Future<void> _reloadNotes() async {
     if (mounted) {
-      setState(
-        () => _notebooks = widget.repository.notebooks(
+      setState(() {
+        _notebooks = widget.repository.notebooks(
           widget.session.account.cacheKey,
-        ),
-      );
+        );
+      });
     }
     await _refreshPending();
     if (_showingAll) {
@@ -634,6 +698,9 @@ class _WorkspacePageState extends State<WorkspacePage>
     });
     try {
       if (reset && !await confirmResetSync(context)) return;
+      // Drain in-flight resource writes before replacing or merging snapshots.
+      // Otherwise a late file list could repopulate a freshly reset cache.
+      await _stopFileCache();
       if (!mounted) return;
       if (automatic) {
         await widget.repository.synchronize(widget.session);
@@ -670,6 +737,7 @@ class _WorkspacePageState extends State<WorkspacePage>
       }
       await _reloadNotes();
       unawaited(_refreshRemoteAvatar());
+      if (mounted) _startFileCache();
       if (mounted && !automatic) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('同步完成')));
@@ -693,6 +761,7 @@ class _WorkspacePageState extends State<WorkspacePage>
     if (_loggingOut || _syncing) return;
     setState(() => _loggingOut = true);
     try {
+      await _stopFileCache();
       var leavePending = false;
       try {
         final pending = await widget.repository.pendingNoteIds(
@@ -769,11 +838,11 @@ class _WorkspacePageState extends State<WorkspacePage>
     );
     if (saved == true && mounted) {
       if (parentId.isNotEmpty) _expandedNotebooks.add(parentId);
-      setState(
-        () => _notebooks = widget.repository.notebooks(
+      setState(() {
+        _notebooks = widget.repository.notebooks(
           widget.session.account.cacheKey,
-        ),
-      );
+        );
+      });
     }
   }
 
@@ -819,6 +888,14 @@ class _WorkspacePageState extends State<WorkspacePage>
               if (value == 'fullSync') _sync(full: true);
               if (value == 'resetSync') _sync(reset: true);
               if (value == 'autoSync') _toggleAutoSync();
+              if (value == 'autoCache') {
+                setState(() => _autoCacheFiles = !_autoCacheFiles);
+                if (!_autoCacheFiles) _fileQueue?.cancel();
+              }
+              if (value == 'cacheFiles' && !_syncing && !_loggingOut) {
+                _startFileCache();
+              }
+              if (value == 'stopCache') _fileQueue?.cancel();
               if (value == 'trash') _openTrash();
               if (value == 'about') {
                 showDialog<void>(
@@ -832,6 +909,15 @@ class _WorkspacePageState extends State<WorkspacePage>
               const PopupMenuItem(value: 'account', child: Text('账号')),
               const PopupMenuItem(value: 'sync', child: Text('立即同步')),
               const PopupMenuItem(value: 'fullSync', child: Text('完全同步（合并）')),
+              CheckedPopupMenuItem(
+                value: 'autoCache',
+                checked: _autoCacheFiles,
+                child: const Text('同步后缓存图片和附件（本次会话）'),
+              ),
+              if (_autoCacheFiles && _fileTask == null)
+                const PopupMenuItem(value: 'cacheFiles', child: Text('开始资源缓存')),
+              if (_fileTask != null)
+                const PopupMenuItem(value: 'stopCache', child: Text('停止资源缓存')),
               CheckedPopupMenuItem(
                 value: 'autoSync',
                 checked: _autoSyncEnabled,
