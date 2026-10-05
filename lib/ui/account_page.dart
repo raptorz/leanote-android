@@ -6,6 +6,7 @@ import '../domain/models/account.dart';
 import '../repositories/auth_repository.dart';
 import 'account_avatar.dart';
 import 'account_field_dialog.dart';
+import 'password_change_dialog.dart';
 
 class AccountPage extends StatefulWidget {
   const AccountPage({
@@ -24,6 +25,26 @@ class _AccountPageState extends State<AccountPage> {
   bool _busy = true;
   String? _error;
   Uint8List? _avatar;
+  bool _passwordChanged = false;
+
+  Future<void> _finishPasswordChange() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      // The server revoked the old token. Keep dirty notes, don't try uploading.
+      await widget.repository.logout(
+        widget.session,
+        discardSessionWithPendingChanges: true,
+      );
+      if (mounted) Navigator.pop(context, true);
+    } on Object {
+      if (mounted) setState(() => _error = '密码已修改，但本机登录状态清理失败，请重试。不会再次修改密码。');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   void initState() {
@@ -85,95 +106,142 @@ class _AccountPageState extends State<AccountPage> {
   );
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('账号'),
-      actions: [
-        IconButton(
-          tooltip: '刷新资料',
-          onPressed: _busy ? null : _refresh,
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
-    ),
-    body: ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        if (_busy) const LinearProgressIndicator(),
-        Center(child: AccountAvatar(bytes: _avatar, size: 80)),
-        if (_error != null)
-          Text(
-            _error!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
+  Widget build(BuildContext context) => PopScope(
+    canPop: !_passwordChanged,
+    child: Scaffold(
+      appBar: AppBar(
+        title: const Text('账号'),
+        actions: [
+          IconButton(
+            tooltip: '刷新资料',
+            onPressed: _busy || _passwordChanged ? null : _refresh,
+            icon: const Icon(Icons.refresh),
           ),
-        _field('服务器地址', _account.server.toString()),
-        _field('用户名', _account.username),
-        OutlinedButton(
-          onPressed: _busy
-              ? null
-              : () async {
-                  final saved = await showDialog<bool>(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (_) => AccountFieldDialog(
-                      identity: _account.email.isEmpty
-                          ? _account.username
-                          : _account.email,
-                      value: _account.username,
-                      save: (identity, password, username) =>
-                          widget.repository.updateUsername(
-                            widget.session,
-                            identity: identity,
-                            password: password,
-                            username: username,
-                          ),
+        ],
+      ),
+      body: _passwordChanged
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('密码已修改，本地笔记已保留。'),
+                  if (_error != null) Text(_error!),
+                  FilledButton(
+                    onPressed: _busy ? null : _finishPasswordChange,
+                    child: const Text('返回登录'),
+                  ),
+                ],
+              ),
+            )
+          : ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                if (_busy) const LinearProgressIndicator(),
+                Center(child: AccountAvatar(bytes: _avatar, size: 80)),
+                if (_error != null)
+                  Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
                     ),
-                  );
-                  if (saved == true && context.mounted) {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(const SnackBar(content: Text('用户名已更新')));
-                    await _refresh();
-                  }
-                },
-          child: const Text('修改用户名'),
-        ),
-        _field('邮箱', _account.email),
-        OutlinedButton(
-          onPressed: _busy
-              ? null
-              : () async {
-                  final sent = await showDialog<bool>(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (_) => AccountFieldDialog(
-                      emailChange: true,
-                      identity: _account.email.isEmpty
-                          ? _account.username
-                          : _account.email,
-                      value: '',
-                      save: (identity, password, email) =>
-                          widget.repository.requestEmailChange(
-                            widget.session,
-                            identity: identity,
-                            password: password,
-                            email: email,
-                          ),
-                    ),
-                  );
-                  if (sent == true && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('验证邮件已发送，请在新邮箱确认后刷新资料。当前邮箱尚未修改。'),
-                      ),
-                    );
-                  }
-                },
-          child: const Text('修改邮箱'),
-        ),
-        _field('用户 ID', _account.userId),
-        const Divider(),
-        const Text('账号信息保存在本地，离线时也可查看。点击右上角刷新可获取服务器上的最新资料。'),
-      ],
+                  ),
+                _field('服务器地址', _account.server.toString()),
+                _field('用户名', _account.username),
+                OutlinedButton(
+                  onPressed: _busy
+                      ? null
+                      : () async {
+                          final saved = await showDialog<bool>(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (_) => AccountFieldDialog(
+                              identity: _account.email.isEmpty
+                                  ? _account.username
+                                  : _account.email,
+                              value: _account.username,
+                              save: (identity, password, username) =>
+                                  widget.repository.updateUsername(
+                                    widget.session,
+                                    identity: identity,
+                                    password: password,
+                                    username: username,
+                                  ),
+                            ),
+                          );
+                          if (saved == true && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('用户名已更新')),
+                            );
+                            await _refresh();
+                          }
+                        },
+                  child: const Text('修改用户名'),
+                ),
+                _field('邮箱', _account.email),
+                OutlinedButton(
+                  onPressed: _busy
+                      ? null
+                      : () async {
+                          final sent = await showDialog<bool>(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (_) => AccountFieldDialog(
+                              emailChange: true,
+                              identity: _account.email.isEmpty
+                                  ? _account.username
+                                  : _account.email,
+                              value: '',
+                              save: (identity, password, email) =>
+                                  widget.repository.requestEmailChange(
+                                    widget.session,
+                                    identity: identity,
+                                    password: password,
+                                    email: email,
+                                  ),
+                            ),
+                          );
+                          if (sent == true && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('验证邮件已发送，请在新邮箱确认后刷新资料。当前邮箱尚未修改。'),
+                              ),
+                            );
+                          }
+                        },
+                  child: const Text('修改邮箱'),
+                ),
+                _field('用户 ID', _account.userId),
+                OutlinedButton(
+                  onPressed: _busy
+                      ? null
+                      : () async {
+                          final changed = await showDialog<bool>(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (_) => PasswordChangeDialog(
+                              identity: _account.email.isEmpty
+                                  ? _account.username
+                                  : _account.email,
+                              save: (identity, oldPassword, password) =>
+                                  widget.repository.changePassword(
+                                    widget.session,
+                                    identity: identity,
+                                    oldPassword: oldPassword,
+                                    password: password,
+                                  ),
+                            ),
+                          );
+                          if (changed == true && mounted) {
+                            setState(() => _passwordChanged = true);
+                            await _finishPasswordChange();
+                          }
+                        },
+                  child: const Text('修改密码'),
+                ),
+                const Divider(),
+                const Text('账号信息保存在本地，离线时也可查看。点击右上角刷新可获取服务器上的最新资料。'),
+              ],
+            ),
     ),
   );
 }

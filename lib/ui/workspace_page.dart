@@ -72,6 +72,7 @@ class _WorkspacePageState extends State<WorkspacePage>
   Timer? _autoSyncTimer;
   bool _autoSyncEnabled = false;
   bool _signedOut = false;
+  bool _accountOpen = false;
   bool _foreground = true;
   bool _autoCacheFiles = false;
   AccountFileCache? _fileQueue;
@@ -210,13 +211,29 @@ class _WorkspacePageState extends State<WorkspacePage>
   }
 
   Future<void> _openAccount() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) =>
-            AccountPage(repository: widget.repository, session: widget.session),
-      ),
-    );
-    if (mounted) await _refreshAvatarCache();
+    if (_syncing || _loggingOut || _signedOut || _accountOpen) return;
+    _accountOpen = true;
+    try {
+      await _stopFileCache();
+      if (!mounted) return;
+      final signedOut = await Navigator.of(context).push<bool>(
+        MaterialPageRoute<bool>(
+          builder: (_) => AccountPage(
+            repository: widget.repository,
+            session: widget.session,
+          ),
+        ),
+      );
+      if (signedOut == true && mounted) {
+        _signedOut = true;
+        _autoSyncTimer?.cancel();
+        widget.onSignedOut();
+        return;
+      }
+      if (mounted) await _refreshAvatarCache();
+    } finally {
+      _accountOpen = false;
+    }
   }
 
   Future<void> _refreshPending() async {
@@ -691,7 +708,7 @@ class _WorkspacePageState extends State<WorkspacePage>
     bool full = false,
     bool automatic = false,
   }) async {
-    if (_syncing || _loggingOut || _signedOut) return;
+    if (_syncing || _loggingOut || _signedOut || _accountOpen) return;
     setState(() {
       _syncing = true;
       _syncError = null;

@@ -515,6 +515,24 @@ class AuthRepository {
     );
   }
 
+  Future<void> changePassword(
+    StoredSession session, {
+    required String identity,
+    required String oldPassword,
+    required String password,
+  }) {
+    if (identity.trim().isEmpty || oldPassword.isEmpty || password.isEmpty) {
+      throw const FormatException('请填写当前账号、当前密码及新密码');
+    }
+    return _api.changePassword(
+      server: session.account.server,
+      userId: session.account.userId,
+      identity: identity.trim(),
+      oldPassword: oldPassword,
+      password: password,
+    );
+  }
+
   Future<void> saveNotebook(
     StoredSession session, {
     required String title,

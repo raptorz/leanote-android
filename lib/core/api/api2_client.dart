@@ -64,6 +64,21 @@ class Api2Client {
     fields: {'email': email, 'pwd': password},
   );
 
+  Future<void> changePassword({
+    required Uri server,
+    required String userId,
+    required String identity,
+    required String oldPassword,
+    required String password,
+  }) => _accountFormAction(
+    server: server,
+    userId: userId,
+    identity: identity,
+    password: oldPassword,
+    path: '/api2/user/updatePwd',
+    fields: {'oldPwd': oldPassword, 'pwd': password},
+  );
+
   Future<void> _accountFormAction({
     required Uri server,
     required String userId,
