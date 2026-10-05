@@ -493,6 +493,28 @@ class AuthRepository {
     );
   }
 
+  Future<void> requestEmailChange(
+    StoredSession session, {
+    required String identity,
+    required String password,
+    required String email,
+  }) {
+    final trimmed = email.trim();
+    if (identity.trim().isEmpty ||
+        password.isEmpty ||
+        !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(trimmed)) {
+      throw const FormatException('请填写当前账号、密码及有效的新邮箱');
+    }
+    // Do not update cached email until the user confirms the emailed link.
+    return _api.requestEmailChange(
+      server: session.account.server,
+      userId: session.account.userId,
+      identity: identity.trim(),
+      password: password,
+      email: trimmed,
+    );
+  }
+
   Future<void> saveNotebook(
     StoredSession session, {
     required String title,

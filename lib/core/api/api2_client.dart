@@ -40,6 +40,37 @@ class Api2Client {
     required String identity,
     required String password,
     required String username,
+  }) => _accountFormAction(
+    server: server,
+    userId: userId,
+    identity: identity,
+    password: password,
+    path: '/api2/user/updateUsername',
+    fields: {'username': username},
+  );
+
+  Future<void> requestEmailChange({
+    required Uri server,
+    required String userId,
+    required String identity,
+    required String password,
+    required String email,
+  }) => _accountFormAction(
+    server: server,
+    userId: userId,
+    identity: identity,
+    password: password,
+    path: '/api2/web/emailChange',
+    fields: {'email': email, 'pwd': password},
+  );
+
+  Future<void> _accountFormAction({
+    required Uri server,
+    required String userId,
+    required String identity,
+    required String password,
+    required String path,
+    required Map<String, String> fields,
   }) async {
     final cookies = <String, String>{};
     Future<Map<String, Object?>> call(
@@ -101,8 +132,8 @@ class Api2Client {
         throw const ApiException('accountMismatch');
       }
       final result = await call(
-        '/api2/user/updateUsername',
-        body: {'username': username},
+        path,
+        body: fields,
         form: true, // This API2 v1 action still uses Revel form binding, like Web.
       );
       if (result['Ok'] != true) throw const ApiException('invalidResponse');

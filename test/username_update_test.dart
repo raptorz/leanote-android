@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/core/api/api2_client.dart';
 import 'package:gemsnote/core/api/api_exception.dart';
-import 'package:gemsnote/ui/username_dialog.dart';
+import 'package:gemsnote/ui/account_field_dialog.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
@@ -110,9 +110,9 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: UsernameDialog(
+            body: AccountFieldDialog(
               identity: 'old',
-              username: 'new',
+              value: 'new',
               save: (identity, password, username) async {
                 calls++;
                 expect(password, 'secret');

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../domain/models/account.dart';
 import '../repositories/auth_repository.dart';
 import 'account_avatar.dart';
-import 'username_dialog.dart';
+import 'account_field_dialog.dart';
 
 class AccountPage extends StatefulWidget {
   const AccountPage({
@@ -115,11 +115,11 @@ class _AccountPageState extends State<AccountPage> {
                   final saved = await showDialog<bool>(
                     context: context,
                     barrierDismissible: false,
-                    builder: (_) => UsernameDialog(
+                    builder: (_) => AccountFieldDialog(
                       identity: _account.email.isEmpty
                           ? _account.username
                           : _account.email,
-                      username: _account.username,
+                      value: _account.username,
                       save: (identity, password, username) =>
                           widget.repository.updateUsername(
                             widget.session,
@@ -138,6 +138,38 @@ class _AccountPageState extends State<AccountPage> {
           child: const Text('修改用户名'),
         ),
         _field('邮箱', _account.email),
+        OutlinedButton(
+          onPressed: _busy
+              ? null
+              : () async {
+                  final sent = await showDialog<bool>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (_) => AccountFieldDialog(
+                      emailChange: true,
+                      identity: _account.email.isEmpty
+                          ? _account.username
+                          : _account.email,
+                      value: '',
+                      save: (identity, password, email) =>
+                          widget.repository.requestEmailChange(
+                            widget.session,
+                            identity: identity,
+                            password: password,
+                            email: email,
+                          ),
+                    ),
+                  );
+                  if (sent == true && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('验证邮件已发送，请在新邮箱确认后刷新资料。当前邮箱尚未修改。'),
+                      ),
+                    );
+                  }
+                },
+          child: const Text('修改邮箱'),
+        ),
         _field('用户 ID', _account.userId),
         const Divider(),
         const Text('账号信息保存在本地，离线时也可查看。点击右上角刷新可获取服务器上的最新资料。'),
