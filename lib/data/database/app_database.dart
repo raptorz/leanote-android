@@ -723,6 +723,65 @@ class AppDatabase {
     return note;
   }
 
+  /// Copy the exact displayed snapshot, never silently dropping resource links.
+  Future<Note> copyLocalNote({
+    required Account account,
+    required Note source,
+    required String notebookId,
+    required bool filesConfirmedEmpty,
+  }) => raw.transaction((txn) async {
+    final rows = await txn.query(
+      'notes',
+      where: 'account_id = ? AND server_id = ? AND local_is_deleted = 0',
+      whereArgs: [account.cacheKey, source.noteId],
+    );
+    if (rows.length != 1 ||
+        source.userId != account.userId ||
+        source.isTrash ||
+        source.isDeleted ||
+        _noteFingerprint(_noteFromRow(rows.single)) !=
+            _noteFingerprint(source)) {
+      throw StateError('笔记已变化或不可用，请重新打开后复制');
+    }
+    final targets = await txn.query(
+      'notebooks',
+      where: 'account_id = ? AND server_id = ?',
+      whereArgs: [account.cacheKey, notebookId],
+    );
+    if (targets.isEmpty) throw StateError('目标笔记本不存在，请刷新后重试');
+    final files = await txn.query(
+      'note_files',
+      columns: ['file_id'],
+      where: 'account_id = ? AND note_id = ?',
+      whereArgs: [account.cacheKey, source.noteId],
+      limit: 1,
+    );
+    if ((source.usn > 0 && !filesConfirmedEmpty) ||
+        files.isNotEmpty ||
+        !canCopyConflictBody(source.content, isMarkdown: source.isMarkdown)) {
+      throw StateError('暂不支持复制含链接、图片、附件或复杂 HTML 的笔记');
+    }
+    final now = DateTime.now().toUtc().toIso8601String();
+    final copy = source.copyWith(
+      noteId: _objectId(),
+      notebookId: notebookId,
+      title: '${source.title.isEmpty ? '无标题' : source.title}（副本）',
+      usn: 0,
+      createdTime: now,
+      updatedTime: now,
+    );
+    final batch = txn.batch();
+    _insertNote(batch, account.cacheKey, copy);
+    batch.update(
+      'notes',
+      {'is_dirty': 1, 'local_is_new': 1},
+      where: 'account_id = ? AND server_id = ?',
+      whereArgs: [account.cacheKey, copy.noteId],
+    );
+    await batch.commit(noResult: true);
+    return copy;
+  });
+
   Future<void> saveNoteTags(
     String accountId,
     String noteId,

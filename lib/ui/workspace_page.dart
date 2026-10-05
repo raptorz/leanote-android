@@ -221,6 +221,13 @@ class _WorkspacePageState extends State<WorkspacePage>
   }
 
   Future<void> _reloadNotes() async {
+    if (mounted) {
+      setState(
+        () => _notebooks = widget.repository.notebooks(
+          widget.session.account.cacheKey,
+        ),
+      );
+    }
     await _refreshPending();
     if (_showingAll) {
       await _openAllNotes();
@@ -376,6 +383,7 @@ class _WorkspacePageState extends State<WorkspacePage>
           onDeleteForever: note.isTrash ? () => _deleteForever(note) : null,
           onToggleStar: () => _toggleStar(note),
           onMove: () => _moveNote(note),
+          onCopy: () => _moveNote(note, copy: true),
           onTrashToggle: () => note.isTrash
               ? _saveMetadata(note.copyWith(isTrash: false))
               : _trashNote(note),
@@ -491,44 +499,62 @@ class _WorkspacePageState extends State<WorkspacePage>
   Future<void> _toggleStar(Note note) =>
       _saveMetadata(note.copyWith(isStarred: !note.isStarred));
 
-  Future<void> _moveNote(Note note) async {
-    final notebooks = await widget.repository.notebooks(
-      widget.session.account.cacheKey,
-    );
-    if (!mounted) return;
-    String? target;
-    final selected = await showDialog<String>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, update) => AlertDialog(
-          title: const Text('移动到笔记本'),
-          content: SizedBox(
-            width: 320,
-            height: 320,
-            child: NotebookTargetPicker(
-              notebooks: notebooks,
-              selected: target,
-              canSelect: (id) => id != note.notebookId,
-              onSelected: (id) => update(() => target = id),
+  Future<bool> _moveNote(Note note, {bool copy = false}) async {
+    try {
+      final notebooks = await widget.repository.notebooks(
+        widget.session.account.cacheKey,
+      );
+      if (!mounted) return false;
+      String? target;
+      final selected = await showDialog<String>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, update) => AlertDialog(
+            title: Text(copy ? '复制到笔记本' : '移动到笔记本'),
+            content: SizedBox(
+              width: 320,
+              height: 320,
+              child: NotebookTargetPicker(
+                notebooks: notebooks,
+                selected: target,
+                canSelect: (id) => copy || id != note.notebookId,
+                onSelected: (id) => update(() => target = id),
+              ),
             ),
+            actions: [
+              FilledButton(
+                onPressed: target == null
+                    ? null
+                    : () => Navigator.pop(context, target),
+                child: Text(copy ? '复制' : '移动'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('取消'),
+              ),
+            ],
           ),
-          actions: [
-            FilledButton(
-              onPressed: target == null
-                  ? null
-                  : () => Navigator.pop(context, target),
-              child: const Text('移动'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-          ],
         ),
-      ),
-    );
-    if (selected != null && selected != note.notebookId) {
-      await _saveMetadata(note.copyWith(notebookId: selected));
+      );
+      if (selected != null && copy) {
+        await widget.repository.copyNote(widget.session, note, selected);
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('笔记已复制到本地，待同步')));
+        }
+        return true;
+      }
+      if (selected != null && selected != note.notebookId) {
+        await _saveMetadata(note.copyWith(notebookId: selected));
+        return true;
+      }
+      return false;
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('操作失败：$error')));
+      }
+      return false;
     }
   }
 

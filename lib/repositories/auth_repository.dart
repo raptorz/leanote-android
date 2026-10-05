@@ -556,6 +556,32 @@ class AuthRepository {
     content: content,
   );
 
+  Future<Note> copyNote(
+    StoredSession session,
+    Note source,
+    String notebookId,
+  ) async {
+    if (source.userId != session.account.userId) {
+      throw StateError('只能复制当前账号的个人笔记');
+    }
+    // An empty local cache is not proof that the server has no attachments.
+    final files = source.usn > 0
+        ? await _api.noteFiles(
+            server: session.account.server,
+            token: session.token,
+            noteId: source.noteId,
+            userId: session.account.userId,
+          )
+        : <NoteFile>[];
+    if (files.isNotEmpty) throw StateError('暂不支持复制带图片或附件的笔记');
+    return _database.copyLocalNote(
+      account: session.account,
+      source: source,
+      notebookId: notebookId,
+      filesConfirmedEmpty: true,
+    );
+  }
+
   Future<void> saveEditedText(
     StoredSession session,
     String noteId,

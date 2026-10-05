@@ -14,6 +14,7 @@ class NoteReaderPage extends StatefulWidget {
     this.onEdit,
     this.onToggleStar,
     this.onMove,
+    this.onCopy,
     this.onTrashToggle,
     this.onHistory,
     this.onDeleteForever,
@@ -33,6 +34,7 @@ class NoteReaderPage extends StatefulWidget {
   final Future<void> Function()? onEdit;
   final Future<void> Function()? onToggleStar;
   final Future<void> Function()? onMove;
+  final Future<bool> Function()? onCopy;
   final Future<void> Function()? onTrashToggle;
   final Future<bool> Function()? onHistory;
   final Future<bool> Function()? onDeleteForever;
@@ -56,6 +58,7 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
   int _imageRevision = 0;
   bool _exporting = false;
   bool _sharing = false;
+  bool _copying = false;
   final _menuKey = GlobalKey();
 
   Future<void> _share() async {
@@ -139,6 +142,18 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
               key: _menuKey,
               onSelected: (value) async {
                 switch (value) {
+                  case 'copy':
+                    if (_copying) return;
+                    setState(() => _copying = true);
+                    try {
+                      final copied = await widget.onCopy?.call();
+                      if (copied == true && context.mounted) {
+                        Navigator.of(context).pop();
+                      }
+                    } finally {
+                      if (mounted) setState(() => _copying = false);
+                    }
+                    return;
                   case 'systemShare':
                     await _share();
                     return;
@@ -205,6 +220,12 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
                   child: Text(note.isStarred ? '取消星标' : '添加星标'),
                 ),
                 const PopupMenuItem(value: 'move', child: Text('移动到笔记本')),
+                if (!note.isTrash && widget.onCopy != null)
+                  PopupMenuItem(
+                    value: 'copy',
+                    enabled: !_copying,
+                    child: Text(_copying ? '正在复制…' : '复制到笔记本'),
+                  ),
                 PopupMenuItem(
                   value: 'trash',
                   child: Text(note.isTrash ? '恢复笔记' : '移入回收站'),
