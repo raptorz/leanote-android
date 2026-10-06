@@ -8,6 +8,7 @@ import 'markdown_editing.dart';
 import 'markdown_note_body.dart';
 import 'safe_html_note_body.dart';
 import 'visual_html_editor.dart';
+import 'editor_link_dialog.dart';
 
 class NoteEditorPage extends StatefulWidget {
   const NoteEditorPage({
@@ -44,6 +45,7 @@ class _NoteEditorPageState extends State<NoteEditorPage>
   final _titleUndo = UndoHistoryController();
   final _contentUndo = UndoHistoryController();
   bool _editingTitle = false;
+  bool _linkDialogOpen = false;
 
   @override
   void initState() {
@@ -166,6 +168,28 @@ class _NoteEditorPageState extends State<NoteEditorPage>
     FocusScope.of(context).unfocus();
     setState(() => _preview = !_preview);
     _flush();
+  }
+
+  Future<void> _insertMarkdownLink() async {
+    if (_closing || _linkDialogOpen) return;
+    final original = _content.value;
+    setState(() => _linkDialogOpen = true);
+    try {
+      final url = await showDialog<String>(
+        context: context,
+        builder: (_) => const EditorLinkDialog(),
+      );
+      if (!mounted || url == null) return;
+      if (_content.text != original.text) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('正文已变化，请重新选择文字后插入链接。')));
+        return;
+      }
+      _content.value = insertMarkdownLink(original, url);
+      _contentFocus.requestFocus();
+    } finally {
+      if (mounted) setState(() => _linkDialogOpen = false);
+    }
   }
 
   Widget _formatButton(
@@ -301,6 +325,33 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                         '无序列表',
                         Icons.format_list_bulleted,
                         (value) => prefixMarkdownLines(value, '- '),
+                      ),
+                      _formatButton(
+                        '有序列表',
+                        Icons.format_list_numbered,
+                        numberMarkdownLines,
+                      ),
+                      _formatButton(
+                        '引用',
+                        Icons.format_quote,
+                        (value) => prefixMarkdownLines(value, '> '),
+                      ),
+                      _formatButton(
+                        '删除线',
+                        Icons.format_strikethrough,
+                        (value) => wrapMarkdown(value, '~~'),
+                      ),
+                      _formatButton(
+                        '代码块',
+                        Icons.code_outlined,
+                        fenceMarkdownCode,
+                      ),
+                      IconButton(
+                        tooltip: '插入链接',
+                        icon: const Icon(Icons.link),
+                        onPressed: _closing || _linkDialogOpen
+                            ? null
+                            : _insertMarkdownLink,
                       ),
                     ],
                   ],
