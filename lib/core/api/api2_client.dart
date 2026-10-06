@@ -6,6 +6,7 @@ import 'dart:io' show Cookie;
 import 'package:http/http.dart' as http;
 
 import '../../domain/models/account.dart';
+import '../../services/note_image_picker.dart';
 import '../../domain/models/attachment_upload.dart';
 import '../../domain/models/note.dart';
 import '../../domain/models/note_file.dart';
@@ -99,6 +100,52 @@ class Api2Client {
       fields: {},
       avatar: bytes,
     );
+  }
+
+  /// Explicit online mutation; callers must not automatically retry on timeout.
+  Future<String> uploadNoteImage({
+    required Uri server,
+    required String token,
+    required String userId,
+    required String identity,
+    required String password,
+    required String noteId,
+    required NoteImageUpload image,
+  }) async {
+    if (!RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(noteId) ||
+        identity.trim().isEmpty ||
+        password.isEmpty) {
+      throw const ApiException('invalidRequest');
+    }
+    final note = await _requestJson(
+      server: server,
+      path: '/api2/note/getNote',
+      method: 'GET',
+      token: token,
+      query: {'noteId': noteId},
+    );
+    if (note['NoteId'] != noteId ||
+        note['UserId'] != userId ||
+        note['IsDeleted'] == true ||
+        note['IsTrash'] == true) {
+      throw const ApiException('noPermission');
+    }
+    final result = await _accountFormAction(
+      server: server,
+      userId: userId,
+      identity: identity,
+      password: password,
+      path: '/api2/file/pasteImage',
+      fields: {'noteId': noteId},
+      avatar: image.bytes,
+      filename: 'image.png',
+    );
+    final id = result['Id'];
+    if (id is! String || !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(id)) {
+      throw const ApiException('imageUploadUnconfirmed');
+    }
+    // Never embed a token, cookie or user-supplied URL in note content.
+    return '/api2/file/getImage?fileId=$id';
   }
 
   /// Explicit online mutation; callers must not automatically retry on timeout.
