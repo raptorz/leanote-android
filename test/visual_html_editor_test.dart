@@ -8,6 +8,7 @@ void main() {
       '',
       '<p>Hello <b>world</b></p>',
       '<h2>标题</h2><ol><li>条目</li></ol>',
+      '<p><a href="https://example.com/path?q=a&amp;b=c">链接</a></p>',
     ]) {
       expect(supportsVisualHtml(source), isTrue);
       expect(visualEditorDocument(source), contains('window.readContent'));
@@ -20,7 +21,7 @@ void main() {
       '<p onclick="alert(1)">a</p>',
       '<iframe></iframe>',
       '<p style="color:red">a</p>',
-      '<a href="https://host">a</a>',
+      '<a href="javascript:alert(1)">a</a>',
     ]) {
       expect(supportsVisualHtml(source), isFalse);
       expect(() => visualEditorDocument(source), throwsArgumentError);

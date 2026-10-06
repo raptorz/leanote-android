@@ -27,7 +27,10 @@ void main() {
       await tester.pumpWidget(editor((_, text) async => saves.add(text)));
       await tester.tap(find.byTooltip('可视化编辑'));
       await tester.pump();
-      expect(find.text('此笔记包含图片、链接或复杂 HTML，请继续编辑原文，避免丢失内容。'), findsOneWidget);
+      expect(
+        find.text('此笔记包含图片、不支持的链接或复杂 HTML，请继续编辑原文，避免丢失内容。'),
+        findsOneWidget,
+      );
       expect(find.byType(WebViewWidget), findsNothing);
       expect(
         tester.widget<TextField>(find.byType(TextField).last).controller!.text,

@@ -4,11 +4,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-import '../domain/models/conflict_copy.dart';
-
-/// Restrict visual editing to markup we can preserve without active resources.
-bool supportsVisualHtml(String source) =>
-    canCopyConflictBody(source, isMarkdown: false);
+import 'editor_link_dialog.dart';
+import 'visual_html_policy.dart';
+export 'visual_html_policy.dart' show supportsVisualHtml;
 
 String visualEditorDocument(String source) {
   if (!supportsVisualHtml(source)) {
@@ -27,6 +25,21 @@ const editor = document.getElementById('editor');
 const original = $initial;
 editor.innerHTML = original;
 let changed = false;
+let savedRange = null;
+document.addEventListener('selectionchange', () => {
+  const selection = window.getSelection();
+  if (selection.rangeCount && editor.contains(selection.anchorNode) && editor.contains(selection.focusNode)) {
+    savedRange = selection.getRangeAt(0).cloneRange();
+  }
+});
+function restoreSelection() {
+  editor.focus();
+  if (savedRange && editor.contains(savedRange.commonAncestorContainer)) {
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(savedRange);
+  }
+}
 function publish() { changed = true; Changes.postMessage(editor.innerHTML); }
 editor.addEventListener('input', publish);
 editor.addEventListener('paste', event => {
@@ -39,11 +52,25 @@ document.addEventListener('click', event => {
 });
 window.readContent = () => changed ? editor.innerHTML : original;
 window.format = (command, value) => {
-  const allowed = ['bold','italic','underline','insertUnorderedList','insertOrderedList','formatBlock','undo','redo'];
+  const allowed = ['bold','italic','underline','insertUnorderedList','insertOrderedList','formatBlock','undo','redo','unlink'];
   if (!allowed.includes(command)) return;
-  editor.focus();
+  restoreSelection();
   document.execCommand('styleWithCSS', false, false);
   document.execCommand(command, false, value);
+  publish();
+};
+window.insertLink = value => {
+  restoreSelection();
+  const selection = window.getSelection();
+  if (!selection.rangeCount || !editor.contains(selection.anchorNode)) return;
+  if (selection.isCollapsed) {
+    const link = document.createElement('a');
+    link.href = value;
+    link.textContent = value;
+    document.execCommand('insertHTML', false, link.outerHTML);
+  } else {
+    document.execCommand('createLink', false, value);
+  }
   publish();
 };
 </script></body></html>''';
@@ -68,6 +95,7 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
   bool _ready = false;
   bool _leaving = false;
   bool _allowPop = false;
+  bool _linkDialogOpen = false;
   String? _error;
   Completer<String>? _snapshot;
 
@@ -156,6 +184,26 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
     }
   }
 
+  Future<void> _insertLink() async {
+    if (_linkDialogOpen || !_ready || _leaving) return;
+    setState(() => _linkDialogOpen = true);
+    try {
+      final value = await showDialog<String>(
+        context: context,
+        builder: (_) => const EditorLinkDialog(),
+      );
+      if (!mounted || value == null) return;
+      if (!isSafeEditorLink(value)) return;
+      await _controller.runJavaScript(
+        'window.insertLink(${jsonEncode(value)})',
+      );
+    } catch (error) {
+      if (mounted) setState(() => _error = '插入链接失败：$error');
+    } finally {
+      if (mounted) setState(() => _linkDialogOpen = false);
+    }
+  }
+
   Widget _button(
     String label,
     IconData icon,
@@ -214,6 +262,14 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
                 _button('标题', Icons.title, 'formatBlock', 'h2'),
                 _button('正文', Icons.notes, 'formatBlock', 'p'),
                 _button('引用', Icons.format_quote, 'formatBlock', 'blockquote'),
+                IconButton(
+                  tooltip: '插入链接',
+                  icon: const Icon(Icons.link),
+                  onPressed: !_ready || _leaving || _linkDialogOpen
+                      ? null
+                      : _insertLink,
+                ),
+                _button('移除链接', Icons.link_off, 'unlink'),
                 _button(
                   '无序列表',
                   Icons.format_list_bulleted,
