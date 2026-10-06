@@ -6,6 +6,7 @@ import '../core/api/api_exception.dart';
 import '../data/database/app_database.dart';
 import '../data/session/session_store.dart';
 import '../domain/models/account.dart';
+import '../domain/models/attachment_upload.dart';
 import '../domain/models/note.dart';
 import '../domain/models/note_file.dart';
 import '../domain/models/note_image_reference.dart';
@@ -143,6 +144,63 @@ class AuthRepository {
         })().whenComplete(() {
           _fileRefreshes.remove(key);
         });
+  }
+
+  /// True means upload and cache refresh succeeded; false means upload was
+  /// confirmed but refresh failed. Never repeat the upload to retry refresh.
+  Future<bool> uploadAttachment(
+    StoredSession session,
+    String noteId,
+    AttachmentUpload file, {
+    required String identity,
+    required String password,
+  }) async {
+    var refreshed = false;
+    await _sync.runAttachmentUpload(() async {
+      final local = (await _database.notes(session.account.cacheKey))
+          .where((note) => note.noteId == noteId)
+          .firstOrNull;
+      if (local == null ||
+          local.userId != session.account.userId ||
+          local.usn <= 0 ||
+          (await _database.pendingNoteIds(session.account.cacheKey))
+              .contains(noteId)) {
+        throw StateError('请先同步此笔记，再上传附件');
+      }
+      await _api.uploadAttachment(
+        server: session.account.server,
+        token: session.token,
+        userId: session.account.userId,
+        identity: identity,
+        password: password,
+        noteId: noteId,
+        file: file,
+      );
+      try {
+        final pending = _fileRefreshes['${session.account.cacheKey}:$noteId'];
+        if (pending != null) await pending;
+        final snapshot = await _api.getConflictSnapshot(
+          server: session.account.server,
+          token: session.token,
+          noteId: noteId,
+        );
+        if (snapshot.note.userId != session.account.userId) {
+          throw StateError('accountMismatch');
+        }
+        await _database.mergeChanges(
+          account: session.account,
+          notebooks: [],
+          notes: [snapshot.note],
+          tags: [],
+          lastSyncUsn: await _database.lastSyncUsn(session.account.cacheKey),
+        );
+        await noteFiles(session, noteId);
+        refreshed = true;
+      } on Object {
+        // Remote mutation succeeded. Report refresh separately from upload.
+      }
+    });
+    return refreshed;
   }
 
   Future<Uint8List> noteImage(
@@ -339,6 +397,9 @@ class AuthRepository {
     StoredSession session, {
     SyncProgressCallback? onProgress,
   }) async {
+    if (_sync.attachmentUploading) {
+      throw StateError('attachmentUploadInProgress');
+    }
     if ((await pendingNoteIds(session.account.cacheKey)).isEmpty) return;
     await _sync.uploadPending(
       account: session.account,
@@ -354,6 +415,9 @@ class AuthRepository {
     StoredSession session, {
     bool discardSessionWithPendingChanges = false,
   }) async {
+    if (_sync.attachmentUploading) {
+      throw StateError('attachmentUploadInProgress');
+    }
     if (!discardSessionWithPendingChanges &&
         (await pendingNoteIds(session.account.cacheKey)).isNotEmpty) {
       throw StateError('unsyncedChanges');

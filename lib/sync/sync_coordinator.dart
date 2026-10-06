@@ -25,6 +25,17 @@ class SyncCoordinator {
   bool _uploadingOnly = false;
   bool _resetting = false;
   bool _fullSync = false;
+  bool _attachmentUploading = false;
+  bool get attachmentUploading => _attachmentUploading;
+
+  Future<void> runAttachmentUpload(Future<void> Function() action) {
+    if (_running != null) return Future.error(StateError('syncInProgress'));
+    _attachmentUploading = true;
+    return _running = Future<void>(action).whenComplete(() {
+      _running = null;
+      _attachmentUploading = false;
+    });
+  }
 
   /// Upload dirty notes, then merge all remote rows without clearing local data.
   Future<void> synchronizeFull({
@@ -52,6 +63,9 @@ class SyncCoordinator {
     required String token,
     SyncProgressCallback? onProgress,
   }) {
+    if (_attachmentUploading) {
+      return Future.error(StateError('attachmentUploadInProgress'));
+    }
     if (_resetting) return Future.error(StateError('resetInProgress'));
     if (_uploadingOnly) {
       return _running!.then(
@@ -110,6 +124,9 @@ class SyncCoordinator {
     required String token,
     SyncProgressCallback? onProgress,
   }) {
+    if (_attachmentUploading) {
+      return Future.error(StateError('attachmentUploadInProgress'));
+    }
     if (_resetting) return Future.error(StateError('resetInProgress'));
     if (_running != null) return _running!;
     _uploadingOnly = true;
@@ -214,8 +231,14 @@ class SyncCoordinator {
     required Account account,
     required String token,
     SyncProgressCallback? onProgress,
-  }) =>
-      _downloadSnapshot(account: account, token: token, onProgress: onProgress);
+  }) {
+    if (_running != null) return Future.error(StateError('syncInProgress'));
+    return _running = _downloadSnapshot(
+      account: account,
+      token: token,
+      onProgress: onProgress,
+    ).whenComplete(() => _running = null);
+  }
 
   Future<void> _downloadSnapshot({
     required Account account,

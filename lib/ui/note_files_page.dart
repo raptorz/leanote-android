@@ -7,6 +7,8 @@ import '../repositories/auth_repository.dart';
 import '../services/image_exporter.dart';
 import '../services/attachment_exporter.dart';
 import '../services/file_cache_batch.dart';
+import '../services/attachment_picker.dart';
+import 'attachment_upload_dialog.dart';
 
 class NoteFilesPage extends StatefulWidget {
   const NoteFilesPage({
@@ -16,12 +18,14 @@ class NoteFilesPage extends StatefulWidget {
     required this.noteId,
     this.imageExporter,
     this.attachmentExporter,
+    this.attachmentPicker,
   });
   final AuthRepository repository;
   final StoredSession session;
   final String noteId;
   final ImageExporter? imageExporter;
   final AttachmentExporter? attachmentExporter;
+  final AttachmentPicker? attachmentPicker;
   @override
   State<NoteFilesPage> createState() => _NoteFilesPageState();
 }
@@ -151,6 +155,42 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
     }
   }
 
+  Future<void> _uploadAttachment() async {
+    if (_cachedOnly || _loading || _opening != null || _batch != null) return;
+    setState(() => _opening = 'upload');
+    try {
+      final file = await (widget.attachmentPicker ?? AttachmentPicker()).pick();
+      if (!mounted || file == null) return;
+      final result = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AttachmentUploadDialog(
+          identity: widget.session.account.username,
+          file: file,
+          upload: (identity, password) => widget.repository.uploadAttachment(
+            widget.session,
+            widget.noteId,
+            file,
+            identity: identity,
+            password: password,
+          ),
+        ),
+      );
+      if (!mounted || result == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result ? '附件已上传' : '附件已上传，但本地刷新失败，请同步后刷新文件列表，勿重复上传'),
+        ),
+      );
+      setState(() => _opening = null);
+      await _load();
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = '无法上传附件：$error');
+    } finally {
+      if (mounted) setState(() => _opening = null);
+    }
+  }
+
   Future<void> _saveAttachment(NoteFile file) async {
     if (_opening != null || _batch != null) return;
     setState(() {
@@ -189,6 +229,14 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
     appBar: AppBar(
       title: const Text('图片与附件'),
       actions: [
+        IconButton(
+          tooltip: '上传附件',
+          icon: const Icon(Icons.upload_file),
+          onPressed:
+              _cachedOnly || _loading || _opening != null || _batch != null
+              ? null
+              : _uploadAttachment,
+        ),
         IconButton(
           tooltip: '刷新文件列表',
           onPressed: _loading || _opening != null || _batch != null
