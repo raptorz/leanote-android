@@ -7,6 +7,7 @@ import 'cached_markdown_image.dart';
 import 'markdown_editing.dart';
 import 'markdown_note_body.dart';
 import 'safe_html_note_body.dart';
+import 'visual_html_editor.dart';
 
 class NoteEditorPage extends StatefulWidget {
   const NoteEditorPage({
@@ -185,6 +186,35 @@ class _NoteEditorPageState extends State<NoteEditorPage>
     appBar: AppBar(
       title: Text(widget.note.isMarkdown ? '编辑 Markdown' : '编辑 HTML 原文'),
       actions: [
+        if (!widget.note.isMarkdown)
+          IconButton(
+            tooltip: '可视化编辑',
+            icon: const Icon(Icons.format_shapes),
+            onPressed: _closing
+                ? null
+                : () async {
+                    if (!supportsVisualHtml(_content.text)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('此笔记包含图片、链接或复杂 HTML，请继续编辑原文，避免丢失内容。'),
+                        ),
+                      );
+                      return;
+                    }
+                    _contentFocus.unfocus();
+                    await Navigator.of(context).push<void>(
+                      MaterialPageRoute(
+                        builder: (_) => VisualHtmlEditor(
+                          source: _content.text,
+                          onChanged: (value) {
+                            _content.text = value;
+                          },
+                        ),
+                      ),
+                    );
+                    if (mounted) await _flush();
+                  },
+          ),
         IconButton(
           tooltip: _preview
               ? '继续编辑'
