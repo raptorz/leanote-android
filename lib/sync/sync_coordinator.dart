@@ -28,13 +28,51 @@ class SyncCoordinator {
   bool _attachmentUploading = false;
   bool get attachmentUploading => _attachmentUploading;
 
-  Future<void> runAttachmentUpload(Future<void> Function() action) {
+  Future<void> runAttachmentUpload(
+    Future<void> Function() action, {
+    Account? account,
+    String? token,
+    String? noteId,
+  }) {
     if (_running != null) return Future.error(StateError('syncInProgress'));
     _attachmentUploading = true;
-    return _running = Future<void>(action).whenComplete(() {
-      _running = null;
-      _attachmentUploading = false;
-    });
+    return _running =
+        Future<void>(() async {
+          if (account != null && token != null && noteId != null) {
+            // Only acknowledge this note. Do not resolve conflicts into copies or
+            // upload unrelated notes as a side effect of attaching one file.
+            final dirty = (await _database.dirtyNotes(account.cacheKey))
+                .where((note) => note.noteId == noteId)
+                .firstOrNull;
+            if (dirty != null) {
+              if (dirty.isDeleted ||
+                  dirty.isTrash ||
+                  dirty.userId != account.userId) {
+                throw StateError('不能向已删除或回收站笔记上传附件');
+              }
+              final remote = dirty.usn == 0
+                  ? await _api.addNote(
+                      server: account.server,
+                      token: token,
+                      note: dirty,
+                    )
+                  : await _api.updateNote(
+                      server: account.server,
+                      token: token,
+                      note: dirty,
+                    );
+              await _database.markNoteUploaded(account.cacheKey, dirty, remote);
+              if ((await _database.pendingNoteIds(account.cacheKey))
+                  .contains(noteId)) {
+                throw StateError('上传正文期间笔记又有修改，请保存后重试');
+              }
+            }
+          }
+          await action();
+        }).whenComplete(() {
+          _running = null;
+          _attachmentUploading = false;
+        });
   }
 
   /// Upload dirty notes, then merge all remote rows without clearing local data.

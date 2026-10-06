@@ -156,50 +156,58 @@ class AuthRepository {
     required String password,
   }) async {
     var refreshed = false;
-    await _sync.runAttachmentUpload(() async {
-      final local = (await _database.notes(session.account.cacheKey))
-          .where((note) => note.noteId == noteId)
-          .firstOrNull;
-      if (local == null ||
-          local.userId != session.account.userId ||
-          local.usn <= 0 ||
-          (await _database.pendingNoteIds(session.account.cacheKey))
-              .contains(noteId)) {
-        throw StateError('请先同步此笔记，再上传附件');
-      }
-      await _api.uploadAttachment(
-        server: session.account.server,
-        token: session.token,
-        userId: session.account.userId,
-        identity: identity,
-        password: password,
-        noteId: noteId,
-        file: file,
-      );
-      try {
-        final pending = _fileRefreshes['${session.account.cacheKey}:$noteId'];
-        if (pending != null) await pending;
-        final snapshot = await _api.getConflictSnapshot(
+    if (identity.trim().isEmpty || password.isEmpty) {
+      throw const FormatException('请输入当前账号和密码');
+    }
+    await _sync.runAttachmentUpload(
+      () async {
+        final local = (await _database.notes(session.account.cacheKey))
+            .where((note) => note.noteId == noteId)
+            .firstOrNull;
+        if (local == null ||
+            local.userId != session.account.userId ||
+            local.usn <= 0 ||
+            (await _database.pendingNoteIds(session.account.cacheKey))
+                .contains(noteId)) {
+          throw StateError('请先同步此笔记，再上传附件');
+        }
+        await _api.uploadAttachment(
           server: session.account.server,
           token: session.token,
+          userId: session.account.userId,
+          identity: identity,
+          password: password,
           noteId: noteId,
+          file: file,
         );
-        if (snapshot.note.userId != session.account.userId) {
-          throw StateError('accountMismatch');
+        try {
+          final pending = _fileRefreshes['${session.account.cacheKey}:$noteId'];
+          if (pending != null) await pending;
+          final snapshot = await _api.getConflictSnapshot(
+            server: session.account.server,
+            token: session.token,
+            noteId: noteId,
+          );
+          if (snapshot.note.userId != session.account.userId) {
+            throw StateError('accountMismatch');
+          }
+          await _database.mergeChanges(
+            account: session.account,
+            notebooks: [],
+            notes: [snapshot.note],
+            tags: [],
+            lastSyncUsn: await _database.lastSyncUsn(session.account.cacheKey),
+          );
+          await noteFiles(session, noteId);
+          refreshed = true;
+        } on Object {
+          // Remote mutation succeeded. Report refresh separately from upload.
         }
-        await _database.mergeChanges(
-          account: session.account,
-          notebooks: [],
-          notes: [snapshot.note],
-          tags: [],
-          lastSyncUsn: await _database.lastSyncUsn(session.account.cacheKey),
-        );
-        await noteFiles(session, noteId);
-        refreshed = true;
-      } on Object {
-        // Remote mutation succeeded. Report refresh separately from upload.
-      }
-    });
+      },
+      account: session.account,
+      token: session.token,
+      noteId: noteId,
+    );
     return refreshed;
   }
 

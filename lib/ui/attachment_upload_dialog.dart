@@ -66,7 +66,7 @@ class _AttachmentUploadDialogState extends State<AttachmentUploadDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text('${widget.file.name}（${widget.file.bytes.length} 字节）'),
-            const Text('仅支持已同步的个人笔记。需要当前密码验证，密码不会保存。'),
+            const Text('将先上传当前笔记的未同步正文，再上传附件；不会同步其他笔记。需要当前密码验证，密码不会保存。'),
             TextField(
               controller: _identity,
               enabled: !_busy && !_attempted,

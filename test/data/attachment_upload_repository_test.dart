@@ -26,7 +26,37 @@ final original = Note.fromJson({
 class UploadApi extends Api2Client {
   int uploads = 0;
   bool failRefresh = false;
+  bool failNoteSave = false;
+  Note remote = original;
+  final noteWrites = <String>[];
+  Future<void> Function()? duringNoteSave;
   Future<void> Function()? duringUpload;
+  @override
+  Future<Note> addNote({
+    required Uri server,
+    required String token,
+    required Note note,
+  }) async {
+    noteWrites.add('add:${note.noteId}');
+    if (failNoteSave) throw StateError('conflict');
+    await duringNoteSave?.call();
+    remote = note.copyWith(usn: 6);
+    return remote;
+  }
+
+  @override
+  Future<Note> updateNote({
+    required Uri server,
+    required String token,
+    required Note note,
+  }) async {
+    noteWrites.add('update:${note.noteId}');
+    if (failNoteSave) throw StateError('conflict');
+    await duringNoteSave?.call();
+    remote = note.copyWith(usn: 6);
+    return remote;
+  }
+
   @override
   Future<String> uploadAttachment({
     required Uri server,
@@ -49,7 +79,10 @@ class UploadApi extends Api2Client {
     required String noteId,
   }) async {
     if (failRefresh) throw StateError('offline');
-    return (note: original.copyWith(usn: 6), filesConfirmedEmpty: false);
+    return (
+      note: remote.copyWith(usn: remote.usn + 1),
+      filesConfirmedEmpty: false,
+    );
   }
 
   @override
@@ -124,15 +157,85 @@ void main() {
       expect(sync.attachmentUploading, isFalse);
     },
   );
-  test('dirty note is rejected before remote upload', () async {
-    await db.saveLocalNote(
-      session.account.cacheKey,
-      original.copyWith(content: 'draft'),
+  test(
+    'dirty target is uploaded before attachment without uploading other notes',
+    () async {
+      await db.saveLocalNote(
+        session.account.cacheKey,
+        original.copyWith(content: 'draft'),
+      );
+      final other = await db.createLocalNote(
+        account: session.account,
+        notebookId: '',
+        isMarkdown: true,
+      );
+      expect(await upload(), isTrue);
+      expect(api.noteWrites, ['update:$noteId']);
+      expect(api.uploads, 1);
+      expect(
+        (await db.notes(session.account.cacheKey))
+            .firstWhere((note) => note.noteId == noteId)
+            .content,
+        'draft',
+      );
+      expect(await db.pendingNoteIds(session.account.cacheKey), {other.noteId});
+      expect(sync.attachmentUploading, isFalse);
+    },
+  );
+  test('new target uses add and keeps the same ID for attachment', () async {
+    final created = await db.createLocalNote(
+      account: session.account,
+      notebookId: '',
+      isMarkdown: true,
+      content: 'new',
     );
-    await expectLater(upload(), throwsStateError);
-    expect(api.uploads, 0);
-    expect(sync.attachmentUploading, isFalse);
+    expect(
+      await repo.uploadAttachment(
+        session,
+        created.noteId,
+        file,
+        identity: 'u',
+        password: 'p',
+      ),
+      isTrue,
+    );
+    expect(api.noteWrites, ['add:${created.noteId}']);
+    expect(await db.pendingNoteIds(session.account.cacheKey), isEmpty);
   });
+  test(
+    'conflict stops attachment and leaves the local draft pending',
+    () async {
+      await db.saveLocalNote(
+        session.account.cacheKey,
+        original.copyWith(content: 'draft'),
+      );
+      api.failNoteSave = true;
+      await expectLater(upload(), throwsStateError);
+      expect(api.uploads, 0);
+      expect(await db.pendingNoteIds(session.account.cacheKey), {noteId});
+      expect(sync.attachmentUploading, isFalse);
+    },
+  );
+  test(
+    'new edits during note upload stop attachment without losing dirty changes',
+    () async {
+      await db.saveLocalNote(
+        session.account.cacheKey,
+        original.copyWith(content: 'draft'),
+      );
+      api.duringNoteSave = () => db.saveLocalNote(
+        session.account.cacheKey,
+        original.copyWith(content: 'newer'),
+      );
+      await expectLater(upload(), throwsStateError);
+      expect(api.uploads, 0);
+      expect(
+        (await db.notes(session.account.cacheKey)).single.content,
+        'newer',
+      );
+      expect(await db.pendingNoteIds(session.account.cacheKey), {noteId});
+    },
+  );
   test('edits during upload are preserved when refresh cannot merge', () async {
     api.duringUpload = () => db.saveLocalNote(
       session.account.cacheKey,
