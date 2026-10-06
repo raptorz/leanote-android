@@ -36,7 +36,8 @@ class _NoteEditorPageState extends State<NoteEditorPage>
   Future<bool>? _saving;
   late String _savedTitle;
   late String _savedContent;
-  String? _error;
+  final _saveError = ValueNotifier<String?>(null);
+  String? get _error => _saveError.value;
   bool _preview = false;
   final _contentFocus = FocusNode();
   final _titleFocus = FocusNode();
@@ -80,6 +81,7 @@ class _NoteEditorPageState extends State<NoteEditorPage>
     _contentUndo.dispose();
     _title.dispose();
     _content.dispose();
+    _saveError.dispose();
     super.dispose();
   }
 
@@ -135,9 +137,9 @@ class _NoteEditorPageState extends State<NoteEditorPage>
         await widget.saveText(title, content);
         _savedTitle = title;
         _savedContent = content;
-        if (mounted) setState(() => _error = null);
+        if (mounted) setState(() => _saveError.value = null);
       } on Object catch (error) {
-        if (mounted) setState(() => _error = '保存到本地失败：$error');
+        if (mounted) setState(() => _saveError.value = '保存到本地失败：$error');
         return false;
       }
     }
@@ -208,6 +210,8 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                       MaterialPageRoute(
                         builder: (_) => VisualHtmlEditor(
                           source: _content.text,
+                          flush: _flush,
+                          saveError: _saveError,
                           onChanged: (value) {
                             _content.text = value;
                           },

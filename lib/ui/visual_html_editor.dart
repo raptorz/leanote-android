@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'editor_link_dialog.dart';
 import 'editor_table_dialog.dart';
 import 'editor_table_operations.dart';
+import 'editor_save_guard.dart';
 import 'visual_html_policy.dart';
 export 'visual_html_policy.dart' show supportsVisualHtml;
 
@@ -125,11 +127,15 @@ class VisualHtmlEditor extends StatefulWidget {
   const VisualHtmlEditor({
     required this.source,
     required this.onChanged,
+    required this.flush,
+    required this.saveError,
     super.key,
   });
 
   final String source;
   final ValueChanged<String> onChanged;
+  final Future<bool> Function() flush;
+  final ValueListenable<String?> saveError;
 
   @override
   State<VisualHtmlEditor> createState() => _VisualHtmlEditorState();
@@ -224,28 +230,44 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
 
   Future<void> _close() async {
     if (_leaving) return;
-    if (!_ready) {
-      Navigator.of(context).pop();
-      return;
-    }
     setState(() => _leaving = true);
     try {
-      final pending = Completer<String>();
-      _snapshot = pending;
-      await _controller
-          .runJavaScript('Snapshot.postMessage(window.readContent())')
-          .timeout(const Duration(seconds: 5));
-      final content = await pending.future.timeout(const Duration(seconds: 5));
-      if (!mounted) return;
-      if (!_accept(content)) return;
+      final saved = await persistVisualEdit(
+        read: () async {
+          if (!_ready) return null;
+          final pending = Completer<String>();
+          _snapshot = pending;
+          final result = pending.future.timeout(const Duration(seconds: 5));
+          unawaited(
+            _controller
+                .runJavaScript(
+                  'editor.contentEditable = "false"; editor.blur(); Snapshot.postMessage(window.readContent())',
+                )
+                .catchError((Object error) {
+                  if (!pending.isCompleted) pending.completeError(error);
+                }),
+          );
+          return result;
+        },
+        accept: (value) => mounted && _accept(value),
+        flush: widget.flush,
+      );
+      if (!mounted || !saved) return;
       setState(() => _allowPop = true);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) Navigator.of(context).pop();
       });
     } catch (error) {
-      if (mounted) setState(() => _error = '读取编辑内容失败，请重试：$error');
+      if (mounted) setState(() => _error = '读取或保存编辑内容失败，请重试：$error');
     } finally {
       _snapshot = null;
+      if (mounted && _ready && !_allowPop) {
+        try {
+          await _controller.runJavaScript('editor.contentEditable = "true"');
+        } catch (error) {
+          if (mounted) setState(() => _error = '恢复编辑失败：$error');
+        }
+      }
       if (mounted) setState(() => _leaving = false);
     }
   }
@@ -375,7 +397,7 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
 
   @override
   Widget build(BuildContext context) => PopScope(
-    canPop: _allowPop || !_ready,
+    canPop: _allowPop,
     onPopInvokedWithResult: (didPop, _) {
       if (!didPop) _close();
     },
@@ -392,6 +414,7 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
       ),
       body: Column(
         children: [
+          EditorSaveBanner(error: widget.saveError, retry: widget.flush),
           if (_error != null)
             MaterialBanner(
               content: Text(_error!),
