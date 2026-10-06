@@ -23,7 +23,19 @@ void main() {
           '<h1>Heading</h1><p><b>Bold</b> &amp; <em>Italic</em></p><ol><li>one</li><li>two</li></ol><ul><li>bullet</li></ul><pre> a\n  b</pre><table><tr><td>A</td><td>B</td></tr></table>',
         ),
       );
-      final rendered = text(tester);
+      final root =
+          tester
+                  .widget<Text>(
+                    find.byWidgetPredicate(
+                      (widget) =>
+                          widget is Text &&
+                          widget.textSpan?.toPlainText().contains('Heading') ==
+                              true,
+                    ),
+                  )
+                  .textSpan!
+              as TextSpan;
+      final rendered = root.toPlainText();
       for (final part in [
         'Heading',
         'Bold & Italic',
@@ -31,13 +43,12 @@ void main() {
         '2. two',
         '• bullet',
         ' a\n  b',
-        'A | B |',
       ]) {
         expect(rendered, contains(part));
       }
-      final root = tester
-          .widget<SelectableText>(find.byType(SelectableText))
-          .textSpan!;
+      expect(find.byType(Table), findsOneWidget);
+      expect(find.text('A', findRichText: true), findsOneWidget);
+      expect(find.text('B', findRichText: true), findsOneWidget);
       final heading = root.children!.whereType<TextSpan>().firstWhere(
         (span) => span.toPlainText() == 'Heading',
       );

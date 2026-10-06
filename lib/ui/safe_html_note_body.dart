@@ -66,6 +66,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
     int depth = 0,
     bool pre = false,
     List<dom.Element>? images,
+    List<dom.Element>? tables,
     double imageWidth = 0,
   }) {
     final spans = <InlineSpan>[];
@@ -86,6 +87,24 @@ class SafeHtmlNoteBody extends StatelessWidget {
       if (depth >= 64) {
         spans.add(const TextSpan(text: '[嵌套内容过深，请查看原文]'));
         continue;
+      }
+      if (tag == 'table' && tables != null) {
+        final rows = _tableRows(node);
+        if (rows != null) {
+          tables.add(node);
+          spans.add(const TextSpan(text: '\n'));
+          spans.add(
+            WidgetSpan(
+              child: SizedBox(
+                width: imageWidth,
+                child: _table(node, rows, imageWidth, images, depth + 1),
+              ),
+            ),
+          );
+          spans.add(const TextSpan(text: '\n'));
+          continue;
+        }
+        spans.add(const TextSpan(text: '\n[复杂或大型表格按文字显示，可查看原文]\n'));
       }
       if (tag == 'img' || tag == 'video' || tag == 'audio') {
         final collected = tag == 'img' && images != null && images.length < 100;
@@ -148,6 +167,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
             depth: depth + 1,
             pre: pre || tag == 'pre',
             images: images,
+            tables: tag == 'table' ? null : tables,
             imageWidth: imageWidth,
           ),
         ),
@@ -165,15 +185,120 @@ class SafeHtmlNoteBody extends StatelessWidget {
     return spans;
   }
 
+  List<List<dom.Element>>? _tableRows(dom.Element table) {
+    if (table.querySelector('table') != null) return null;
+    final rows = <List<dom.Element>>[];
+    var cellCount = 0;
+    final rowNodes = <dom.Element>[];
+    for (final child in table.children) {
+      if (child.localName == 'tr') {
+        rowNodes.add(child);
+      } else if ({'thead', 'tbody', 'tfoot'}.contains(child.localName)) {
+        if (child.children.any((node) => node.localName != 'tr')) return null;
+        rowNodes.addAll(child.children);
+      } else if (child.localName != 'caption') {
+        return null;
+      }
+    }
+    for (final row in rowNodes) {
+      final cells = row.children;
+      if (cells.isEmpty ||
+          cells.length > 20 ||
+          cells.any(
+            (cell) =>
+                !{'td', 'th'}.contains(cell.localName) ||
+                (cell.attributes['colspan'] ?? '1') != '1' ||
+                (cell.attributes['rowspan'] ?? '1') != '1',
+          )) {
+        return null;
+      }
+      rows.add(cells);
+      cellCount += cells.length;
+      if (rows.length > 100 || cellCount > 1000) return null;
+    }
+    return rows.isEmpty ? null : rows;
+  }
+
+  Widget _table(
+    dom.Element table,
+    List<List<dom.Element>> rows,
+    double availableWidth,
+    List<dom.Element>? images,
+    int depth,
+  ) {
+    final columns = rows.fold<int>(
+      0,
+      (max, row) => row.length > max ? row.length : max,
+    );
+    final cellWidth = (availableWidth / columns).clamp(140.0, 320.0);
+    final caption = table.children.where((node) => node.localName == 'caption');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final node in caption)
+          Text.rich(
+            TextSpan(children: _render(node.nodes, depth: depth)),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Table(
+            defaultColumnWidth: FixedColumnWidth(cellWidth),
+            border: TableBorder.all(color: const Color(0xff527b68)),
+            defaultVerticalAlignment: TableCellVerticalAlignment.top,
+            children: [
+              for (final row in rows)
+                TableRow(
+                  children: [
+                    for (var index = 0; index < columns; index++)
+                      if (index >= row.length)
+                        const SizedBox()
+                      else
+                        ColoredBox(
+                          color: row[index].localName == 'th'
+                              ? const Color(0xffe5eee8)
+                              : Colors.transparent,
+                          child: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Text.rich(
+                              TextSpan(
+                                children: _render(
+                                  row[index].nodes,
+                                  depth: depth + 1,
+                                  images: images,
+                                  imageWidth: cellWidth - 16,
+                                ),
+                              ),
+                              style: TextStyle(
+                                fontSize: 16,
+                                height: 1.65,
+                                fontWeight: row[index].localName == 'th'
+                                    ? FontWeight.bold
+                                    : null,
+                              ),
+                            ),
+                          ),
+                        ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.all(20),
     child: LayoutBuilder(
       builder: (context, constraints) {
         final images = <dom.Element>[];
+        final tables = <dom.Element>[];
         final spans = _render(
           html.parseFragment(content).nodes,
           images: loadCachedImage == null ? null : images,
+          tables: tables,
           imageWidth: constraints.maxWidth,
         );
         final text = TextSpan(
@@ -183,8 +308,8 @@ class SafeHtmlNoteBody extends StatelessWidget {
         );
         return SingleChildScrollView(
           // SelectableText supports only TextSpans. SelectionArea with Text.rich
-          // retains native text selection around embedded image widgets.
-          child: images.isEmpty
+          // retains native text selection around embedded images and tables.
+          child: images.isEmpty && tables.isEmpty
               ? SelectableText.rich(text)
               : SelectionArea(child: Text.rich(text)),
         );
