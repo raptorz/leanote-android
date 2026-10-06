@@ -43,6 +43,14 @@ bool supportsVisualHtml(String source) {
     'h5',
     'h6',
     'a',
+    'table',
+    'caption',
+    'thead',
+    'tbody',
+    'tfoot',
+    'tr',
+    'td',
+    'th',
   };
   final parser = html.HtmlParser(source);
   final fragment = parser.parseFragment();

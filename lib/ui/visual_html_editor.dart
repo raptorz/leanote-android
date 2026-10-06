@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'editor_link_dialog.dart';
+import 'editor_table_dialog.dart';
 import 'visual_html_policy.dart';
 export 'visual_html_policy.dart' show supportsVisualHtml;
 
@@ -19,7 +20,10 @@ String visualEditorDocument(String source) {
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; form-action 'none'; base-uri 'none'">
 <style>body{font:17px sans-serif;margin:16px;line-height:1.6;color:#183c32}
 #editor{min-height:80vh;outline:none;overflow-wrap:anywhere}
-blockquote{border-left:3px solid #527b68;margin-left:0;padding-left:12px}</style>
+blockquote{border-left:3px solid #527b68;margin-left:0;padding-left:12px}
+table{border-collapse:collapse;max-width:100%;table-layout:fixed;width:100%}
+td,th{border:1px solid #527b68;padding:6px;min-width:24px;overflow-wrap:anywhere}
+th{background:#e5eee8}caption{font-weight:bold}</style>
 </head><body><div id="editor" contenteditable="true"></div><script>
 const editor = document.getElementById('editor');
 const original = $initial;
@@ -73,6 +77,19 @@ window.insertLink = value => {
   }
   publish();
 };
+window.insertTable = value => {
+  restoreSelection();
+  const selection = window.getSelection();
+  if (!selection.rangeCount || !editor.contains(selection.anchorNode)) return;
+  const anchor = selection.anchorNode.nodeType === Node.ELEMENT_NODE
+    ? selection.anchorNode : selection.anchorNode.parentElement;
+  if (anchor.closest('table')) {
+    EditorError.postMessage('请先将光标移到表格外，避免嵌套表格');
+    return;
+  }
+  document.execCommand('insertHTML', false, value);
+  publish();
+};
 </script></body></html>''';
 }
 
@@ -95,7 +112,7 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
   bool _ready = false;
   bool _leaving = false;
   bool _allowPop = false;
-  bool _linkDialogOpen = false;
+  bool _dialogOpen = false;
   String? _error;
   Completer<String>? _snapshot;
 
@@ -104,6 +121,12 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
     super.initState();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..addJavaScriptChannel(
+        'EditorError',
+        onMessageReceived: (message) {
+          if (mounted) setState(() => _error = message.message);
+        },
+      )
       ..addJavaScriptChannel(
         'Changes',
         onMessageReceived: (message) {
@@ -185,8 +208,8 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
   }
 
   Future<void> _insertLink() async {
-    if (_linkDialogOpen || !_ready || _leaving) return;
-    setState(() => _linkDialogOpen = true);
+    if (_dialogOpen || !_ready || _leaving) return;
+    setState(() => _dialogOpen = true);
     try {
       final value = await showDialog<String>(
         context: context,
@@ -200,7 +223,27 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
     } catch (error) {
       if (mounted) setState(() => _error = '插入链接失败：$error');
     } finally {
-      if (mounted) setState(() => _linkDialogOpen = false);
+      if (mounted) setState(() => _dialogOpen = false);
+    }
+  }
+
+  Future<void> _insertTable() async {
+    if (_dialogOpen || !_ready || _leaving) return;
+    setState(() => _dialogOpen = true);
+    try {
+      final value = await showDialog<String>(
+        context: context,
+        builder: (_) => const EditorTableDialog(),
+      );
+      if (!mounted || value == null) return;
+      if (!supportsVisualHtml(value)) return;
+      await _controller.runJavaScript(
+        'window.insertTable(${jsonEncode(value)})',
+      );
+    } catch (error) {
+      if (mounted) setState(() => _error = '插入表格失败：$error');
+    } finally {
+      if (mounted) setState(() => _dialogOpen = false);
     }
   }
 
@@ -265,11 +308,18 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
                 IconButton(
                   tooltip: '插入链接',
                   icon: const Icon(Icons.link),
-                  onPressed: !_ready || _leaving || _linkDialogOpen
+                  onPressed: !_ready || _leaving || _dialogOpen
                       ? null
                       : _insertLink,
                 ),
                 _button('移除链接', Icons.link_off, 'unlink'),
+                IconButton(
+                  tooltip: '插入表格',
+                  icon: const Icon(Icons.table_chart_outlined),
+                  onPressed: !_ready || _leaving || _dialogOpen
+                      ? null
+                      : _insertTable,
+                ),
                 _button(
                   '无序列表',
                   Icons.format_list_bulleted,
