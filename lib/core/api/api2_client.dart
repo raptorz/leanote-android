@@ -6,6 +6,7 @@ import 'dart:io' show Cookie;
 import 'package:http/http.dart' as http;
 
 import '../../domain/models/account.dart';
+import '../../domain/models/attachment_upload.dart';
 import '../../domain/models/note.dart';
 import '../../domain/models/note_file.dart';
 import '../../domain/models/note_history.dart';
@@ -100,7 +101,53 @@ class Api2Client {
     );
   }
 
-  Future<void> _accountFormAction({
+  /// Explicit online mutation; callers must not automatically retry on timeout.
+  Future<String> uploadAttachment({
+    required Uri server,
+    required String token,
+    required String userId,
+    required String identity,
+    required String password,
+    required String noteId,
+    required AttachmentUpload file,
+  }) async {
+    if (!RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(noteId) ||
+        identity.trim().isEmpty ||
+        password.isEmpty) {
+      throw const ApiException('invalidRequest');
+    }
+    // Token and operation-local cookie session must both belong to this owner.
+    final note = await _requestJson(
+      server: server,
+      path: '/api2/note/getNote',
+      method: 'GET',
+      token: token,
+      query: {'noteId': noteId},
+    );
+    if (note['NoteId'] != noteId ||
+        note['UserId'] != userId ||
+        note['IsDeleted'] == true ||
+        note['IsTrash'] == true) {
+      throw const ApiException('noPermission');
+    }
+    final result = await _accountFormAction(
+      server: server,
+      userId: userId,
+      identity: identity,
+      password: password,
+      path: '/api2/attachments/upload',
+      fields: {'noteId': noteId},
+      avatar: file.bytes,
+      filename: file.name,
+    );
+    final id = result['Id'];
+    if (id is! String || !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(id)) {
+      throw const ApiException('attachmentUploadUnconfirmed');
+    }
+    return id;
+  }
+
+  Future<Map<String, Object?>> _accountFormAction({
     required Uri server,
     required String userId,
     required String identity,
@@ -108,6 +155,7 @@ class Api2Client {
     required String path,
     required Map<String, String> fields,
     Uint8List? avatar,
+    String filename = 'avatar.png',
   }) async {
     final cookies = <String, String>{};
     Future<Map<String, Object?>> call(
@@ -119,12 +167,9 @@ class Api2Client {
       final http.BaseRequest request;
       if (upload != null) {
         request = http.MultipartRequest('POST', server.resolve(path))
+          ..fields.addAll(body ?? {})
           ..files.add(
-            http.MultipartFile.fromBytes(
-              'file',
-              upload,
-              filename: 'avatar.png',
-            ),
+            http.MultipartFile.fromBytes('file', upload, filename: filename),
           );
       } else {
         final plain = http.Request(
@@ -190,6 +235,7 @@ class Api2Client {
         form: true, // This API2 v1 action still uses Revel form binding, like Web.
       );
       if (result['Ok'] != true) throw const ApiException('invalidResponse');
+      return result;
     } finally {
       if (cookies.isNotEmpty) {
         try {
