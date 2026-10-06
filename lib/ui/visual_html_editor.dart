@@ -6,6 +6,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import 'editor_link_dialog.dart';
 import 'editor_table_dialog.dart';
+import 'editor_table_operations.dart';
 import 'visual_html_policy.dart';
 export 'visual_html_policy.dart' show supportsVisualHtml;
 
@@ -90,6 +91,33 @@ window.insertTable = value => {
   document.execCommand('insertHTML', false, value);
   publish();
 };
+let pendingTable = null;
+window.selectedTable = id => {
+  restoreSelection();
+  const selection = window.getSelection();
+  const node = selection.anchorNode;
+  const element = node && (node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement);
+  const cell = element && element.closest('td,th');
+  const table = cell && cell.closest('table');
+  pendingTable = table && editor.contains(table) ? {id, table} : null;
+  return pendingTable ? {id, html: table.outerHTML, row: Array.from(table.querySelectorAll('tr')).indexOf(cell.parentElement), column: cell.cellIndex} : {id};
+};
+window.replaceTable = (id, expected, replacement) => {
+  const target = pendingTable;
+  pendingTable = null;
+  if (!target || target.id !== id || !editor.contains(target.table) || target.table.outerHTML !== expected) {
+    EditorError.postMessage('表格已变化，请重新选择单元格后重试');
+    return;
+  }
+  editor.focus();
+  const range = document.createRange();
+  range.selectNode(target.table);
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+  document.execCommand('insertHTML', false, replacement);
+  publish();
+};
 </script></body></html>''';
 }
 
@@ -115,12 +143,27 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
   bool _dialogOpen = false;
   String? _error;
   Completer<String>? _snapshot;
+  Completer<Map<String, dynamic>>? _tableSnapshot;
+  int _tableRequest = 0;
 
   @override
   void initState() {
     super.initState();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..addJavaScriptChannel(
+        'TableSelection',
+        onMessageReceived: (message) {
+          final pending = _tableSnapshot;
+          if (pending == null || pending.isCompleted) return;
+          try {
+            final value = jsonDecode(message.message) as Map<String, dynamic>;
+            if (value['id'] == _tableRequest) pending.complete(value);
+          } catch (error) {
+            pending.completeError(error);
+          }
+        },
+      )
       ..addJavaScriptChannel(
         'EditorError',
         onMessageReceived: (message) {
@@ -255,7 +298,7 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
   ]) => IconButton(
     tooltip: label,
     icon: Icon(icon),
-    onPressed: !_ready || _leaving
+    onPressed: !_ready || _leaving || _dialogOpen
         ? null
         : () async {
             try {
@@ -267,6 +310,68 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
             }
           },
   );
+
+  Future<void> _changeTable(TableOperation operation) async {
+    if (!_ready || _leaving || _dialogOpen) return;
+    setState(() => _dialogOpen = true);
+    try {
+      final pending = Completer<Map<String, dynamic>>();
+      _tableSnapshot = pending;
+      final id = ++_tableRequest;
+      // Install timeout before dispatching, including native dispatch failures.
+      final response = pending.future.timeout(const Duration(seconds: 5));
+      unawaited(
+        _controller
+            .runJavaScript(
+              'TableSelection.postMessage(JSON.stringify(window.selectedTable($id)))',
+            )
+            .catchError((Object error) {
+              if (!pending.isCompleted) pending.completeError(error);
+            }),
+      );
+      final snapshot = await response;
+      if (!mounted) return;
+      if (snapshot['html'] == null) throw const FormatException('请先点击表格中的单元格');
+      final original = snapshot['html'] as String;
+      final replacement = changeEditorTable(
+        original,
+        snapshot['row'] as int,
+        snapshot['column'] as int,
+        operation,
+      );
+      if (operation == TableOperation.removeRow ||
+          operation == TableOperation.removeColumn) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(
+              operation == TableOperation.removeRow ? '删除当前行？' : '删除当前列？',
+            ),
+            content: const Text('所选行或列中的内容也会删除。'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('删除'),
+              ),
+            ],
+          ),
+        );
+        if (!mounted || confirmed != true) return;
+      }
+      await _controller.runJavaScript(
+        'window.replaceTable($id, ${jsonEncode(original)}, ${jsonEncode(replacement)})',
+      );
+    } catch (error) {
+      if (mounted) setState(() => _error = '表格操作失败：$error');
+    } finally {
+      _tableSnapshot = null;
+      if (mounted) setState(() => _dialogOpen = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) => PopScope(
@@ -313,6 +418,30 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
                       : _insertLink,
                 ),
                 _button('移除链接', Icons.link_off, 'unlink'),
+                PopupMenuButton<TableOperation>(
+                  tooltip: '表格行列操作',
+                  enabled: _ready && !_leaving && !_dialogOpen,
+                  icon: const Icon(Icons.table_rows_outlined),
+                  onSelected: _changeTable,
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: TableOperation.addRow,
+                      child: Text('下方插入行'),
+                    ),
+                    PopupMenuItem(
+                      value: TableOperation.addColumn,
+                      child: Text('右侧插入列'),
+                    ),
+                    PopupMenuItem(
+                      value: TableOperation.removeRow,
+                      child: Text('删除当前行'),
+                    ),
+                    PopupMenuItem(
+                      value: TableOperation.removeColumn,
+                      child: Text('删除当前列'),
+                    ),
+                  ],
+                ),
                 IconButton(
                   tooltip: '插入表格',
                   icon: const Icon(Icons.table_chart_outlined),
