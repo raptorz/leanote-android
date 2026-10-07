@@ -9,16 +9,29 @@ import 'markdown_note_body.dart';
 import 'safe_html_note_body.dart';
 import 'visual_html_editor.dart';
 import 'editor_link_dialog.dart';
+import '../services/note_image_picker.dart';
+import 'note_image_upload_dialog.dart';
 
 class NoteEditorPage extends StatefulWidget {
   const NoteEditorPage({
     required this.note,
     required this.saveText,
     this.loadCachedImage,
+    this.uploadImage,
+    this.pickImage,
+    this.identity = '',
     super.key,
   });
 
   final Note note;
+  final String identity;
+  final Future<NoteImageUpload?> Function()? pickImage;
+  final Future<String> Function(
+    NoteImageUpload image,
+    String identity,
+    String password,
+  )?
+  uploadImage;
   final Future<void> Function(String title, String content) saveText;
   // Preview is cache-only: editing arbitrary image URLs must never fetch them.
   final CachedImageLoader? loadCachedImage;
@@ -46,6 +59,8 @@ class _NoteEditorPageState extends State<NoteEditorPage>
   final _contentUndo = UndoHistoryController();
   bool _editingTitle = false;
   bool _linkDialogOpen = false;
+  bool _insertingImage = false;
+  bool get _busy => _closing || _insertingImage;
 
   @override
   void initState() {
@@ -107,12 +122,12 @@ class _NoteEditorPageState extends State<NoteEditorPage>
         children: [
           IconButton(
             tooltip: '撤销',
-            onPressed: !_closing && value.canUndo ? history.undo : null,
+            onPressed: !_busy && value.canUndo ? history.undo : null,
             icon: const Icon(Icons.undo),
           ),
           IconButton(
             tooltip: '重做',
-            onPressed: !_closing && value.canRedo ? history.redo : null,
+            onPressed: !_busy && value.canRedo ? history.redo : null,
             icon: const Icon(Icons.redo),
           ),
         ],
@@ -149,7 +164,7 @@ class _NoteEditorPageState extends State<NoteEditorPage>
   }
 
   Future<void> _save() async {
-    if (_allowPop || _closing) return;
+    if (_allowPop || _busy) return;
     setState(() => _closing = true);
     final saved = await _flush();
     if (!mounted) return;
@@ -164,14 +179,14 @@ class _NoteEditorPageState extends State<NoteEditorPage>
   }
 
   void _togglePreview() {
-    if (_closing) return;
+    if (_busy) return;
     FocusScope.of(context).unfocus();
     setState(() => _preview = !_preview);
     _flush();
   }
 
   Future<void> _insertMarkdownLink() async {
-    if (_closing || _linkDialogOpen) return;
+    if (_busy || _linkDialogOpen) return;
     final original = _content.value;
     setState(() => _linkDialogOpen = true);
     try {
@@ -192,6 +207,61 @@ class _NoteEditorPageState extends State<NoteEditorPage>
     }
   }
 
+  Future<void> _insertImage() async {
+    if (_busy || widget.uploadImage == null) return;
+    final original = _content.value;
+    setState(() => _insertingImage = true);
+    try {
+      final image = await (widget.pickImage ?? NoteImagePicker().pick)();
+      if (!mounted || image == null) return;
+      if (!await _flush() || !mounted) return;
+      final reference = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => NoteImageUploadDialog(
+          identity: widget.identity,
+          image: image,
+          upload: (identity, password) =>
+              widget.uploadImage!(image, identity, password),
+        ),
+      );
+      if (!mounted || reference == null) return;
+      // Only API-created relative references may be written into the body.
+      if (!RegExp(r'^/api2/file/getImage\?fileId=[0-9a-fA-F]{24}$')
+          .hasMatch(reference)) {
+        throw const FormatException('图片地址无效，未插入正文');
+      }
+      // Insert after the selection, preserving selected text and all HTML.
+      // HTML images are appended so a caret inside a tag cannot corrupt it.
+      final offset =
+          widget.note.isMarkdown &&
+              _content.text == original.text &&
+              original.selection.isValid
+          ? original.selection.end.clamp(0, _content.text.length)
+          : _content.text.length;
+      final markup = widget.note.isMarkdown
+          ? '\n![]($reference)\n'
+          : '\n<img src="$reference" alt="">\n';
+      _content.value = TextEditingValue(
+        text: _content.text.replaceRange(offset, offset, markup),
+        selection: TextSelection.collapsed(offset: offset + markup.length),
+      );
+      final saved = await _flush();
+      if (mounted && saved) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('图片已插入并保存到本地，正文待同步。同步后可在阅读页下载预览图片。')),
+        );
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('插入图片失败：$error')));
+      }
+    } finally {
+      if (mounted) setState(() => _insertingImage = false);
+    }
+  }
+
   Widget _formatButton(
     String label,
     IconData icon,
@@ -199,7 +269,7 @@ class _NoteEditorPageState extends State<NoteEditorPage>
   ) => IconButton(
     tooltip: label,
     icon: Icon(icon),
-    onPressed: _closing
+    onPressed: _busy
         ? null
         : () {
             _content.value = transform(_content.value);
@@ -216,7 +286,7 @@ class _NoteEditorPageState extends State<NoteEditorPage>
           IconButton(
             tooltip: '可视化编辑',
             icon: const Icon(Icons.format_shapes),
-            onPressed: _closing
+            onPressed: _busy
                 ? null
                 : () async {
                     if (!supportsVisualHtml(_content.text)) {
@@ -251,14 +321,14 @@ class _NoteEditorPageState extends State<NoteEditorPage>
               : widget.note.isMarkdown
               ? '预览 Markdown'
               : '预览富文本',
-          onPressed: _closing ? null : _togglePreview,
+          onPressed: _busy ? null : _togglePreview,
           icon: Icon(
             _preview ? Icons.edit_outlined : Icons.visibility_outlined,
           ),
         ),
         IconButton(
           tooltip: '保存到本地',
-          onPressed: _closing ? null : _save,
+          onPressed: _busy ? null : _save,
           icon: const Icon(Icons.check),
         ),
       ],
@@ -282,7 +352,7 @@ class _NoteEditorPageState extends State<NoteEditorPage>
             TextField(
               focusNode: _titleFocus,
               undoController: _titleUndo,
-              readOnly: _closing,
+              readOnly: _busy,
               controller: _title,
               autofocus: widget.note.title.isEmpty,
               decoration: const InputDecoration(hintText: '笔记标题'),
@@ -300,6 +370,12 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                 child: Row(
                   children: [
                     _historyButtons(),
+                    if (widget.uploadImage != null)
+                      IconButton(
+                        tooltip: widget.note.isMarkdown ? '插入图片' : '在文末插入图片',
+                        icon: const Icon(Icons.add_photo_alternate_outlined),
+                        onPressed: _busy ? null : _insertImage,
+                      ),
                     if (widget.note.isMarkdown) ...[
                       _formatButton(
                         '加粗',
@@ -349,7 +425,7 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                       IconButton(
                         tooltip: '插入链接',
                         icon: const Icon(Icons.link),
-                        onPressed: _closing || _linkDialogOpen
+                        onPressed: _busy || _linkDialogOpen
                             ? null
                             : _insertMarkdownLink,
                       ),
@@ -365,7 +441,7 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                   TextField(
                     undoController: _contentUndo,
                     focusNode: _contentFocus,
-                    readOnly: _closing,
+                    readOnly: _busy,
                     controller: _content,
                     expands: true,
                     maxLines: null,

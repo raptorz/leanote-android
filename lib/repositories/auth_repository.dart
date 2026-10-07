@@ -15,6 +15,7 @@ import '../domain/models/notebook.dart';
 import '../domain/models/notebook_tree.dart';
 import '../domain/models/shared_note.dart';
 import '../sync/sync_coordinator.dart';
+import '../services/note_image_picker.dart';
 
 class StoredSession {
   const StoredSession({required this.account, required this.token});
@@ -144,6 +145,50 @@ class AuthRepository {
         })().whenComplete(() {
           _fileRefreshes.remove(key);
         });
+  }
+
+  /// Creates a resource only. The editor must save the returned reference in
+  /// its local body; ordinary note sync then establishes server membership.
+  Future<String> uploadNoteImage(
+    StoredSession session,
+    String noteId,
+    NoteImageUpload image, {
+    required String identity,
+    required String password,
+  }) async {
+    if (identity.trim().isEmpty || password.isEmpty) {
+      throw const FormatException('请输入当前账号和密码');
+    }
+    late String reference;
+    await _sync.runAttachmentUpload(
+      () async {
+        final local = (await _database.notes(session.account.cacheKey))
+            .where((note) => note.noteId == noteId)
+            .firstOrNull;
+        if (local == null ||
+            local.userId != session.account.userId ||
+            local.isTrash ||
+            local.isDeleted ||
+            local.usn <= 0 ||
+            (await _database.pendingNoteIds(session.account.cacheKey))
+                .contains(noteId)) {
+          throw StateError('请先同步此笔记，再上传图片');
+        }
+        reference = await _api.uploadNoteImage(
+          server: session.account.server,
+          token: session.token,
+          userId: session.account.userId,
+          identity: identity,
+          password: password,
+          noteId: noteId,
+          image: image,
+        );
+      },
+      account: session.account,
+      token: session.token,
+      noteId: noteId,
+    );
+    return reference;
   }
 
   /// True means upload and cache refresh succeeded; false means upload was
