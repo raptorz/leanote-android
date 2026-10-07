@@ -723,6 +723,53 @@ class AppDatabase {
     return note;
   }
 
+  /// A share's stable ID makes retry after a failed native acknowledgement
+  /// idempotent. Never replace an already imported (possibly edited) note.
+  Future<Note> importSharedText({
+    required Account account,
+    required String shareId,
+    required String notebookId,
+    required String title,
+    required String content,
+  }) => raw.transaction((txn) async {
+    if (!RegExp(r'^[0-9a-f]{24}$').hasMatch(shareId)) {
+      throw const FormatException('invalidShareId');
+    }
+    final existing = await txn.query(
+      'notes',
+      where: 'account_id = ? AND server_id = ?',
+      whereArgs: [account.cacheKey, shareId],
+    );
+    if (existing.isNotEmpty) return _noteFromRow(existing.single);
+    final targets = await txn.query(
+      'notebooks',
+      where: 'account_id = ? AND server_id = ?',
+      whereArgs: [account.cacheKey, notebookId],
+    );
+    if (targets.isEmpty) throw StateError('目标笔记本已不存在，请返回重新选择');
+    final now = DateTime.now().toUtc().toIso8601String();
+    final note = Note.fromJson({
+      'NoteId': shareId,
+      'NotebookId': notebookId,
+      'UserId': account.userId,
+      'Title': title,
+      'Content': content,
+      'IsMarkdown': true,
+      'CreatedTime': now,
+      'UpdatedTime': now,
+    });
+    final batch = txn.batch();
+    _insertNote(batch, account.cacheKey, note);
+    batch.update(
+      'notes',
+      {'is_dirty': 1, 'local_is_new': 1},
+      where: 'account_id = ? AND server_id = ?',
+      whereArgs: [account.cacheKey, shareId],
+    );
+    await batch.commit(noResult: true);
+    return note;
+  });
+
   /// Copy the exact displayed snapshot, never silently dropping resource links.
   Future<Note> copyLocalNote({
     required Account account,

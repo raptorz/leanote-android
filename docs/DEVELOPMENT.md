@@ -259,3 +259,32 @@ Markdown 在选区末尾插入；HTML 始终在文末追加，避免在标签或
 ```sh
 flutter test test/editor_image_test.dart test/data/note_image_repository_test.dart test/note_image_upload_test.dart
 ```
+
+## Android 分享接收
+
+依据 [Android 分享接收文档](https://developer.android.com/training/sharing/receive)，
+Manifest 只注册 `ACTION_SEND` / `text/plain`，Activity 使用 `singleTask`，
+冷启动和 `onNewIntent` 统一处理 `EXTRA_TEXT` / `EXTRA_SUBJECT`。
+不读取 `EXTRA_STREAM`、ClipData URI 或 HTML 内容，也不使用调用方提供的笔记 ID。
+原生生成稳定 24 位十六进制 ID，将最多 8 条、每条不超过 UTF-8 256 KiB 的文本
+保存到应用私有 `shared_text_inbox` SharedPreferences；处理后清除启动 Intent，
+避免 Activity 重建重复入队。队列满、超限、无效内容或落盘失败通过 Toast 提示。
+
+`gemsnote/shared_text` MethodChannel 提供 peek、claim、acknowledge 和 changed 通知。
+Flutter 在工作区启动/恢复前台时读取队列，事件仅更新工具栏标记，不打断正在编辑的笔记。
+没有登录时原生继续保留队列；稍后处理不消费。用户选择账号和笔记本并确认后，
+先 claim 绑定服务器/用户缓存键，再在 SQLite 事务中验证目标笔记本、创建 dirty/new
+Markdown 笔记。重复 ID 返回原笔记，不覆盖后续编辑；最后 acknowledge 清除原生条目。
+确认忽略只清除队列，不写笔记。正文始终作为文本处理，不访问分享中的 URL。
+当前不支持 iOS 分享扩展及 Android 图片、文件、多项接收。
+
+回归命令：
+
+```sh
+flutter test test/shared_text_inbox_test.dart test/shared_text_dialog_test.dart test/data/shared_text_import_test.dart
+flutter build apk --debug --no-pub
+```
+
+设备验收应覆盖：退出应用后的浏览器文本分享、编辑中再次分享、多条队列、登录前分享、
+稍后处理重启、取消/确认忽略、错误账号、缺少笔记本，以及本地保存/队列清理失败重试。
+纯 Dart 测试不替代 Android 原生 Intent 和跨应用分享面板验收。

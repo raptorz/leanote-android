@@ -10,6 +10,8 @@ import '../domain/models/notebook.dart';
 import '../domain/models/notebook_tree.dart';
 import '../repositories/auth_repository.dart';
 import '../services/note_exporter.dart';
+import '../services/shared_text_inbox.dart';
+import 'shared_text_dialog.dart';
 import '../services/note_sharer.dart';
 import '../services/account_file_cache.dart';
 import 'note_editor_page.dart';
@@ -37,6 +39,7 @@ class WorkspacePage extends StatefulWidget {
     required this.session,
     required this.onSignedOut,
     this.refreshAvatarOnStart = false,
+    this.sharedTextInbox,
     super.key,
   });
 
@@ -44,6 +47,7 @@ class WorkspacePage extends StatefulWidget {
   final StoredSession session;
   final VoidCallback onSignedOut;
   final bool refreshAvatarOnStart;
+  final SharedTextInbox? sharedTextInbox;
 
   @override
   State<WorkspacePage> createState() => _WorkspacePageState();
@@ -78,6 +82,76 @@ class _WorkspacePageState extends State<WorkspacePage>
   AccountFileCache? _fileQueue;
   Future<void>? _fileTask;
   String? _fileStatus;
+
+  late final SharedTextInbox _shareInbox;
+  bool _shareOpen = false;
+
+  void _shareChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Widget get _shareButton => IconButton(
+    tooltip: '待处理分享',
+    icon: Badge(
+      isLabelVisible: _shareInbox.pending != null || _shareInbox.error != null,
+      child: const Icon(Icons.move_to_inbox_outlined),
+    ),
+    onPressed: _syncing || _loggingOut || _shareOpen ? null : _openSharedText,
+  );
+
+  Future<void> _openSharedText() async {
+    if (_shareOpen || _syncing || _loggingOut || _signedOut) return;
+    _shareOpen = true;
+    try {
+      await _shareInbox.refresh();
+      if (_shareInbox.error != null) throw StateError(_shareInbox.error!);
+      final source = _shareInbox.pending;
+      if (!mounted) return;
+      if (source == null) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('没有待处理分享')));
+        return;
+      }
+      final books = await widget.repository.notebooks(
+        widget.session.account.cacheKey,
+      );
+      if (!mounted) return;
+      final note = await showDialog<Note>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => SharedTextDialog(
+          source: source,
+          notebooks: books,
+          accountLabel:
+              '${widget.session.account.username} · ${widget.session.account.server}',
+          canImport:
+              source.accountKey.isEmpty ||
+              source.accountKey == widget.session.account.cacheKey,
+          onImport: (edited, notebookId) async {
+            await _shareInbox.claim(source, widget.session.account.cacheKey);
+            return widget.repository.importSharedText(
+              widget.session,
+              edited,
+              notebookId,
+            );
+          },
+          onAcknowledge: () => _shareInbox.acknowledge(source),
+        ),
+      );
+      if (note != null && mounted) {
+        await _reloadNotes();
+        await _refreshPending();
+        if (mounted) await _openReader(note);
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('读取分享失败：$error')));
+      }
+    } finally {
+      if (mounted) setState(() => _shareOpen = false);
+    }
+  }
 
   Future<void> _stopFileCache() async {
     _fileQueue?.cancel();
@@ -136,6 +210,9 @@ class _WorkspacePageState extends State<WorkspacePage>
   @override
   void initState() {
     super.initState();
+    _shareInbox = widget.sharedTextInbox ?? SharedTextInbox();
+    _shareInbox.addListener(_shareChanged);
+    unawaited(_shareInbox.start());
     WidgetsBinding.instance.addObserver(this);
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     _foreground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
@@ -149,6 +226,8 @@ class _WorkspacePageState extends State<WorkspacePage>
   void dispose() {
     _fileQueue?.cancel();
     _autoSyncTimer?.cancel();
+    _shareInbox.removeListener(_shareChanged);
+    _shareInbox.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -156,6 +235,7 @@ class _WorkspacePageState extends State<WorkspacePage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
+    if (_foreground) unawaited(_shareInbox.refresh());
     if (!_foreground) _fileQueue?.cancel();
     _scheduleAutoSync();
   }
@@ -891,13 +971,20 @@ class _WorkspacePageState extends State<WorkspacePage>
           children: [
             Image.asset('assets/images/gemsnote_s.png', width: 32, height: 32),
             const SizedBox(width: 10),
-            const Text('珠玑笔记', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Expanded(
+              child: Text(
+                '珠玑笔记',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
           ],
         ),
         backgroundColor: const Color(0xff173d38),
         bottom: _syncStatus,
         foregroundColor: Colors.white,
         actions: [
+          if (_shareInbox.supported) _shareButton,
           IconButton(
             tooltip: '标签',
             onPressed: _openTags,
@@ -1127,6 +1214,7 @@ class _WorkspacePageState extends State<WorkspacePage>
                         : _selectedNotebook!.title),
         ),
         actions: [
+          if (_shareInbox.supported) _shareButton,
           PopupMenuButton<NoteSort>(
             tooltip: '笔记排序',
             icon: const Icon(Icons.sort),

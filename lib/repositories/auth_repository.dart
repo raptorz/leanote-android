@@ -16,6 +16,7 @@ import '../domain/models/notebook_tree.dart';
 import '../domain/models/shared_note.dart';
 import '../sync/sync_coordinator.dart';
 import '../services/note_image_picker.dart';
+import '../services/shared_text_inbox.dart';
 
 class StoredSession {
   const StoredSession({required this.account, required this.token});
@@ -750,6 +751,24 @@ class AuthRepository {
     title: title,
     content: content,
   );
+
+  Future<Note> importSharedText(
+    StoredSession session,
+    SharedText source,
+    String notebookId,
+  ) {
+    if (source.accountKey.isNotEmpty &&
+        source.accountKey != session.account.cacheKey) {
+      throw StateError('此分享已指定其他账号');
+    }
+    return _database.importSharedText(
+      account: session.account,
+      shareId: source.id,
+      notebookId: notebookId,
+      title: source.suggestedTitle,
+      content: source.text,
+    );
+  }
 
   Future<Note> copyNote(
     StoredSession session,
