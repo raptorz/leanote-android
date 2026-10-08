@@ -6,6 +6,7 @@ import '../core/api/api_exception.dart';
 import '../data/database/app_database.dart';
 import '../data/session/session_store.dart';
 import '../domain/models/account.dart';
+import '../domain/models/default_editor.dart';
 import '../domain/models/attachment_upload.dart';
 import '../domain/models/note.dart';
 import '../domain/models/note_file.dart';
@@ -737,6 +738,12 @@ class AuthRepository {
     String query, {
     int limit = 50,
   }) => _database.searchNotes(accountId, query, limit: limit);
+
+  Future<DefaultEditor> defaultEditor(StoredSession session) =>
+      _database.defaultEditor(session.account.cacheKey);
+
+  Future<void> setDefaultEditor(StoredSession session, DefaultEditor editor) =>
+      _database.setDefaultEditor(session.account.cacheKey, editor);
 
   Future<Note> createNote(
     StoredSession session, {

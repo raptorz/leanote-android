@@ -6,6 +6,7 @@ import '../domain/models/note_file.dart';
 import '../repositories/auth_repository.dart';
 import '../services/image_exporter.dart';
 import '../services/attachment_exporter.dart';
+import '../services/attachment_sharer.dart';
 import '../services/file_cache_batch.dart';
 import '../services/attachment_picker.dart';
 import 'attachment_upload_dialog.dart';
@@ -19,6 +20,7 @@ class NoteFilesPage extends StatefulWidget {
     this.imageExporter,
     this.attachmentExporter,
     this.attachmentPicker,
+    this.attachmentSharer,
   });
   final AuthRepository repository;
   final StoredSession session;
@@ -26,6 +28,7 @@ class NoteFilesPage extends StatefulWidget {
   final ImageExporter? imageExporter;
   final AttachmentExporter? attachmentExporter;
   final AttachmentPicker? attachmentPicker;
+  final AttachmentSharer? attachmentSharer;
   @override
   State<NoteFilesPage> createState() => _NoteFilesPageState();
 }
@@ -191,6 +194,44 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
     }
   }
 
+  Future<void> _shareAttachment(NoteFile file) async {
+    if (_loading || _opening != null || _batch != null || !file.isAttachment) {
+      return;
+    }
+    setState(() {
+      _opening = file.id;
+      _error = null;
+    });
+    try {
+      final bytes = await widget.repository.noteAttachment(
+        widget.session,
+        widget.noteId,
+        file,
+        cachedOnly: _cachedOnly,
+      );
+      if (!mounted) return;
+      // Resolve the current page bounds after download, including any rotation.
+      final box = context.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) throw StateError('无法定位分享窗口');
+      final origin = box.localToGlobal(Offset.zero) & box.size;
+      await (widget.attachmentSharer ?? AttachmentSharer()).share(
+        file.title,
+        bytes,
+        origin,
+      );
+    } on Object {
+      if (mounted) {
+        setState(
+          () => _error = _cachedOnly
+              ? '分享附件失败：附件未缓存、缓存已失效或无法打开分享菜单，请联网下载后重试'
+              : '分享附件失败，请检查网络、文件权限或系统分享功能后重试（最大 32 MiB）',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _opening = null);
+    }
+  }
+
   Future<void> _saveAttachment(NoteFile file) async {
     if (_opening != null || _batch != null) return;
     setState(() {
@@ -351,7 +392,25 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
                               child: CircularProgressIndicator(),
                             )
                           : file.isAttachment
-                          ? const Icon(Icons.save_alt)
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  tooltip: '保存附件',
+                                  icon: const Icon(Icons.save_alt),
+                                  onPressed: _opening != null || _batch != null
+                                      ? null
+                                      : () => _saveAttachment(file),
+                                ),
+                                IconButton(
+                                  tooltip: '分享附件',
+                                  icon: const Icon(Icons.share_outlined),
+                                  onPressed: _opening != null || _batch != null
+                                      ? null
+                                      : () => _shareAttachment(file),
+                                ),
+                              ],
+                            )
                           : null,
                       onTap: _opening != null || _batch != null
                           ? null

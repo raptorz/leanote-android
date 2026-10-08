@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../domain/models/account.dart';
+import '../../domain/models/default_editor.dart';
 import '../../domain/models/conflict_copy.dart';
 import '../../domain/models/note.dart';
 import '../../domain/models/note_file.dart';
@@ -17,7 +18,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 5;
+  static const schemaVersion = 6;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -41,6 +42,7 @@ class AppDatabase {
         if (oldVersion < 3) await db.execute(_avatarSchema);
         if (oldVersion < 4) await db.execute(_sharedSchema);
         if (oldVersion < 5) await db.execute(_fileCacheSchema);
+        if (oldVersion < 6) await db.execute(_preferencesSchema);
       },
     );
     return AppDatabase._(database);
@@ -294,6 +296,34 @@ class AppDatabase {
       logo: row['logo']! as String,
     );
   }
+
+  Future<DefaultEditor> defaultEditor(String accountId) async {
+    final rows = await raw.query(
+      'account_preferences',
+      columns: ['default_editor'],
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+    );
+    if (rows.isEmpty) return DefaultEditor.html;
+    return DefaultEditor.values.byName(
+      rows.single['default_editor']! as String,
+    );
+  }
+
+  Future<void> setDefaultEditor(String accountId, DefaultEditor editor) =>
+      raw.transaction((txn) async {
+        final account = await txn.query(
+          'accounts',
+          columns: ['account_id'],
+          where: 'account_id = ?',
+          whereArgs: [accountId],
+        );
+        if (account.isEmpty) throw StateError('accountCacheMissing');
+        await txn.insert('account_preferences', {
+          'account_id': accountId,
+          'default_editor': editor.name,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      });
 
   Future<int> lastSyncUsn(String accountId) async {
     final rows = await raw.query(
@@ -1286,6 +1316,14 @@ class AppDatabase {
     ).join();
   }
 
+  // Local preferences intentionally outlive account snapshot REPLACE. They do
+  // not participate in synchronization or cascade with downloaded cache rows.
+  static const _preferencesSchema =
+      '''CREATE TABLE IF NOT EXISTS account_preferences (
+    account_id TEXT PRIMARY KEY,
+    default_editor TEXT NOT NULL CHECK (default_editor IN ('html', 'markdown'))
+  )''';
+
   static const _historySchema = '''CREATE TABLE note_histories (
     account_id TEXT NOT NULL,
     note_id TEXT NOT NULL,
@@ -1374,5 +1412,6 @@ class AppDatabase {
     _avatarSchema,
     _sharedSchema,
     _fileCacheSchema,
+    _preferencesSchema,
   ];
 }

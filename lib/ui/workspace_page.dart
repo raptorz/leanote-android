@@ -4,6 +4,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../domain/models/note.dart';
+import '../domain/models/default_editor.dart';
+import 'default_editor_dialog.dart';
 import '../domain/models/note_image_reference.dart';
 import '../domain/models/note_sort.dart';
 import '../domain/models/notebook.dart';
@@ -753,6 +755,75 @@ class _WorkspacePageState extends State<WorkspacePage>
     if (confirmed == true) await _saveMetadata(note.copyWith(isTrash: true));
   }
 
+  bool _createMenuOpen = false;
+
+  Future<void> _chooseDefaultEditor() => showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => DefaultEditorDialog(
+      load: () => widget.repository.defaultEditor(widget.session),
+      save: (editor) =>
+          widget.repository.setDefaultEditor(widget.session, editor),
+    ),
+  );
+
+  Future<void> _showCreateMenu() async {
+    if (_createMenuOpen ||
+        _syncing ||
+        _loggingOut ||
+        _selectedNotebook == null) {
+      return;
+    }
+    setState(() => _createMenuOpen = true);
+    try {
+      final editor = await widget.repository.defaultEditor(widget.session);
+      if (!mounted) return;
+      final alternate = editor == DefaultEditor.html
+          ? DefaultEditor.markdown
+          : DefaultEditor.html;
+      final action = await showModalBottomSheet<String>(
+        context: context,
+        builder: (context) => SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.note_add_outlined),
+                title: const Text('新建笔记'),
+                subtitle: Text('默认：${editor.label}'),
+                onTap: () => Navigator.pop(context, editor.name),
+              ),
+              ListTile(
+                leading: Icon(
+                  alternate.isMarkdown ? Icons.code : Icons.article_outlined,
+                ),
+                title: Text('新建${alternate.isMarkdown ? " Markdown" : "富文本"}'),
+                onTap: () => Navigator.pop(context, alternate.name),
+              ),
+              ListTile(
+                leading: const Icon(Icons.file_open_outlined),
+                title: const Text('导入笔记原文'),
+                onTap: () => Navigator.pop(context, 'import'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (!mounted || action == null) return;
+      if (action == 'import') {
+        await _importNote();
+      } else {
+        await _createNote(DefaultEditor.values.byName(action).isMarkdown);
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('新建笔记失败：$error')));
+      }
+    } finally {
+      if (mounted) setState(() => _createMenuOpen = false);
+    }
+  }
+
   Future<void> _createNote(bool isMarkdown) async {
     final notebook = _selectedNotebook;
     if (notebook == null) return;
@@ -998,6 +1069,7 @@ class _WorkspacePageState extends State<WorkspacePage>
           PopupMenuButton<String>(
             tooltip: '账号菜单',
             onSelected: (value) {
+              if (value == 'defaultEditor') _chooseDefaultEditor();
               if (value == 'account') {
                 _openAccount();
               }
@@ -1024,6 +1096,7 @@ class _WorkspacePageState extends State<WorkspacePage>
             },
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'account', child: Text('账号')),
+              const PopupMenuItem(value: 'defaultEditor', child: Text('默认编辑器')),
               const PopupMenuItem(value: 'sync', child: Text('立即同步')),
               const PopupMenuItem(value: 'fullSync', child: Text('完全同步（合并）')),
               CheckedPopupMenuItem(
@@ -1299,41 +1372,9 @@ class _WorkspacePageState extends State<WorkspacePage>
               _showingTrash
           ? null
           : FloatingActionButton(
-              onPressed: () => showModalBottomSheet<void>(
-                context: context,
-                builder: (context) => SafeArea(
-                  child: Wrap(
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.article_outlined),
-                        title: const Text('新建笔记'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _createNote(false);
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.code),
-                        title: const Text('新建 Markdown'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _createNote(true);
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.file_open_outlined),
-                        title: const Text('导入笔记原文'),
-                        onTap: _syncing || _loggingOut
-                            ? null
-                            : () {
-                                Navigator.pop(context);
-                                _importNote();
-                              },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              onPressed: _createMenuOpen || _syncing || _loggingOut
+                  ? null
+                  : _showCreateMenu,
               child: const Icon(Icons.add),
             ),
     );
