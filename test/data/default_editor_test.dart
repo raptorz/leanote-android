@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/data/database/app_database.dart';
 import 'package:gemsnote/domain/models/account.dart';
 import 'package:gemsnote/domain/models/default_editor.dart';
+import 'package:gemsnote/domain/models/note_sort.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
@@ -70,7 +71,7 @@ void main() {
     await db.raw.setVersion(5);
     await db.raw.close();
     db = await AppDatabase.open(databasePath: path);
-    expect(await db.raw.getVersion(), 6);
+    expect(await db.raw.getVersion(), AppDatabase.schemaVersion);
     expect((await db.dirtyNotes(a.cacheKey)).single.content, '<p>unsynced</p>');
     expect(await db.pendingNoteIds(a.cacheKey), {note.noteId});
     expect(await db.lastSyncUsn(a.cacheKey), 3);
@@ -78,6 +79,55 @@ void main() {
     await db.setDefaultEditor(a.cacheKey, DefaultEditor.markdown);
     expect((await db.dirtyNotes(a.cacheKey)).single.isMarkdown, false);
   });
+  test(
+    'sort isolates accounts and survives reopen, reset and editor changes',
+    () async {
+      expect(await db.noteSort(a.cacheKey), NoteSort.updatedDescending);
+      for (final sort in NoteSort.values) {
+        await db.setNoteSort(a.cacheKey, sort);
+        expect(await db.noteSort(a.cacheKey), sort);
+      }
+      await db.setDefaultEditor(a.cacheKey, DefaultEditor.markdown);
+      expect(await db.noteSort(a.cacheKey), NoteSort.titleDescending);
+      expect(await db.noteSort(b.cacheKey), NoteSort.updatedDescending);
+      expect(await db.noteSort(c.cacheKey), NoteSort.updatedDescending);
+      await db.deactivate(a.cacheKey);
+      await db.raw.close();
+      db = await AppDatabase.open(databasePath: path);
+      expect(await db.noteSort(a.cacheKey), NoteSort.titleDescending);
+      await snapshot(a);
+      expect(await db.noteSort(a.cacheKey), NoteSort.titleDescending);
+      expect(await db.defaultEditor(a.cacheKey), DefaultEditor.markdown);
+      expect(await db.pendingNoteIds(a.cacheKey), isEmpty);
+      expect(await db.lastSyncUsn(a.cacheKey), 3);
+      await expectLater(
+        db.setNoteSort('missing', NoteSort.titleAscending),
+        throwsStateError,
+      );
+    },
+  );
+  test(
+    'v6 upgrade preserves dirty notes and existing editor preference',
+    () async {
+      final note = await db.createLocalNote(
+        account: a,
+        notebookId: '',
+        isMarkdown: true,
+        content: 'unsynced',
+      );
+      await db.setDefaultEditor(a.cacheKey, DefaultEditor.markdown);
+      await db.raw.execute('DROP TABLE account_note_sort');
+      await db.raw.setVersion(6);
+      await db.raw.close();
+      db = await AppDatabase.open(databasePath: path);
+      expect(await db.raw.getVersion(), AppDatabase.schemaVersion);
+      expect(await db.noteSort(a.cacheKey), NoteSort.updatedDescending);
+      expect(await db.defaultEditor(a.cacheKey), DefaultEditor.markdown);
+      expect(await db.pendingNoteIds(a.cacheKey), {note.noteId});
+      expect((await db.dirtyNotes(a.cacheKey)).single.content, 'unsynced');
+      expect(await db.lastSyncUsn(a.cacheKey), 3);
+    },
+  );
   test('missing accounts cannot acquire orphan preferences', () async {
     await expectLater(
       db.setDefaultEditor('missing', DefaultEditor.markdown),

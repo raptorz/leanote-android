@@ -4,6 +4,7 @@ import 'package:gemsnote/core/api/api2_client.dart';
 import 'package:gemsnote/data/database/app_database.dart';
 import 'package:gemsnote/domain/models/account.dart';
 import 'package:gemsnote/domain/models/note.dart';
+import 'package:gemsnote/domain/models/note_sort.dart';
 import 'package:gemsnote/repositories/auth_repository.dart';
 import 'package:gemsnote/sync/sync_coordinator.dart';
 import 'package:gemsnote/ui/workspace_page.dart';
@@ -56,7 +57,7 @@ void main() {
           (_) async => throw StateError('must stay offline'),
         ),
       );
-      final repo = AuthRepository(
+      final repo = SortRepository(
         api,
         db,
         MemorySessions(),
@@ -88,8 +89,13 @@ void main() {
       );
       await tester.tap(find.byTooltip('笔记排序'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('标题：升序'));
-      await tester.pumpAndSettle();
+      await tester.tap(
+        find.ancestor(
+          of: find.text('标题：升序'),
+          matching: find.byType(CheckedPopupMenuItem<NoteSort>),
+        ),
+      );
+      await settleDatabase();
       expect(
         tester.getTopLeft(find.text('Alpha')).dy,
         lessThan(tester.getTopLeft(find.text('Beta')).dy),
@@ -102,6 +108,75 @@ void main() {
         tester.getTopLeft(find.text('Alpha')).dy,
         lessThan(tester.getTopLeft(find.text('Beta')).dy),
       );
+      repo.failSave = true;
+      await tester.tap(find.byTooltip('笔记排序'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.ancestor(
+          of: find.text('标题：降序'),
+          matching: find.byType(CheckedPopupMenuItem<NoteSort>),
+        ),
+      );
+      await settleDatabase();
+      expect(find.text('保存排序设置失败，仍使用原排序'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('Alpha')).dy,
+        lessThan(tester.getTopLeft(find.text('Beta')).dy),
+      );
+      repo.failSave = false;
+      await tester.tap(find.text('重试排序设置'));
+      await settleDatabase();
+      expect(
+        tester.getTopLeft(find.text('Beta')).dy,
+        lessThan(tester.getTopLeft(find.text('Alpha')).dy),
+      );
+      // Recreate the entire workspace, not just its list route.
+      await tester.pumpWidget(const SizedBox());
+      repo.failLoad = true;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: WorkspacePage(
+            repository: repo,
+            session: StoredSession(account: account, token: 'test-token'),
+            onSignedOut: () {},
+          ),
+        ),
+      );
+      await settleDatabase();
+      await tester.tap(find.text('所有笔记'));
+      await settleDatabase();
+      expect(find.text('读取排序设置失败，暂按修改时间排序'), findsOneWidget);
+      repo.failLoad = false;
+      await tester.tap(find.text('重试排序设置'));
+      await settleDatabase();
+      expect(find.text('重试排序设置'), findsNothing);
+      await tester.tap(find.byTooltip('笔记排序'));
+      await tester.pumpAndSettle();
+      final selected = tester.widget<CheckedPopupMenuItem<NoteSort>>(
+        find.byWidgetPredicate(
+          (w) =>
+              w is CheckedPopupMenuItem<NoteSort> &&
+              w.value == NoteSort.titleDescending,
+        ),
+      );
+      expect(selected.checked, true);
     },
   );
+}
+
+class SortRepository extends AuthRepository {
+  SortRepository(super.api, super.database, super.sessions, super.sync);
+  bool failLoad = false;
+  bool failSave = false;
+  @override
+  Future<NoteSort> noteSort(StoredSession session) {
+    if (failLoad) throw StateError('read failure');
+    return super.noteSort(session);
+  }
+
+  @override
+  Future<void> setNoteSort(StoredSession session, NoteSort sort) {
+    if (failSave) throw StateError('write failure');
+    return super.setNoteSort(session, sort);
+  }
 }

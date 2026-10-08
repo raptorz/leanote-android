@@ -10,6 +10,7 @@ import '../../domain/models/account.dart';
 import '../../domain/models/default_editor.dart';
 import '../../domain/models/conflict_copy.dart';
 import '../../domain/models/note.dart';
+import '../../domain/models/note_sort.dart';
 import '../../domain/models/note_file.dart';
 import '../../domain/models/note_history.dart';
 import '../../domain/models/notebook.dart';
@@ -18,7 +19,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 6;
+  static const schemaVersion = 7;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -43,6 +44,7 @@ class AppDatabase {
         if (oldVersion < 4) await db.execute(_sharedSchema);
         if (oldVersion < 5) await db.execute(_fileCacheSchema);
         if (oldVersion < 6) await db.execute(_preferencesSchema);
+        if (oldVersion < 7) await db.execute(_sortPreferencesSchema);
       },
     );
     return AppDatabase._(database);
@@ -296,6 +298,32 @@ class AppDatabase {
       logo: row['logo']! as String,
     );
   }
+
+  Future<NoteSort> noteSort(String accountId) async {
+    final rows = await raw.query(
+      'account_note_sort',
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+    );
+    return rows.isEmpty
+        ? NoteSort.updatedDescending
+        : NoteSort.values.byName(rows.single['note_sort']! as String);
+  }
+
+  Future<void> setNoteSort(String accountId, NoteSort sort) =>
+      raw.transaction((txn) async {
+        final accounts = await txn.query(
+          'accounts',
+          columns: ['account_id'],
+          where: 'account_id = ?',
+          whereArgs: [accountId],
+        );
+        if (accounts.isEmpty) throw StateError('accountCacheMissing');
+        await txn.insert('account_note_sort', {
+          'account_id': accountId,
+          'note_sort': sort.name,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      });
 
   Future<DefaultEditor> defaultEditor(String accountId) async {
     final rows = await raw.query(
@@ -1318,6 +1346,13 @@ class AppDatabase {
 
   // Local preferences intentionally outlive account snapshot REPLACE. They do
   // not participate in synchronization or cascade with downloaded cache rows.
+  static const _sortPreferencesSchema =
+      """CREATE TABLE IF NOT EXISTS account_note_sort (
+        account_id TEXT PRIMARY KEY,
+        note_sort TEXT NOT NULL CHECK (note_sort IN (
+          'updatedDescending', 'updatedAscending', 'titleAscending', 'titleDescending'))
+      )""";
+
   static const _preferencesSchema =
       '''CREATE TABLE IF NOT EXISTS account_preferences (
     account_id TEXT PRIMARY KEY,
@@ -1413,5 +1448,6 @@ class AppDatabase {
     _sharedSchema,
     _fileCacheSchema,
     _preferencesSchema,
+    _sortPreferencesSchema,
   ];
 }

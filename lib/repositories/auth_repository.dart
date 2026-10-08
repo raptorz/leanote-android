@@ -9,6 +9,7 @@ import '../domain/models/account.dart';
 import '../domain/models/default_editor.dart';
 import '../domain/models/attachment_upload.dart';
 import '../domain/models/note.dart';
+import '../domain/models/note_sort.dart';
 import '../domain/models/note_file.dart';
 import '../domain/models/note_image_reference.dart';
 import '../domain/models/note_history.dart';
@@ -738,6 +739,12 @@ class AuthRepository {
     String query, {
     int limit = 50,
   }) => _database.searchNotes(accountId, query, limit: limit);
+
+  Future<NoteSort> noteSort(StoredSession session) =>
+      _database.noteSort(session.account.cacheKey);
+
+  Future<void> setNoteSort(StoredSession session, NoteSort sort) =>
+      _database.setNoteSort(session.account.cacheKey, sort);
 
   Future<DefaultEditor> defaultEditor(StoredSession session) =>
       _database.defaultEditor(session.account.cacheKey);

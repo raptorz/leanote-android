@@ -65,6 +65,49 @@ class _WorkspacePageState extends State<WorkspacePage>
   var _showingTrash = false;
   var _showingAll = false;
   var _noteSort = NoteSort.updatedDescending;
+  bool _sortBusy = false;
+  String? _sortError;
+  NoteSort? _sortRetry;
+
+  Future<void> _loadNoteSort() async {
+    if (_sortBusy) return;
+    setState(() {
+      _sortBusy = true;
+      _sortError = null;
+      _sortRetry = null;
+    });
+    try {
+      final sort = await widget.repository.noteSort(widget.session);
+      if (mounted) setState(() => _noteSort = sort);
+    } on Object {
+      if (mounted) setState(() => _sortError = '读取排序设置失败，暂按修改时间排序');
+    } finally {
+      if (mounted) setState(() => _sortBusy = false);
+    }
+  }
+
+  Future<void> _saveNoteSort(NoteSort sort) async {
+    if (_sortBusy || _loggingOut || _signedOut) return;
+    setState(() {
+      _sortBusy = true;
+      _sortError = null;
+      _sortRetry = sort;
+    });
+    try {
+      await widget.repository.setNoteSort(widget.session, sort);
+      if (mounted) {
+        setState(() {
+          _noteSort = sort;
+          _sortRetry = null;
+        });
+      }
+    } on Object {
+      if (mounted) setState(() => _sortError = '保存排序设置失败，仍使用原排序');
+    } finally {
+      if (mounted) setState(() => _sortBusy = false);
+    }
+  }
+
   var _syncing = false;
   var _loggingOut = false;
   Set<String> _pendingNoteIds = {};
@@ -221,6 +264,7 @@ class _WorkspacePageState extends State<WorkspacePage>
     _notebooks = widget.repository.notebooks(widget.session.account.cacheKey);
     _refreshPending();
     _refreshAvatarCache();
+    unawaited(_loadNoteSort());
     if (widget.refreshAvatarOnStart) unawaited(_refreshRemoteAvatar());
   }
 
@@ -1291,7 +1335,8 @@ class _WorkspacePageState extends State<WorkspacePage>
           PopupMenuButton<NoteSort>(
             tooltip: '笔记排序',
             icon: const Icon(Icons.sort),
-            onSelected: (value) => setState(() => _noteSort = value),
+            enabled: !_sortBusy && !_loggingOut,
+            onSelected: _saveNoteSort,
             itemBuilder: (_) => [
               for (final sort in NoteSort.values)
                 CheckedPopupMenuItem(
@@ -1318,53 +1363,74 @@ class _WorkspacePageState extends State<WorkspacePage>
           ),
         ],
       ),
-      body: _notes.isEmpty
-          ? const _EmptyState(label: '选择笔记或开始全新记录。')
-          : ListView.separated(
-              itemCount: _notes.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final note = sortedNotes[index];
-                return ListTile(
-                  leading: Icon(
-                    note.isMarkdown ? Icons.code : Icons.article_outlined,
-                  ),
-                  title: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          note.title.isEmpty ? '无标题' : note.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+      body: Column(
+        children: [
+          if (_sortBusy) const LinearProgressIndicator(),
+          if (_sortError != null)
+            ListTile(
+              title: Text(_sortError!),
+              trailing: TextButton(
+                onPressed: _sortBusy
+                    ? null
+                    : () => _sortRetry == null
+                          ? _loadNoteSort()
+                          : _saveNoteSort(_sortRetry!),
+                child: const Text('重试排序设置'),
+              ),
+            ),
+          Expanded(
+            child: _notes.isEmpty
+                ? const _EmptyState(label: '选择笔记或开始全新记录。')
+                : ListView.separated(
+                    itemCount: _notes.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final note = sortedNotes[index];
+                      return ListTile(
+                        leading: Icon(
+                          note.isMarkdown ? Icons.code : Icons.article_outlined,
                         ),
-                      ),
-                      if (_pendingNoteIds.contains(note.noteId))
-                        const Tooltip(
-                          message: '本地修改尚未上传',
-                          child: Padding(
-                            padding: EdgeInsets.only(left: 6),
-                            child: Icon(
-                              Icons.circle,
-                              size: 8,
-                              color: Color(0xff173d38),
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                note.title.isEmpty ? '无标题' : note.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
+                            if (_pendingNoteIds.contains(note.noteId))
+                              const Tooltip(
+                                message: '本地修改尚未上传',
+                                child: Padding(
+                                  padding: EdgeInsets.only(left: 6),
+                                  child: Icon(
+                                    Icons.circle,
+                                    size: 8,
+                                    color: Color(0xff173d38),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        subtitle: Text(note.updatedTime, maxLines: 1),
+                        trailing: IconButton(
+                          tooltip: note.isStarred ? '取消星标' : '添加星标',
+                          onPressed: () => _toggleStar(note),
+                          icon: Icon(
+                            note.isStarred ? Icons.star : Icons.star_outline,
+                            color: note.isStarred
+                                ? const Color(0xff816d32)
+                                : null,
                           ),
                         ),
-                    ],
+                        onTap: () => _openReader(note),
+                      );
+                    },
                   ),
-                  subtitle: Text(note.updatedTime, maxLines: 1),
-                  trailing: IconButton(
-                    tooltip: note.isStarred ? '取消星标' : '添加星标',
-                    onPressed: () => _toggleStar(note),
-                    icon: Icon(
-                      note.isStarred ? Icons.star : Icons.star_outline,
-                      color: note.isStarred ? const Color(0xff816d32) : null,
-                    ),
-                  ),
-                  onTap: () => _openReader(note),
-                );
-              },
-            ),
+          ),
+        ],
+      ),
       floatingActionButton:
           _showingAll ||
               _selectedTag != null ||
