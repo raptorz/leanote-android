@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../domain/models/note.dart';
 import '../domain/models/default_editor.dart';
 import 'default_editor_dialog.dart';
+import 'file_cache_dialog.dart';
 import '../domain/models/note_image_reference.dart';
 import '../domain/models/note_sort.dart';
 import '../domain/models/notebook.dart';
@@ -198,13 +199,38 @@ class _WorkspacePageState extends State<WorkspacePage>
     }
   }
 
+  bool _cacheDialogOpen = false;
+
+  Future<void> _manageFileCache() async {
+    if (_cacheDialogOpen || _syncing || _loggingOut || _signedOut) return;
+    _cacheDialogOpen = true;
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => FileCacheDialog(
+          accountLabel:
+              '${widget.session.account.username} · ${widget.session.account.server}',
+          load: () async {
+            await _stopFileCache();
+            return widget.repository.fileCacheUsage(widget.session);
+          },
+          clear: () => widget.repository.clearFileCache(widget.session),
+        ),
+      );
+    } finally {
+      _cacheDialogOpen = false;
+    }
+  }
+
   Future<void> _stopFileCache() async {
     _fileQueue?.cancel();
     await _fileTask;
   }
 
   void _startFileCache() {
-    if (!_autoCacheFiles ||
+    if (_cacheDialogOpen ||
+        !_autoCacheFiles ||
         !_foreground ||
         _signedOut ||
         _loggingOut ||
@@ -337,7 +363,13 @@ class _WorkspacePageState extends State<WorkspacePage>
   }
 
   Future<void> _openAccount() async {
-    if (_syncing || _loggingOut || _signedOut || _accountOpen) return;
+    if (_syncing ||
+        _loggingOut ||
+        _signedOut ||
+        _accountOpen ||
+        _cacheDialogOpen) {
+      return;
+    }
     _accountOpen = true;
     try {
       await _stopFileCache();
@@ -916,7 +948,13 @@ class _WorkspacePageState extends State<WorkspacePage>
     bool full = false,
     bool automatic = false,
   }) async {
-    if (_syncing || _loggingOut || _signedOut || _accountOpen) return;
+    if (_syncing ||
+        _loggingOut ||
+        _signedOut ||
+        _accountOpen ||
+        _cacheDialogOpen) {
+      return;
+    }
     setState(() {
       _syncing = true;
       _syncError = null;
@@ -1129,6 +1167,7 @@ class _WorkspacePageState extends State<WorkspacePage>
                 _startFileCache();
               }
               if (value == 'stopCache') _fileQueue?.cancel();
+              if (value == 'manageCache') _manageFileCache();
               if (value == 'trash') _openTrash();
               if (value == 'about') {
                 showDialog<void>(
@@ -1141,6 +1180,7 @@ class _WorkspacePageState extends State<WorkspacePage>
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'account', child: Text('账号')),
               const PopupMenuItem(value: 'defaultEditor', child: Text('默认编辑器')),
+              const PopupMenuItem(value: 'manageCache', child: Text('离线资源缓存')),
               const PopupMenuItem(value: 'sync', child: Text('立即同步')),
               const PopupMenuItem(value: 'fullSync', child: Text('完全同步（合并）')),
               CheckedPopupMenuItem(

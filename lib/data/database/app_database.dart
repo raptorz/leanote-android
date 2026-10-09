@@ -12,6 +12,7 @@ import '../../domain/models/conflict_copy.dart';
 import '../../domain/models/note.dart';
 import '../../domain/models/note_sort.dart';
 import '../../domain/models/note_file.dart';
+import '../../domain/models/file_cache_usage.dart';
 import '../../domain/models/note_history.dart';
 import '../../domain/models/notebook.dart';
 import '../../domain/models/shared_note.dart';
@@ -95,6 +96,29 @@ class AppDatabase {
           ),
         )
         .toList();
+  }
+
+  Future<FileCacheUsage> fileCacheUsage(String accountId) async {
+    final rows = await raw.rawQuery(
+      'SELECT COUNT(*) AS files, COALESCE(SUM(length(bytes)), 0) AS size '
+      'FROM note_files WHERE account_id = ? AND bytes IS NOT NULL',
+      [accountId],
+    );
+    return FileCacheUsage(
+      files: rows.single['files'] as int,
+      bytes: rows.single['size'] as int,
+    );
+  }
+
+  Future<void> clearFileCache(String accountId) async {
+    // Rotate every row, including files not yet cached, so in-flight downloads
+    // cannot refill this account using a pre-clear generation.
+    await raw.update(
+      'note_files',
+      {'bytes': null, 'cached_at': 0, 'generation': _objectId()},
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+    );
   }
 
   Future<Uint8List> cachedNoteImage(

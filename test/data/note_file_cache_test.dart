@@ -51,6 +51,91 @@ void main() {
     await seed(db);
   });
   tearDown(() => db.raw.close());
+  test('clear cache isolates accounts, preserves dirty notes and rejects late downloads', () async {
+    final other = Account(
+      userId: 'u',
+      server: Uri.parse('https://other.test'),
+      username: 'u',
+      email: '',
+      logo: '',
+    );
+    await db.replaceSnapshot(
+      account: other,
+      notebooks: [],
+      tags: [],
+      notes: [
+        Note.fromJson({'NoteId': 'n', 'UserId': 'u'}),
+      ],
+      lastSyncUsn: 9,
+    );
+    final dirty = await db.createLocalNote(
+      account: account,
+      notebookId: '',
+      isMarkdown: true,
+      content: 'unsynced text',
+    );
+    const empty = NoteFile(
+      id: 'empty',
+      title: 'empty',
+      type: 'bin',
+      isAttachment: true,
+    );
+    const pending = NoteFile(
+      id: 'pending',
+      title: 'pending',
+      type: 'png',
+      isAttachment: false,
+    );
+    await db.replaceNoteFiles(account.cacheKey, 'n', [file, empty, pending]);
+    final old = await db.cachedNoteFiles(account.cacheKey, 'n');
+    final image = old.singleWhere((f) => f.id == file.id);
+    final attachment = old.singleWhere((f) => f.id == empty.id);
+    final inFlight = old.singleWhere((f) => f.id == pending.id);
+    await db.cacheNoteImage(account.cacheKey, 'n', image, Uint8List(1024));
+    await db.cacheNoteAttachment(
+      account.cacheKey,
+      'n',
+      attachment,
+      Uint8List(0),
+    );
+    await db.replaceNoteFiles(other.cacheKey, 'n', [file]);
+    final otherFile = (await db.cachedNoteFiles(other.cacheKey, 'n')).single;
+    await db.cacheNoteImage(other.cacheKey, 'n', otherFile, Uint8List(10));
+    final usage = await db.fileCacheUsage(account.cacheKey);
+    expect(usage.files, 2); // Empty cached attachments count as downloaded.
+    expect(usage.bytes, 1024);
+    await db.clearFileCache(account.cacheKey);
+    expect((await db.fileCacheUsage(account.cacheKey)).files, 0);
+    expect((await db.fileCacheUsage(account.cacheKey)).bytes, 0);
+    expect(await db.cachedNoteFiles(account.cacheKey, 'n'), hasLength(3));
+    expect(await db.pendingNoteIds(account.cacheKey), {dirty.noteId});
+    expect(
+      (await db.dirtyNotes(account.cacheKey)).single.content,
+      'unsynced text',
+    );
+    expect(await db.lastSyncUsn(account.cacheKey), 1);
+    expect((await db.fileCacheUsage(other.cacheKey)).bytes, 10);
+    expect(
+      await db.cachedNoteImage(other.cacheKey, 'n', otherFile),
+      hasLength(10),
+    );
+    for (final stale in [image, inFlight]) {
+      await expectLater(
+        db.cacheNoteImage(account.cacheKey, 'n', stale, Uint8List(1)),
+        throwsStateError,
+      );
+    }
+    await expectLater(
+      db.cachedNoteAttachment(account.cacheKey, 'n', attachment),
+      throwsStateError,
+    );
+    final fresh = (await db.cachedNoteFiles(
+      account.cacheKey,
+      'n',
+    )).singleWhere((f) => f.id == file.id);
+    await db.cacheNoteImage(account.cacheKey, 'n', fresh, Uint8List(5));
+    expect((await db.fileCacheUsage(account.cacheKey)).bytes, 5);
+  });
   test('attachment cache isolates account/type, supports empty bytes and rejects stale writes', () async {
     const attach = NoteFile(
       id: 'a',
