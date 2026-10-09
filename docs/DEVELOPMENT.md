@@ -147,7 +147,7 @@ Markdown 不能含 `[`/`<`；HTML 仅允许无属性的基本排版标签，拒�
 Markdown 阅读使用 [flutter_markdown_plus](https://pub.dev/packages/flutter_markdown_plus)
 原生组件，并保留可复制的原文模式。个人笔记图片由账号隔离的缓存组件处理；
 未缓存时由用户手动点击、经 API2 校验后下载，不启用渲染器默认的网络/本地文件加载。
-共享、历史中的图片仍为占位；编辑预览只读取当前账号、当前笔记的已有缓存，不下载。链接仅展示地址并允许用户复制。
+共享、历史中的图片仍为占位；编辑预览只读取当前账号、当前笔记的已有缓存，不下载。Markdown 链接先展示地址，允许复制或确认外部打开 HTTP/HTTPS 地址；不自动导航。
 此实现不支持 Markdown 中内嵌 HTML 的浏览器渲染。
 
 ## 富文本阅读
@@ -345,3 +345,16 @@ Widget 测试覆盖完整工作区重建、加载失败重试与保存失败重�
 SQLite 可复用空闲页，但不执行 VACUUM，不用缓存字节数承诺实际磁盘释放量。
 测试覆盖账号隔离、空文件统计、dirty 正文保留、旧下载失效、新下载重新缓存、
 资源队列等待、取消、失败重试及重复点击。
+
+## Markdown 链接外部打开
+
+MarkdownNoteBody 的 onTapLink 只打开 NoteLinkDialog；渲染与第一次点击不调用 URL launcher。
+确认窗显示完整地址及解析后的 host。NoteLinkOpener 再次校验完整 HTTP/HTTPS URI、端口、
+无内嵌凭据、无空白/控制字符/反斜杠/方向控制字符以及 8192 字符上限，
+再以 url_launcher 的 LaunchMode.externalApplication 交给系统关联应用。
+不调用 canLaunchUrl、不额外申请应用列表查询权限，不建立应用内浏览器，
+不补服务端地址、token、cookie 或请求头。返回 false 或异常时保留窗口供重试/复制；
+返回 true 仅表示系统接受请求，不提示网页加载成功。等待期间不允许重复打开或关闭窗口。
+个人阅读、共享/历史阅读、编辑预览均复用此行为，不修改笔记或 dirty 状态。
+HTML 预览和可视化编辑器的导航策略不变。Dart 服务与 Widget 测试覆盖地址验证、
+确认/取消、重复操作及平台失败，Android/iOS 系统应用跳转仍需真机验收。

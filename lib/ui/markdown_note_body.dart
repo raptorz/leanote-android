@@ -1,9 +1,10 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import 'cached_markdown_image.dart';
+import 'note_link_dialog.dart';
+import '../services/note_link_opener.dart';
 
 Future<void> copyNoteText(BuildContext context, String text) async {
   try {
@@ -26,10 +27,12 @@ class MarkdownNoteBody extends StatelessWidget {
     this.loadCachedImage,
     this.downloadImage,
     this.canDownloadImage,
+    this.linkOpener,
     super.key,
   });
 
   final String content;
+  final NoteLinkOpener? linkOpener;
   final CachedImageLoader? loadCachedImage;
   final Future<Uint8List> Function(Uri)? downloadImage;
   final bool Function(Uri)? canDownloadImage;
@@ -60,19 +63,10 @@ class MarkdownNoteBody extends StatelessWidget {
       if (href == null || href.isEmpty) return;
       showDialog<void>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('链接地址'),
-          content: SingleChildScrollView(child: SelectableText(href)),
-          actions: [
-            TextButton(
-              onPressed: () => copyNoteText(context, href),
-              child: const Text('复制链接'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('关闭'),
-            ),
-          ],
+        builder: (dialogContext) => NoteLinkDialog(
+          href: href,
+          opener: linkOpener,
+          onCopy: () => copyNoteText(dialogContext, href),
         ),
       );
     },
