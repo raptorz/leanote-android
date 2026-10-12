@@ -5,6 +5,9 @@ import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html;
 
 import 'cached_markdown_image.dart';
+import 'markdown_note_body.dart' show copyNoteText;
+import 'note_link_dialog.dart';
+import '../services/note_link_opener.dart';
 
 /// Native HTML preview; optional media callbacks enforce account-scoped access.
 /// Unknown wrappers retain their text; active/embedded content is omitted.
@@ -14,10 +17,12 @@ class SafeHtmlNoteBody extends StatelessWidget {
     this.loadCachedImage,
     this.downloadImage,
     this.canDownloadImage,
+    this.linkOpener,
     super.key,
   });
 
   final String content;
+  final NoteLinkOpener? linkOpener;
   final CachedImageLoader? loadCachedImage;
   final Future<Uint8List> Function(Uri)? downloadImage;
   final bool Function(Uri)? canDownloadImage;
@@ -60,6 +65,25 @@ class SafeHtmlNoteBody extends StatelessWidget {
     'tr',
     'table',
   };
+
+  List<String> _links(List<dom.Node> nodes) {
+    final found = <String>{};
+    void visit(List<dom.Node> children, int depth) {
+      if (depth >= 64 || found.length >= 100) return;
+      for (final node in children) {
+        if (found.length >= 100) return;
+        if (node is! dom.Element || _omitted.contains(node.localName)) continue;
+        if (node.localName == 'a') {
+          final href = node.attributes['href'];
+          if (href != null && href.isNotEmpty) found.add(href);
+        }
+        visit(node.nodes, depth + 1);
+      }
+    }
+
+    visit(nodes, 0);
+    return found.toList();
+  }
 
   List<InlineSpan> _render(
     List<dom.Node> nodes, {
@@ -295,8 +319,10 @@ class SafeHtmlNoteBody extends StatelessWidget {
       builder: (context, constraints) {
         final images = <dom.Element>[];
         final tables = <dom.Element>[];
+        final nodes = html.parseFragment(content).nodes;
+        final links = _links(nodes);
         final spans = _render(
-          html.parseFragment(content).nodes,
+          nodes,
           images: loadCachedImage == null ? null : images,
           tables: tables,
           imageWidth: constraints.maxWidth,
@@ -309,9 +335,44 @@ class SafeHtmlNoteBody extends StatelessWidget {
         return SingleChildScrollView(
           // SelectableText supports only TextSpans. SelectionArea with Text.rich
           // retains native text selection around embedded images and tables.
-          child: images.isEmpty && tables.isEmpty
-              ? SelectableText.rich(text)
-              : SelectionArea(child: Text.rich(text)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              images.isEmpty && tables.isEmpty
+                  ? SelectableText.rich(text)
+                  : SelectionArea(child: Text.rich(text)),
+              if (links.isNotEmpty)
+                ExpansionTile(
+                  title: Text('正文链接（${links.length}）'),
+                  subtitle: const Text('查看地址后选择复制或外部打开'),
+                  children: [
+                    for (final href in links)
+                      ListTile(
+                        leading: const Icon(Icons.link),
+                        title: Text(
+                          href,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => showDialog<void>(
+                          context: context,
+                          builder: (dialogContext) => NoteLinkDialog(
+                            href: href,
+                            opener: linkOpener,
+                            onCopy: () => copyNoteText(dialogContext, href),
+                          ),
+                        ),
+                      ),
+                    if (links.length == 100)
+                      const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Text('最多列出 100 个不同地址，其余可查看原文。'),
+                      ),
+                  ],
+                ),
+            ],
+          ),
         );
       },
     ),
