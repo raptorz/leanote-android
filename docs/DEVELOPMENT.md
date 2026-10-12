@@ -383,7 +383,7 @@ AttachmentOpener 再次限制 32 MiB（允许空附件），在 getTemporaryDire
 这些文件不属于 SQLite 的 64 MiB 配额，系统也可能提前回收；超过一天的副本不保证继续可读。
 Android 使用私有缓存路径与插件 FileProvider，Manifest 合并显式移除插件自带的共享存储/媒体读取权限，
 不需要扫描用户文件目录。iOS 使用插件 DocumentInteraction。原生测试仍待设备验收；
-本机 Android APK 构建在 Gradle 解压阶段遇到 `zip END header not found`，并未验证插件编译或权限合并结果。
+本机原有 Gradle 压缩包损坏问题已修复，Android debug APK 已构建通过；aapt 验证合并权限无共享存储/媒体读取权限。原生外部应用打开仍待真机验收。
 
 ## 同步后资源缓存偏好
 
@@ -420,3 +420,18 @@ v7 升级只建表，保留正文、默认编辑器和排序偏好。
 
 相关验证：`test/data/account_switch_test.dart`、`test/account_switcher_page_test.dart`、
 `test/shared_text_inbox_test.dart`。仍需 Android/iOS 安全存储与生命周期的设备验收。
+
+## 已有笔记本离线编辑（schema v9）
+
+notebooks.is_dirty 保存重命名和移动的待上传状态，标题/父级局部修改不会覆盖另一个字段。
+SyncCoordinator 读取单份完整本地笔记本快照，对 dirty 节点及其父级链拓扑排序后上传，
+正常增量/全量同步及退出前 uploadPending 共用此顺序。仍使用 `/api2/client/notebook/update`。
+文件上传的 upload-only 路径不顺带上传其他笔记本，不改变现有附件上传范围。
+
+API2 冲突后读取 afterUsn=原 USN 的笔记本增量，只有远端字段与提交目标完全一致时才能确认
+可能丢失的上传回包。真实冲突、中断或无效响应保持 dirty；等待期间的新编辑只继承新的
+基础 USN，下轮继续上传。服务器的父级完整性/创建幂等缺口仍见根 MIGRATION.md。
+
+mergeChanges 在事务中拒绝覆盖 dirty 笔记本，cacheNotebook 同样检查；快照重置的
+noteSnapshotFingerprint（历史命名保留）现在包含笔记和笔记本两张表，避免确认后
+等待下载时的新笔记本修改被抹除。schema 升级只添加默认 0 的列，保留 IDs、dirty 笔记和游标。

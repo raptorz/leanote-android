@@ -493,13 +493,17 @@ class AuthRepository {
     if (_sync.attachmentUploading) {
       throw StateError('attachmentUploadInProgress');
     }
-    if ((await pendingNoteIds(session.account.cacheKey)).isEmpty) return;
+    if ((await pendingNoteIds(session.account.cacheKey)).isEmpty &&
+        (await _database.dirtyNotebooks(session.account.cacheKey)).isEmpty) {
+      return;
+    }
     await _sync.uploadPending(
       account: session.account,
       token: session.token,
       onProgress: onProgress,
     );
-    if ((await pendingNoteIds(session.account.cacheKey)).isNotEmpty) {
+    if ((await pendingNoteIds(session.account.cacheKey)).isNotEmpty ||
+        (await _database.dirtyNotebooks(session.account.cacheKey)).isNotEmpty) {
       throw StateError('unsyncedChanges');
     }
   }
@@ -512,7 +516,9 @@ class AuthRepository {
       throw StateError('attachmentUploadInProgress');
     }
     if (!discardSessionWithPendingChanges &&
-        (await pendingNoteIds(session.account.cacheKey)).isNotEmpty) {
+        ((await pendingNoteIds(session.account.cacheKey)).isNotEmpty ||
+            (await _database.dirtyNotebooks(session.account.cacheKey))
+                .isNotEmpty)) {
       throw StateError('unsyncedChanges');
     }
     // Local logout retains the account cache and never waits on the network.
@@ -708,6 +714,26 @@ class AuthRepository {
     );
   }
 
+  Future<void> queueNotebookRename(
+    StoredSession session,
+    String notebookId,
+    String title,
+  ) => _database.editLocalNotebook(
+    session.account.cacheKey,
+    notebookId,
+    title: title,
+  );
+
+  Future<void> queueNotebookMove(
+    StoredSession session,
+    String notebookId,
+    String parentId,
+  ) => _database.editLocalNotebook(
+    session.account.cacheKey,
+    notebookId,
+    parentId: parentId,
+  );
+
   Future<void> saveNotebook(
     StoredSession session, {
     required String title,
@@ -716,6 +742,11 @@ class AuthRepository {
   }) async {
     final trimmed = title.trim();
     if (trimmed.isEmpty) throw const FormatException('请输入笔记本名称');
+    if (existing != null &&
+        (await _database.dirtyNotebooks(session.account.cacheKey))
+            .any((n) => n.notebookId == existing.notebookId)) {
+      throw StateError('notebookHasPendingChanges');
+    }
     final notebook = await _api.saveNotebook(
       server: session.account.server,
       token: session.token,
@@ -737,6 +768,7 @@ class AuthRepository {
     }
     final source = current.firstWhere((n) => n.notebookId == notebookId);
     if (source.parentNotebookId == parentId) return;
+    if (source.isDirty) throw StateError('notebookHasPendingChanges');
     final moved = await _api.saveNotebook(
       server: session.account.server,
       token: session.token,

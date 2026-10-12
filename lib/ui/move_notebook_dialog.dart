@@ -39,7 +39,7 @@ class _MoveNotebookDialogState extends State<MoveNotebookDialog> {
       _error = null;
     });
     try {
-      await widget.repository.moveNotebook(
+      await widget.repository.queueNotebookMove(
         widget.session,
         widget.notebook.notebookId,
         _parent!,
@@ -65,7 +65,7 @@ class _MoveNotebookDialogState extends State<MoveNotebookDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('选择新的父笔记本。此操作需要连接服务器。'),
+            const Text('选择新的父笔记本。此操作先保存到本机，下次同步时上传。'),
             Flexible(
               child: SizedBox(
                 height: 280,

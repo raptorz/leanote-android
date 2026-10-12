@@ -15,12 +15,13 @@ import '../../domain/models/note_file.dart';
 import '../../domain/models/file_cache_usage.dart';
 import '../../domain/models/note_history.dart';
 import '../../domain/models/notebook.dart';
+import '../../domain/models/notebook_tree.dart';
 import '../../domain/models/shared_note.dart';
 
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 8;
+  static const schemaVersion = 9;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -47,6 +48,14 @@ class AppDatabase {
         if (oldVersion < 6) await db.execute(_preferencesSchema);
         if (oldVersion < 7) await db.execute(_sortPreferencesSchema);
         if (oldVersion < 8) await db.execute(_cachePreferencesSchema);
+        if (oldVersion < 9) {
+          final columns = await db.rawQuery('PRAGMA table_info(notebooks)');
+          if (!columns.any((row) => row['name'] == 'is_dirty')) {
+            await db.execute(
+              'ALTER TABLE notebooks ADD COLUMN is_dirty INTEGER NOT NULL DEFAULT 0',
+            );
+          }
+        }
       },
     );
     return AppDatabase._(database);
@@ -513,14 +522,22 @@ class AppDatabase {
     });
   }
 
-  Future<String> noteSnapshotFingerprint(String accountId) async => jsonEncode(
-    await raw.query(
-      'notes',
-      where: 'account_id = ?',
-      whereArgs: [accountId],
-      orderBy: 'server_id',
-    ),
-  );
+  // Include notebooks as reset can discard their offline edits too.
+  Future<String> noteSnapshotFingerprint(String accountId) =>
+      raw.transaction((txn) => _snapshotFingerprint(txn, accountId));
+
+  static Future<String> _snapshotFingerprint(
+    DatabaseExecutor db,
+    String accountId,
+  ) async => jsonEncode([
+    for (final table in ['notes', 'notebooks'])
+      await db.query(
+        table,
+        where: 'account_id = ?',
+        whereArgs: [accountId],
+        orderBy: 'server_id',
+      ),
+  ]);
 
   Future<void> replaceSnapshot({
     required Account account,
@@ -539,16 +556,18 @@ class AppDatabase {
         limit: 1,
       );
       if (expectedNoteSnapshot == null) {
-        if (pending.isNotEmpty) throw StateError('unsyncedChanges');
-      } else {
-        final current = jsonEncode(
-          await txn.query(
-            'notes',
-            where: 'account_id = ?',
-            whereArgs: [account.cacheKey],
-            orderBy: 'server_id',
-          ),
+        final pendingBooks = await txn.query(
+          'notebooks',
+          columns: ['server_id'],
+          where: 'account_id = ? AND is_dirty = 1',
+          whereArgs: [account.cacheKey],
+          limit: 1,
         );
+        if (pending.isNotEmpty || pendingBooks.isNotEmpty) {
+          throw StateError('unsyncedChanges');
+        }
+      } else {
+        final current = await _snapshotFingerprint(txn, account.cacheKey);
         if (current != expectedNoteSnapshot) {
           throw StateError('localChangesDuringReset');
         }
@@ -632,6 +651,16 @@ class AppDatabase {
           columns: ['server_id'],
           where: 'account_id = ? AND server_id = ? AND is_dirty = 1',
           whereArgs: [account.cacheKey, note.noteId],
+          limit: 1,
+        );
+        if (pending.isNotEmpty) throw StateError('localChangesDuringSync');
+      }
+      for (final notebook in notebooks) {
+        final pending = await txn.query(
+          'notebooks',
+          columns: ['server_id'],
+          where: 'account_id = ? AND server_id = ? AND is_dirty = 1',
+          whereArgs: [account.cacheKey, notebook.notebookId],
           limit: 1,
         );
         if (pending.isNotEmpty) throw StateError('localChangesDuringSync');
@@ -721,16 +750,116 @@ class AppDatabase {
             sequence: row['sequence']! as int,
             usn: row['usn']! as int,
             numberNotes: row['actual_number_notes']! as int,
+            isDirty: row['is_dirty'] == 1,
             isDeleted: false,
           ),
         )
         .toList(growable: false);
   }
 
-  Future<void> cacheNotebook(String accountId, Notebook notebook) async {
+  static Notebook _notebookFromRow(Map<String, Object?> row) => Notebook(
+    notebookId: row['server_id']! as String,
+    parentNotebookId: row['parent_server_id']! as String,
+    title: row['title']! as String,
+    sequence: row['sequence']! as int,
+    usn: row['usn']! as int,
+    numberNotes: row['number_notes']! as int,
+    isDeleted: false,
+    isDirty: row['is_dirty'] == 1,
+  );
+
+  Future<List<Notebook>> dirtyNotebooks(String accountId) async =>
+      (await raw.query(
+        'notebooks',
+        where: 'account_id = ? AND is_dirty = 1',
+        whereArgs: [accountId],
+        orderBy: 'server_id',
+      )).map(_notebookFromRow).toList();
+
+  Future<void> editLocalNotebook(
+    String accountId,
+    String notebookId, {
+    String? title,
+    String? parentId,
+  }) => raw.transaction((txn) async {
+    final rows = await txn.query(
+      'notebooks',
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+    );
+    final books = rows.map(_notebookFromRow).toList();
+    final source = books.where((n) => n.notebookId == notebookId).firstOrNull;
+    if (source == null) throw StateError('notebookMissing');
+    if (source.usn <= 0) throw StateError('notebookNotSynced');
+    final nextTitle = title?.trim() ?? source.title;
+    if (nextTitle.isEmpty) throw const FormatException('请输入笔记本名称');
+    final nextParent = parentId ?? source.parentNotebookId;
+    if (nextParent != source.parentNotebookId &&
+        !canMoveNotebook(books, notebookId, nextParent)) {
+      throw const FormatException('目标笔记本无效，不能移到自身、子级或循环层级下');
+    }
+    if (source.title == nextTitle && source.parentNotebookId == nextParent) {
+      return;
+    }
+    await txn.update(
+      'notebooks',
+      {'title': nextTitle, 'parent_server_id': nextParent, 'is_dirty': 1},
+      where: 'account_id = ? AND server_id = ?',
+      whereArgs: [accountId, notebookId],
+    );
+  });
+
+  Future<void> markNotebookUploaded(
+    String accountId,
+    Notebook local,
+    Notebook remote,
+  ) => raw.transaction((txn) async {
+    if (remote.notebookId != local.notebookId ||
+        remote.usn <= local.usn ||
+        remote.isDeleted ||
+        remote.title != local.title ||
+        remote.parentNotebookId != local.parentNotebookId ||
+        remote.sequence != local.sequence) {
+      throw StateError('invalidNotebookUploadResponse');
+    }
+    final rows = await txn.query(
+      'notebooks',
+      where: 'account_id = ? AND server_id = ?',
+      whereArgs: [accountId, local.notebookId],
+    );
+    if (rows.isEmpty) throw StateError('notebookMissing');
+    final current = _notebookFromRow(rows.single);
+    if (current.usn != local.usn) throw StateError('localChangesDuringSync');
+    final unchanged =
+        current.title == local.title &&
+        current.parentNotebookId == local.parentNotebookId &&
+        current.sequence == local.sequence;
+    await txn.update(
+      'notebooks',
+      {
+        'usn': remote.usn,
+        'number_notes': remote.numberNotes,
+        'is_dirty': unchanged ? 0 : 1,
+      },
+      where: 'account_id = ? AND server_id = ?',
+      whereArgs: [accountId, local.notebookId],
+    );
+  });
+
+  Future<void> cacheNotebook(
+    String accountId,
+    Notebook notebook,
+  ) => raw.transaction((txn) async {
     // Do not advance the global cursor: other remote changes may precede this
     // write and still need to be downloaded by the next sync.
-    await raw.insert('notebooks', {
+    final pending = await txn.query(
+      'notebooks',
+      columns: ['server_id'],
+      where: 'account_id = ? AND server_id = ? AND is_dirty = 1',
+      whereArgs: [accountId, notebook.notebookId],
+    );
+    if (pending.isNotEmpty) throw StateError('localChangesDuringSync');
+    await txn.insert('notebooks', {
       'account_id': accountId,
       'server_id': notebook.notebookId,
       'parent_server_id': notebook.parentNotebookId,
@@ -739,7 +868,7 @@ class AppDatabase {
       'usn': notebook.usn,
       'number_notes': notebook.numberNotes,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
-  }
+  });
 
   Future<Map<String, int>> tagCounts(String accountId) async {
     final rows = await raw.query(
@@ -1483,6 +1612,7 @@ class AppDatabase {
       sequence INTEGER NOT NULL DEFAULT 0,
       usn INTEGER NOT NULL DEFAULT 0,
       number_notes INTEGER NOT NULL DEFAULT 0,
+      is_dirty INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (account_id, server_id),
       FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
     )''',

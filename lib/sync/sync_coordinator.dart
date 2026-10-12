@@ -182,6 +182,66 @@ class SyncCoordinator {
     String token,
     SyncProgressCallback? onProgress,
   ) async {
+    final allBooks = await _database.notebooks(account.cacheKey);
+    final pendingBooks = allBooks.where((book) => book.isDirty).toList();
+    final byId = {for (final book in allBooks) book.notebookId: book};
+    final dirtyById = {for (final book in pendingBooks) book.notebookId: book};
+    final notebooks = <Notebook>[];
+    final visiting = <String>{};
+    final visited = <String>{};
+    void visit(String id) {
+      if (visited.contains(id)) return;
+      if (!visiting.add(id)) throw StateError('notebookParentCycle');
+      final book = byId[id];
+      if (book == null) throw StateError('notebookParentMissing');
+      if (book.parentNotebookId.isNotEmpty) visit(book.parentNotebookId);
+      visiting.remove(id);
+      visited.add(id);
+      if (dirtyById[id] != null) notebooks.add(dirtyById[id]!);
+    }
+
+    // Upload final parents first, including through unchanged ancestors. This
+    // avoids transient cycles when reversing an existing parent/child relation.
+    for (final book in pendingBooks) {
+      visit(book.notebookId);
+    }
+    for (final local in notebooks) {
+      Notebook remote;
+      try {
+        remote = await _api.saveNotebook(
+          server: account.server,
+          token: token,
+          title: local.title,
+          existing: local,
+          parentNotebookId: local.parentNotebookId,
+        );
+      } on ApiException catch (error) {
+        if (error.code != 'conflict' || error.statusCode != null) rethrow;
+        // A previous upload may have committed before its response was lost.
+        // Only acknowledge an exact desired result; never overwrite a conflict.
+        final changed = await _allNotebooks(
+          account,
+          token,
+          null,
+          afterUsn: local.usn,
+        );
+        final found = changed
+            .where((n) => n.notebookId == local.notebookId)
+            .firstOrNull;
+        if (found == null ||
+            found.isDeleted ||
+            found.title != local.title ||
+            found.parentNotebookId != local.parentNotebookId ||
+            found.sequence != local.sequence) {
+          throw StateError('笔记本存在远端冲突，本地修改已保留；请核对服务端后处理');
+        }
+        remote = found;
+      }
+      await _database.markNotebookUploaded(account.cacheKey, local, remote);
+    }
+    if ((await _database.dirtyNotebooks(account.cacheKey)).isNotEmpty) {
+      throw StateError('localChangesDuringSync');
+    }
     final dirty = await _database.dirtyNotes(account.cacheKey);
     onProgress?.call(SyncProgress(SyncStage.uploading, 0));
     for (var index = 0; index < dirty.length; index++) {

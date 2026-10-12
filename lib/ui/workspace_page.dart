@@ -115,6 +115,7 @@ class _WorkspacePageState extends State<WorkspacePage>
   var _syncing = false;
   var _loggingOut = false;
   Set<String> _pendingNoteIds = {};
+  Set<String> _pendingNotebookIds = {};
   String? _syncError;
   int _pendingRead = 0;
   Uint8List? _avatar;
@@ -453,8 +454,15 @@ class _WorkspacePageState extends State<WorkspacePage>
       final ids = await widget.repository.pendingNoteIds(
         widget.session.account.cacheKey,
       );
+      final books = await _notebooks;
       if (mounted && generation == _pendingRead) {
-        setState(() => _pendingNoteIds = ids);
+        setState(() {
+          _pendingNoteIds = ids;
+          _pendingNotebookIds = books
+              .where((n) => n.isDirty)
+              .map((n) => n.notebookId)
+              .toSet();
+        });
       }
     } on Object catch (error) {
       if (mounted) setState(() => _syncError = '无法读取待同步状态：$error');
@@ -462,7 +470,8 @@ class _WorkspacePageState extends State<WorkspacePage>
   }
 
   Widget _syncIcon() => Badge(
-    isLabelVisible: _pendingNoteIds.isNotEmpty,
+    isLabelVisible:
+        _pendingNoteIds.isNotEmpty || _pendingNotebookIds.isNotEmpty,
     backgroundColor: const Color(0xffb9d9c4),
     child: const Icon(Icons.sync),
   );
@@ -1118,8 +1127,9 @@ class _WorkspacePageState extends State<WorkspacePage>
         final pending = await widget.repository.pendingNoteIds(
           widget.session.account.cacheKey,
         );
+        final pendingBooks = (await _notebooks).any((n) => n.isDirty);
         if (!mounted) return;
-        if (pending.isNotEmpty) {
+        if (pending.isNotEmpty || pendingBooks) {
           await showSyncProgress(
             context,
             synchronize: (progress) => widget.repository.prepareLogout(
@@ -1174,6 +1184,7 @@ class _WorkspacePageState extends State<WorkspacePage>
         id = byId[id]?.parentNotebookId ?? '';
       }
     });
+    await _refreshPending();
   }
 
   Future<void> _editNotebook({Notebook? existing, String parentId = ''}) async {
@@ -1194,6 +1205,7 @@ class _WorkspacePageState extends State<WorkspacePage>
           widget.session.account.cacheKey,
         );
       });
+      await _refreshPending();
     }
   }
 
@@ -1377,6 +1389,15 @@ class _WorkspacePageState extends State<WorkspacePage>
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (notebook.isDirty)
+                      const Tooltip(
+                        message: '笔记本待同步',
+                        child: Icon(
+                          Icons.circle,
+                          size: 8,
+                          color: Color(0xff173d38),
+                        ),
+                      ),
                     Text('${notebook.numberNotes}'),
                     PopupMenuButton<String>(
                       onSelected: (action) {
@@ -1408,9 +1429,11 @@ class _WorkspacePageState extends State<WorkspacePage>
               child: CircularProgressIndicator(),
             )
           : FloatingActionButton(
-              tooltip: _pendingNoteIds.isEmpty
+              tooltip: _pendingNoteIds.isEmpty && _pendingNotebookIds.isEmpty
                   ? '立即同步'
-                  : '立即同步（${_pendingNoteIds.length} 篇待上传）',
+                  : _pendingNotebookIds.isEmpty
+                  ? '立即同步（${_pendingNoteIds.length} 篇待上传）'
+                  : '立即同步（${_pendingNoteIds.length} 篇笔记、${_pendingNotebookIds.length} 个笔记本待上传）',
               onPressed: _sync,
               child: _syncIcon(),
             ),

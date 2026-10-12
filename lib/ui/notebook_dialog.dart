@@ -43,13 +43,19 @@ class _NotebookDialogState extends State<NotebookDialog> {
       _error = null;
     });
     try {
-      await widget.repository.saveNotebook(
-        widget.session,
-        title: _title.text,
-        existing: widget.existing,
-        parentNotebookId:
-            widget.existing?.parentNotebookId ?? widget.parentNotebookId,
-      );
+      if (widget.existing != null) {
+        await widget.repository.queueNotebookRename(
+          widget.session,
+          widget.existing!.notebookId,
+          _title.text,
+        );
+      } else {
+        await widget.repository.saveNotebook(
+          widget.session,
+          title: _title.text,
+          parentNotebookId: widget.parentNotebookId,
+        );
+      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
       if (mounted) {
@@ -83,7 +89,7 @@ class _NotebookDialogState extends State<NotebookDialog> {
             decoration: InputDecoration(labelText: '笔记本名称', errorText: _error),
           ),
           const SizedBox(height: 12),
-          const Text('此操作需要连接服务器。'),
+          Text(widget.existing == null ? '此操作需要连接服务器。' : '先保存到本机，下次同步时上传。'),
           if (_busy) const LinearProgressIndicator(),
         ],
       ),

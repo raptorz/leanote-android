@@ -18,8 +18,8 @@
 - 最近提交：`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
 - 本轮起始未提交改动全部属于上一轮缓存偏好持久化：schema v8、repository、workspace、测试和 docs；没有把它们覆盖。
 - 缓存偏好：静态检查无问题，完整测试 463 项通过（上一轮日志 `/private/tmp/gemsnote-cache-pref-full.log`）；本轮已核对实际差异，提交前继续核验。
-- 本轮 Android 构建实际失败：Gradle 9.3.1 all.zip 损坏，`zip END header not found`。日志 `/private/tmp/gemsnote-goal-build.log`，当前缓存文件 55,145,614 字节。尚未成功生成 APK，也没有原生设备验收证据。
-- 当前任务：API2 JSON/表单禁止重定向已实现，核心合同 59 项、全量 478 项测试通过；已修复损坏 Gradle 缓存并开始重新构建，尚未获得 APK 结果。下一步继续离线笔记本/资源与双平台分享。
+- Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
+- 当前任务：已有笔记本离线重命名/移动及队列保护已实现，最终验证/提交中。下一步继续双平台分享接收及其余未完成迁移；离线新建等仍见缺口清单。
 
 ## 功能对照索引
 
@@ -34,7 +34,7 @@
 | M03 笔记离线增改、自动保存 | desktop-app/db/note_repo.go、sync/push.go | /api2/client/note/add、update | ui/edit/NoteEditActivity | data/database/app_database.dart、ui/note_editor_page.dart；API2 | 核心已实现；本地保存/后台切换测试已覆盖，输入法与杀进程验收待做 |
 | M04 Markdown 工具及阅读 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/markdown_editing.dart、markdown_note_body.dart；同步 API2 | 部分；复杂语法与旧编辑器工具逐项对照；markdown_tools_test.dart 等，原文不得被预览改写 |
 | M05 富文本与表格 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/visual_html_editor.dart、safe_html_note_body.dart；同步 API2 | 部分；复杂格式、合并单元格、可视化资源插入未完；WebView 输入法/选区/撤销真机验证 |
-| M06 笔记本树及离线操作 | desktop-app/db/notebook_repo.go、api/client_api.go | /api2/client/notebook/add、update | service/NotebookService | ui/notebook_dialog.dart、move_notebook_dialog.dart；API2 | 联网增改移动已实现；离线队列未做，需临时 ID/依赖笔记/失败恢复验证 |
+| M06 笔记本树及离线操作 | desktop-app/db/notebook_repo.go、api/client_api.go | /api2/client/notebook/add、update | service/NotebookService | ui/notebook_dialog.dart、move_notebook_dialog.dart；API2 | 在线新建已实现；已有笔记本重命名/移动已改为离线保存、API2 同步队列（schema v9）；离线新建/不确定结果恢复、完整冲突处理仍未完 |
 | M07 笔记本删除 | desktop-app/api/client_api.go DeleteNotebook | api/ApiNotebookController.DeleteNotebook → service/NotebookService.DeleteNotebookForce | service/NotebookService | 暂未接入 | 服务端合同阻塞：子级/笔记处理及 USN 删除标记；仅提出需求 |
 | M08 移动、星标、回收站 | desktop-app/db/note_repo.go、sync/push.go | ApiNoteController.UpdateNote/DeleteTrash | service/NoteService | ui/note_reader_page.dart、workspace_page.dart；API2 | 核心已实现；trash_delete_test.dart、pending_sync_test.dart；跨客户端回收站回归待验证 |
 | M09 完整复制与冲突副本 | desktop-app/webapi/local.go、sync/push.go | NoteController.CopyNote、ApiNoteController | service/NoteService | domain/models/conflict_copy.dart；API2 | 仅无资源保守子集；附件/图片克隆、复杂 HTML、删除冲突未完；不得丢资源或覆盖原笔记 |
@@ -53,7 +53,7 @@
 | M22 导入导出、对外分享 | desktop-app/webapi/local.go | 本地操作无需新接口 | ui/edit/NoteEditActivity | services/note_importer.dart、note_exporter.dart、note_sharer.dart | 原文导入导出及系统分享已实现；完整含资源导出仍待对照；Android/iOS 文件与分享面板验收 |
 | M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity | Android 纯文本已实现；Android 文件/图片/多项及 iOS Share Extension 未实现；冷/热启动、队列持久化/账号确认/幂等测试 |
 | M24 Android 小组件 | Desktop 无等价 | 本地快照，无新接口 | appwidget/NoteAppWidget、WidgetService、RedirActivity | 未实现 | 笔记列表/新建入口、账号切换、锁屏隐私、刷新及系统生命周期验收 |
-| M25 Android/iOS 发布与运行 | desktop-app/.github/workflows 为发布参考 | 无 | 旧 Android 构建参考 | android、ios、.github/workflows | 损坏 Gradle 包已修复，Android 构建结果待确认；iOS 模拟器/签名/设备验收未完成；不自动发布 |
+| M25 Android/iOS 发布与运行 | desktop-app/.github/workflows 为发布参考 | 无 | 旧 Android 构建参考 | android、ios、.github/workflows | 损坏 Gradle 包已修复，Android debug APK 已构建成功；iOS 模拟器/签名/设备验收未完成；不自动发布 |
 | M26 API2 边界与网络错误 | desktop-app/api/client.go | conf/routes、Api2Controller、api/* | 禁止复用旧请求 | lib/core/api/api2_client.dart | 未发现直接 Legacy 业务调用；JSON/表单已禁止自动重定向，真实 HTTP 测试覆盖 GET/JSON/form × 301/302/303/307/308；旧正文路径仅解析 FileId，绝不请求原路径 |
 
 ## API2 审计与接口缺口
@@ -89,9 +89,9 @@ M26：`test/core/api2_redirect_test.dart` 使用本地真实 HTTP server + IOCli
 `17f277867f6914d61b1aa02efab1ba7bb439ad652ca485cd8ca6842fccec6e43`；ZIP 全部条目 CRC 检查通过。
 已将损坏缓存备份至 `/private/tmp/gemsnote-gradle-corrupt-backup.zip`，并以同版本正确包替换。
 未更改仓库 Gradle 版本或删除其他缓存。
-重新执行 `flutter build apk --debug --no-pub`，进程工具 session **32002** 尚运行；
-日志 `/private/tmp/gemsnote-goal-build-repaired.log`，Gradle daemon PID 40720。
-恢复时先轮询原 session 或核对实际进程，不能仅凭本段认定仍在运行或重启构建。
+重新执行 `flutter build apk --debug --no-pub`，进程工具 session **32002** 已成功退出（后续进展）；
+首次成功日志 `/private/tmp/gemsnote-first-successful-build.log`，当时 Gradle daemon PID 40720。
+该 session 已结束；后续增量构建日志为 `/private/tmp/gemsnote-goal-build-repaired.log`。
 M26 改动静态分析最终无问题；全量 478 测试通过。整个迁移目标仍未完成。
 
 ## 下一项接口核对：M06 离线笔记本
@@ -115,13 +115,40 @@ B05（后续服务端需求）：增加创建幂等标识或查询创建结果�
 - `test/data/account_switch_test.dart` 覆盖服务器/用户隔离、dirty/游标/偏好保留、恢复、凭据丢失、上传互斥、新登录失败回滚。
 - `test/account_switcher_page_test.dart` 覆盖工作区重建、资源任务等待、读写失败/重试、返回保护、取消添加及登录页恢复。
 - `test/shared_text_inbox_test.dart` 验证旧实例销毁后的新平台消息仍可接收。
-- Android 构建 session 32002 仍运行；已完成 NDK 28.2.13676358 下载及安装。线程栈证实此前在 SDK LegacyDownloader 等待网络，并非源码编译失败。原生多账号/分享冷启动验收仍待设备。
+- 当时 Android 构建 session 32002 尚运行（现已成功退出）；已完成 NDK 28.2.13676358 下载及安装。线程栈证实此前在 SDK LegacyDownloader 等待网络，并非源码编译失败。原生多账号/分享冷启动验收仍待设备。
 
 M21 最终验证：`flutter analyze --no-pub` 无问题；`flutter test --no-pub` **488 项全部通过**，
 日志 `/private/tmp/gemsnote-multiaccount-full.log`。测试过程中修正了一个未切换到登出态的测试夹具，
 最终全量重新通过，没有删除失败测试或缩减断言。
-构建 session 32002 已继续安装 Android SDK Platform 36/34，尚未返回终态；不要重新启动重复构建。
+构建 session 32002 随后完成 Android SDK Platform 36/34 安装，并已成功退出。
 下一优先项继续 M06 离线笔记本操作及 M23 双平台分享接收；服务端幂等/删除/标签缺口维持只读记录。
 
 M21 已提交 `5700811`。本机构建实际生成 `android/.kotlin/sessions/*.salive`，
 已加入精确忽略规则 `/android/.kotlin/`，不跟踪编译器缓存，也没有删除缓存。
+
+## M06 已有笔记本离线重命名与移动
+
+- 对照 Desktop notebook dirty 队列与父节点优先上传，服务端 `ApiNotebook.UpdateNotebook` / `NotebookService.UpdateNotebookApi`：携带源 USN，成功递增 USN；冲突不覆盖。
+- schema v9 为 notebooks 增加 is_dirty；重命名只修改 title，移动只修改 parent，事务内检查当前层级/非法目标，保存无需网络。新建仍需联网（B05 不变）。
+- 同步先上传待修改笔记本，再上传笔记；按最终父级链排序，父节点先于子节点，避免父子关系反转的临时循环。循环/缺失父级保留待同步状态并报错。
+- 响应只确认提交快照，等待期间的新编辑保留 dirty 并更新基础 USN；不会改全局下载游标。上传回包校验 ID/标题/父级/序号/USN。
+- 上次回包丢失时，下次发生 conflict 会通过 API2 增量笔记本列表核对：仅目标字段完全相同时确认成功；真实冲突保留本地修改并提示，不猜测覆盖。
+- 普通下载合并/在线回包不能覆盖 dirty 笔记本。重新同步沿用确认流程，其快照指纹扩展至笔记和笔记本，拒绝下载期间产生的新修改。
+- 退出前尝试上传笔记与笔记本，失败需使用既有明确保留本地修改的退出选项；待同步笔记本显示圆点，同步按钮统计包括笔记本。
+- UI 的已有笔记本重命名和移动默认进入本地队列；保留新建联网入口。界面明确说明保存本机后下次同步上传。
+- 测试：`test/data/offline_notebook_test.dart` 覆盖重启/升级、非法层级、无变化、账号隔离、迟到回包、失败回滚、重置与退出、丢失回包核对及父子反转上传顺序；`test/offline_notebook_dialog_test.dart` 验证界面实际走离线路径与待同步指示。
+- 本项不是整个 M06 完成：离线新建、选择性冲突解决界面、删除和跨客户端完整父级链校验仍待实现或服务端支持。真实冲突不自动丢弃；可先核对服务端，必要时明确确认重新同步，后者会丢弃该账号待上传修改。
+
+## Android 构建验证更新
+
+原 session 32002 已成功生成 APK（首次构建 3995.5 秒，含下载 NDK、Android 36/34、CMake）。
+源码收敛后增量构建也通过（8.3 秒），没有修改仓库 Gradle/AGP 版本。
+产物 `build/app/outputs/flutter-apk/app-debug.apk`（约 162 MiB，debug，未提交）。
+`aapt dump permissions` 确认只有 INTERNET 以及应用自身 DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION，
+没有 READ_EXTERNAL_STORAGE 或 READ_MEDIA_*。这证明 APK 合并结果，不等于外部应用打开/分享真机已验证。
+原生安装运行、iOS 签名与分享扩展仍待后续完成。
+
+M06 本批最终验证：静态检查无问题；完整测试 **501 项全部通过**
+（`/private/tmp/gemsnote-offline-book-full.log`）。最终原子快照读取改动后的 Android debug
+增量构建通过（11.5 秒，session 62456 已退出 0），APK 权限复查符合预期。
+本轮无构建进程需要继续等待。下一轮直接从 Git/本文件恢复并推进 M23 双平台分享接收。

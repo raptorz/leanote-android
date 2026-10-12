@@ -7,6 +7,7 @@ class Notebook {
     required this.usn,
     required this.numberNotes,
     required this.isDeleted,
+    this.isDirty = false,
   });
 
   final String notebookId;
@@ -16,6 +17,7 @@ class Notebook {
   final int usn;
   final int numberNotes;
   final bool isDeleted;
+  final bool isDirty;
 
   factory Notebook.fromJson(Map<String, Object?> json) => Notebook(
     notebookId: json['NotebookId']?.toString() ?? '',
