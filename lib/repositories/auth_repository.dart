@@ -399,6 +399,30 @@ class AuthRepository {
     }
   }
 
+  Future<List<Account>> savedAccounts() async {
+    final result = <Account>[];
+    for (final account in await _database.cachedAccounts()) {
+      final token = await _sessions.read(account.cacheKey);
+      if (token != null && token.isNotEmpty) result.add(account);
+    }
+    return result;
+  }
+
+  /// Switching is local: keep dirty rows and credentials for every other account.
+  Future<StoredSession> switchAccount(String accountKey) async {
+    if (_sync.isBusy) throw StateError('syncInProgress');
+    final accounts = await _database.cachedAccounts();
+    final account = accounts.where((a) => a.cacheKey == accountKey).firstOrNull;
+    if (account == null) throw StateError('accountCacheMissing');
+    final token = await _sessions.read(accountKey);
+    if (token == null || token.isEmpty) {
+      throw StateError('accountLoginRequired');
+    }
+    if (_sync.isBusy) throw StateError('syncInProgress');
+    await _database.activateCachedAccount(account);
+    return StoredSession(account: account, token: token);
+  }
+
   Future<StoredSession?> restore() async {
     final account = await _database.activeAccount();
     if (account == null) return null;
@@ -431,23 +455,35 @@ class AuthRepository {
     required bool resetCache,
     SyncProgressCallback? onProgress,
   }) async {
-    final session = login.session;
-    if (login.hasCache && resetCache) {
-      await _sync.resetFromServer(
-        account: session.account,
-        token: session.token,
-        onProgress: onProgress,
-      );
-    } else if (!login.hasCache) {
-      await _sync.downloadFreshSnapshot(
-        account: session.account,
-        token: session.token,
-        onProgress: onProgress,
-      );
+    final previous = await _database.activeAccount();
+    try {
+      final session = login.session;
+      if (login.hasCache && resetCache) {
+        await _sync.resetFromServer(
+          account: session.account,
+          token: session.token,
+          onProgress: onProgress,
+        );
+      } else if (!login.hasCache) {
+        await _sync.downloadFreshSnapshot(
+          account: session.account,
+          token: session.token,
+          onProgress: onProgress,
+        );
+      }
+      await _sessions.write(session.account.cacheKey, session.token);
+      await _database.activateCachedAccount(session.account);
+      return session;
+    } on Object {
+      // A fresh snapshot may have activated the new account before secure
+      // storage failed. Keep the visible account and restart behavior consistent.
+      if (previous != null) {
+        await _database.activateCachedAccount(previous);
+      } else {
+        await _database.deactivate(login.session.account.cacheKey);
+      }
+      rethrow;
     }
-    await _sessions.write(session.account.cacheKey, session.token);
-    await _database.activateCachedAccount(session.account);
-    return session;
   }
 
   Future<void> prepareLogout(

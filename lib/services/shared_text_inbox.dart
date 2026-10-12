@@ -46,6 +46,7 @@ class SharedTextInbox extends ChangeNotifier {
       supported =
           supported ??
           (!kIsWeb && defaultTargetPlatform == TargetPlatform.android);
+  static final _handlerOwners = <(BinaryMessenger, String), SharedTextInbox>{};
   final MethodChannel _channel;
   final bool supported;
   SharedText? pending;
@@ -54,7 +55,8 @@ class SharedTextInbox extends ChangeNotifier {
   int _generation = 0;
 
   Future<void> start() async {
-    if (!supported) return;
+    if (!supported || _disposed) return;
+    _handlerOwners[(_channel.binaryMessenger, _channel.name)] = this;
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'changed') await refresh();
     });
@@ -90,7 +92,11 @@ class SharedTextInbox extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    if (supported) _channel.setMethodCallHandler(null);
+    final key = (_channel.binaryMessenger, _channel.name);
+    if (supported && identical(_handlerOwners[key], this)) {
+      _handlerOwners.remove(key);
+      _channel.setMethodCallHandler(null);
+    }
     super.dispose();
   }
 }

@@ -401,3 +401,22 @@ v7 升级只建表，保留正文、默认编辑器和排序偏好。
 验证：`flutter test test/data/default_editor_test.dart test/account_file_cache_page_test.dart`，
 覆盖 v7 升级、账号隔离、重启/退出/快照替换、失败重试、保存等待期间禁用操作，
 以及恢复设置不发起下载。原生生命周期与弱网仍需设备验收。
+
+## 多账号切换
+
+`AuthRepository.savedAccounts` 从账号缓存列举身份，并检查对应安全存储 token；
+界面仅显示账号元数据。`switchAccount` 复用账号缓存键（服务器 + 用户 ID），
+拒绝正在同步/上传、缺失缓存或凭据的切换，再事务激活目标账号；不会联网或清除 dirty。
+`completeLogin` 在新快照写入后安全存储失败时回滚原活动身份，防止重启进入半完成的登录。
+
+`AccountSwitcherPage` 从工作区入口先执行资源队列停止/等待，完成前不能返回或重复提交。
+新登录仍复用原登录页，等待期间禁止系统返回；取消添加保持当前身份。
+根节点为每次会话切换生成新工作区 key，包括同账号重新登录，避免遗留列表、计时器和分享状态。
+根登录页提供恢复其他已登录账号的入口，不触发自动头像联网刷新。
+
+`SharedTextInbox` 记录平台通道当前 owner，只有当前 owner 销毁才清理 handler，
+覆盖 Flutter 替换工作区时新实例先初始化、旧实例后销毁的顺序。
+此变更不修改分享内容和目标账号绑定规则。
+
+相关验证：`test/data/account_switch_test.dart`、`test/account_switcher_page_test.dart`、
+`test/shared_text_inbox_test.dart`。仍需 Android/iOS 安全存储与生命周期的设备验收。

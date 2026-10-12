@@ -311,6 +311,24 @@ class AppDatabase {
     );
   }
 
+  Future<List<Account>> cachedAccounts() async {
+    final rows = await raw.query(
+      'accounts',
+      orderBy: 'server, username, user_id',
+    );
+    return rows
+        .map(
+          (row) => Account(
+            userId: row['user_id']! as String,
+            server: Uri.parse(row['server']! as String),
+            username: row['username']! as String,
+            email: row['email']! as String,
+            logo: row['logo']! as String,
+          ),
+        )
+        .toList();
+  }
+
   Future<Account?> activeAccount() async {
     final rows = await raw.query('accounts', where: 'is_active = 1', limit: 1);
     if (rows.isEmpty) return null;

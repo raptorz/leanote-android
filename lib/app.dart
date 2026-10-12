@@ -40,6 +40,7 @@ class _RootGateState extends State<_RootGate> {
   StoredSession? _session;
   var _ready = false;
   bool _freshLogin = false;
+  int _sessionGeneration = 0;
 
   @override
   void initState() {
@@ -65,6 +66,10 @@ class _RootGateState extends State<_RootGate> {
     if (_session == null) {
       return LoginPage(
         repository: widget.repository,
+        onSessionRestored: (session) => setState(() {
+          _session = session;
+          _freshLogin = false;
+        }),
         onSignedIn: (session) => setState(() {
           _session = session;
           _freshLogin = true;
@@ -72,6 +77,12 @@ class _RootGateState extends State<_RootGate> {
       );
     }
     return WorkspacePage(
+      key: ValueKey((_session!.account.cacheKey, _sessionGeneration)),
+      onSessionChanged: (session) => setState(() {
+        _sessionGeneration++;
+        _session = session;
+        _freshLogin = false;
+      }),
       repository: widget.repository,
       session: _session!,
       refreshAvatarOnStart: _freshLogin,

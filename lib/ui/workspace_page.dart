@@ -28,6 +28,7 @@ import 'note_search_page.dart';
 import 'notebook_dialog.dart';
 import 'move_notebook_dialog.dart';
 import 'account_page.dart';
+import 'account_switcher_page.dart';
 import 'about_dialog.dart';
 import 'account_avatar.dart';
 import 'shared_notes_page.dart';
@@ -41,6 +42,7 @@ class WorkspacePage extends StatefulWidget {
     required this.repository,
     required this.session,
     required this.onSignedOut,
+    this.onSessionChanged,
     this.refreshAvatarOnStart = false,
     this.sharedTextInbox,
     super.key,
@@ -49,6 +51,7 @@ class WorkspacePage extends StatefulWidget {
   final AuthRepository repository;
   final StoredSession session;
   final VoidCallback onSignedOut;
+  final ValueChanged<StoredSession>? onSessionChanged;
   final bool refreshAvatarOnStart;
   final SharedTextInbox? sharedTextInbox;
 
@@ -277,6 +280,7 @@ class _WorkspacePageState extends State<WorkspacePage>
 
   void _startFileCache() {
     if (_cacheDialogOpen ||
+        _accountOpen ||
         !_autoCacheFiles ||
         _cachePreferenceBusy ||
         !_foreground ||
@@ -1069,6 +1073,41 @@ class _WorkspacePageState extends State<WorkspacePage>
     }
   }
 
+  Future<void> _switchAccount() async {
+    if (_syncing ||
+        _loggingOut ||
+        _signedOut ||
+        _accountOpen ||
+        _cacheDialogOpen ||
+        _shareOpen) {
+      return;
+    }
+    _accountOpen = true;
+    try {
+      final session = await Navigator.push<StoredSession>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AccountSwitcherPage(
+            repository: widget.repository,
+            current: widget.session,
+            beforeLoad: _stopFileCache,
+          ),
+        ),
+      );
+      if (!mounted || session == null) return;
+      _signedOut = true;
+      _autoSyncTimer?.cancel();
+      widget.onSessionChanged?.call(session);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('切换账号失败，请重试')));
+      }
+    } finally {
+      _accountOpen = false;
+    }
+  }
+
   Future<void> _logout() async {
     if (_loggingOut || _syncing) return;
     setState(() => _loggingOut = true);
@@ -1201,6 +1240,7 @@ class _WorkspacePageState extends State<WorkspacePage>
             tooltip: '账号菜单',
             onSelected: (value) {
               if (value == 'defaultEditor') _chooseDefaultEditor();
+              if (value == 'switchAccount') _switchAccount();
               if (value == 'account') {
                 _openAccount();
               }
@@ -1228,6 +1268,12 @@ class _WorkspacePageState extends State<WorkspacePage>
             },
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'account', child: Text('账号')),
+              if (widget.onSessionChanged != null)
+                PopupMenuItem(
+                  value: 'switchAccount',
+                  enabled: !_syncing && !_loggingOut,
+                  child: const Text('切换或添加账号'),
+                ),
               const PopupMenuItem(value: 'defaultEditor', child: Text('默认编辑器')),
               const PopupMenuItem(value: 'manageCache', child: Text('离线资源缓存')),
               const PopupMenuItem(value: 'sync', child: Text('立即同步')),

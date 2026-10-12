@@ -119,6 +119,34 @@ void main() {
     },
   );
 
+  test(
+    'disposing old workspace does not remove the new share handler',
+    () async {
+      var body = 'old';
+      messenger.setMockMethodCallHandler(
+        channel,
+        (_) async => {'id': id, 'text': body},
+      );
+      final old = SharedTextInbox(channel: channel, supported: true);
+      final next = SharedTextInbox(channel: channel, supported: true);
+      await old.start();
+      await next.start();
+      old.dispose();
+      body = 'new';
+      final delivered = Completer<void>();
+      TestDefaultBinaryMessengerBinding.instance.channelBuffers.push(
+        channel.name,
+        const StandardMethodCodec().encodeMethodCall(
+          const MethodCall('changed'),
+        ),
+        (_) => delivered.complete(),
+      );
+      await delivered.future;
+      expect(next.pending!.text, 'new');
+      next.dispose();
+    },
+  );
+
   test('unsupported platforms do not invoke native methods', () async {
     messenger.setMockMethodCallHandler(
       channel,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../repositories/auth_repository.dart';
 import 'password_reset_page.dart';
+import 'account_switcher_page.dart';
 import 'cached_login_dialog.dart';
 import 'sync_progress_dialog.dart';
 
@@ -9,11 +10,15 @@ class LoginPage extends StatefulWidget {
   const LoginPage({
     required this.repository,
     required this.onSignedIn,
+    this.allowBack = false,
+    this.onSessionRestored,
     super.key,
   });
 
+  final bool allowBack;
   final AuthRepository repository;
   final ValueChanged<StoredSession> onSignedIn;
+  final ValueChanged<StoredSession>? onSessionRestored;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -78,116 +83,146 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<void> _chooseSavedAccount() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final session = await Navigator.push<StoredSession>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AccountSwitcherPage(repository: widget.repository),
+        ),
+      );
+      if (mounted && session != null) {
+        (widget.onSessionRestored ?? widget.onSignedIn)(session);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Image.asset('assets/images/gemsnote_s.png', height: 72),
-                        const SizedBox(height: 12),
-                        Text(
-                          '珠玑笔记',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const Text('日积字句，终得珠玑。', textAlign: TextAlign.center),
-                        const SizedBox(height: 28),
-                        TextFormField(
-                          readOnly: _busy,
-                          controller: _server,
-                          keyboardType: TextInputType.url,
-                          autofillHints: const [AutofillHints.url],
-                          decoration: const InputDecoration(
-                            labelText: '服务器地址',
-                            hintText: 'https://notes.example.com',
+    return PopScope(
+      canPop: !_busy,
+      child: Scaffold(
+        appBar: widget.allowBack ? AppBar(title: const Text('添加账号')) : null,
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Image.asset(
+                            'assets/images/gemsnote_s.png',
+                            height: 72,
                           ),
-                          validator: (value) =>
-                              value == null || value.trim().isEmpty
-                              ? '请输入服务器地址'
-                              : null,
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          readOnly: _busy,
-                          controller: _identity,
-                          autofillHints: const [AutofillHints.username],
-                          decoration: const InputDecoration(
-                            labelText: '邮箱或用户名',
+                          const SizedBox(height: 12),
+                          Text(
+                            '珠玑笔记',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.headlineSmall
+                                ?.copyWith(fontWeight: FontWeight.bold),
                           ),
-                          validator: (value) =>
-                              value == null || value.trim().isEmpty
-                              ? '请输入邮箱或用户名'
-                              : null,
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          readOnly: _busy,
-                          controller: _password,
-                          obscureText: true,
-                          autofillHints: const [AutofillHints.password],
-                          decoration: const InputDecoration(labelText: '密码'),
-                          validator: (value) =>
-                              value == null || value.isEmpty ? '请输入密码' : null,
-                          onFieldSubmitted: (_) => _login(),
-                        ),
-                        if (_error != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 12),
-                            child: Text(
-                              _error!,
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.error,
+                          const Text('日积字句，终得珠玑。', textAlign: TextAlign.center),
+                          const SizedBox(height: 28),
+                          TextFormField(
+                            readOnly: _busy,
+                            controller: _server,
+                            keyboardType: TextInputType.url,
+                            autofillHints: const [AutofillHints.url],
+                            decoration: const InputDecoration(
+                              labelText: '服务器地址',
+                              hintText: 'https://notes.example.com',
+                            ),
+                            validator: (value) =>
+                                value == null || value.trim().isEmpty
+                                ? '请输入服务器地址'
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            readOnly: _busy,
+                            controller: _identity,
+                            autofillHints: const [AutofillHints.username],
+                            decoration: const InputDecoration(
+                              labelText: '邮箱或用户名',
+                            ),
+                            validator: (value) =>
+                                value == null || value.trim().isEmpty
+                                ? '请输入邮箱或用户名'
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            readOnly: _busy,
+                            controller: _password,
+                            obscureText: true,
+                            autofillHints: const [AutofillHints.password],
+                            decoration: const InputDecoration(labelText: '密码'),
+                            validator: (value) =>
+                                value == null || value.isEmpty ? '请输入密码' : null,
+                            onFieldSubmitted: (_) => _login(),
+                          ),
+                          if (_error != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 12),
+                              child: Text(
+                                _error!,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
                               ),
                             ),
-                          ),
-                        if (_busy)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 16),
-                            child: Column(
-                              children: [
-                                const LinearProgressIndicator(),
-                                const SizedBox(height: 8),
-                                const Text('正在登录…'),
-                              ],
+                          if (_busy)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: Column(
+                                children: [
+                                  const LinearProgressIndicator(),
+                                  const SizedBox(height: 8),
+                                  const Text('正在登录…'),
+                                ],
+                              ),
                             ),
+                          const SizedBox(height: 20),
+                          FilledButton(
+                            onPressed: _busy ? null : _login,
+                            child: const Text('登录'),
                           ),
-                        const SizedBox(height: 20),
-                        FilledButton(
-                          onPressed: _busy ? null : _login,
-                          child: const Text('登录'),
-                        ),
-                        TextButton(
-                          onPressed: _busy
-                              ? null
-                              : () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => PasswordResetPage(
-                                        repository: widget.repository,
-                                        serverAddress: _server.text,
-                                        email: _identity.text.contains('@')
-                                            ? _identity.text
-                                            : '',
+                          if (!widget.allowBack)
+                            TextButton(
+                              onPressed: _busy ? null : _chooseSavedAccount,
+                              child: const Text('选择已登录账号'),
+                            ),
+                          TextButton(
+                            onPressed: _busy
+                                ? null
+                                : () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => PasswordResetPage(
+                                          repository: widget.repository,
+                                          serverAddress: _server.text,
+                                          email: _identity.text.contains('@')
+                                              ? _identity.text
+                                              : '',
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                },
-                          child: const Text('找回密码'),
-                        ),
-                      ],
+                                    );
+                                  },
+                            child: const Text('找回密码'),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

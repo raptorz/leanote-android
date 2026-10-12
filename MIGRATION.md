@@ -49,7 +49,7 @@
 | M18 缓存偏好持久化 | desktop-app/db 配置、service/file_service.go | 无新增请求 | ui/SettingsActivity | app_database schema v8、workspace_page；本地 | 已提交 f524502；账号隔离、升级、读写失败/重试测试通过 |
 | M19 账号资料、头像、密码 | desktop-app/webapi/background_profile.go、proxy.go | Api2.UploadAvatar、User.UpdateUsername/UpdatePwd、web/emailChange | ui/SettingsActivity | ui/account_page.dart、avatar_upload_dialog.dart；API2 + 允许的公开头像 | 主要功能已实现；头像相机/裁剪/更多格式未完；帐号变更与缓存竞态验收 |
 | M20 默认编辑器、语言、关于 | desktop-app/webapi/about.go、应用配置 | 默认编辑器与语言本地；协议版本 API2 | ui/SettingsActivity、AboutActivity | default_editor_dialog.dart、about_dialog.dart；API2 | 编辑器/版本已实现，界面国际化与语言设置未实现；中英系统及切换测试待做 |
-| M21 多账号快速切换 | desktop-app/app.go、db 配置 | Api2.TokenLogin、ApiUser.Info | service/AccountService、ui/MainActivity | app.dart、data/session/session_store.dart | 未完成；当前单活动 session；账号切换不能串缓存/资源/待处理分享 |
+| M21 多账号快速切换 | desktop-app/app.go、db 配置 | Api2.TokenLogin、ApiUser.Info | service/AccountService、ui/MainActivity | app.dart、data/session/session_store.dart | 本轮实现切换/添加账号、登录页恢复已登录账号；保留离线修改与多账号凭据，切换前等待资源任务、重建工作区；静态检查和全量 488 项测试通过；原生安全存储/生命周期验收仍待进行 |
 | M22 导入导出、对外分享 | desktop-app/webapi/local.go | 本地操作无需新接口 | ui/edit/NoteEditActivity | services/note_importer.dart、note_exporter.dart、note_sharer.dart | 原文导入导出及系统分享已实现；完整含资源导出仍待对照；Android/iOS 文件与分享面板验收 |
 | M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity | Android 纯文本已实现；Android 文件/图片/多项及 iOS Share Extension 未实现；冷/热启动、队列持久化/账号确认/幂等测试 |
 | M24 Android 小组件 | Desktop 无等价 | 本地快照，无新接口 | appwidget/NoteAppWidget、WidgetService、RedirActivity | 未实现 | 笔记列表/新建入口、账号切换、锁屏隐私、刷新及系统生命周期验收 |
@@ -103,3 +103,22 @@ B05（后续服务端需求）：增加创建幂等标识或查询创建结果�
 客户端仍可实现离线队列/编辑/依赖映射及不确定状态的明确恢复流程，不能以此阻塞全部迁移。
 更新/移动使用源 USN，待验证重放、远端冲突与本地并发编辑；父级链校验仍由客户端快照承担。
 后续实现时必须涵盖 SQLite 快照合并、重置/退出保护和 dirty 指示，不能只加 UI 开关。
+
+## M21 多账号切换实现（本轮）
+
+- 参考 `desktop-app/app.go::SwitchUser`、`desktop-app/db/file_repo.go::SwitchUser` 及旧版 AccountService/SettingsActivity。移动端保持 API2 登录，不复用旧密码存储或旧 API。
+- 账号菜单新增切换/添加入口，显示服务器与用户标识。只列出仍有安全存储凭据的账号；已退出账号保留数据库但需重新登录。
+- 切换在本地事务中更新唯一活动账号；保留其他账号 token、dirty 笔记、同步游标、设置和资源缓存，不自动同步。登录页也可直接选择其他已登录账号，恢复时不触发头像联网刷新。
+- 切换页先停止并等待旧账号资源任务，等待时阻止返回和重复操作；同步/上传中禁止切换。成功后按账号与会话代次重建工作区，清空旧页面选择与计时器。
+- 添加账号复用既有 API2 登录/缓存确认；等待登录时禁止返回，取消不改变账号。新快照成功但安全存储失败时恢复原活动账号，保留原离线修改。
+- 分享通道改为按 messenger/channel 追踪当前 owner，旧工作区晚销毁不会清空新 handler；待处理分享账号绑定规则保持。
+- `test/data/account_switch_test.dart` 覆盖服务器/用户隔离、dirty/游标/偏好保留、恢复、凭据丢失、上传互斥、新登录失败回滚。
+- `test/account_switcher_page_test.dart` 覆盖工作区重建、资源任务等待、读写失败/重试、返回保护、取消添加及登录页恢复。
+- `test/shared_text_inbox_test.dart` 验证旧实例销毁后的新平台消息仍可接收。
+- Android 构建 session 32002 仍运行；已完成 NDK 28.2.13676358 下载及安装。线程栈证实此前在 SDK LegacyDownloader 等待网络，并非源码编译失败。原生多账号/分享冷启动验收仍待设备。
+
+M21 最终验证：`flutter analyze --no-pub` 无问题；`flutter test --no-pub` **488 项全部通过**，
+日志 `/private/tmp/gemsnote-multiaccount-full.log`。测试过程中修正了一个未切换到登出态的测试夹具，
+最终全量重新通过，没有删除失败测试或缩减断言。
+构建 session 32002 已继续安装 Android SDK Platform 36/34，尚未返回终态；不要重新启动重复构建。
+下一优先项继续 M06 离线笔记本操作及 M23 双平台分享接收；服务端幂等/删除/标签缺口维持只读记录。

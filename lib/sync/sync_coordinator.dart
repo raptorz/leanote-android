@@ -26,6 +26,7 @@ class SyncCoordinator {
   bool _resetting = false;
   bool _fullSync = false;
   bool _attachmentUploading = false;
+  bool get isBusy => _running != null;
   bool get attachmentUploading => _attachmentUploading;
 
   Future<void> runAttachmentUpload(
