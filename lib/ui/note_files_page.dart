@@ -7,6 +7,7 @@ import '../repositories/auth_repository.dart';
 import '../services/image_exporter.dart';
 import '../services/attachment_exporter.dart';
 import '../services/attachment_sharer.dart';
+import '../services/attachment_opener.dart';
 import '../services/file_cache_batch.dart';
 import '../services/attachment_picker.dart';
 import 'attachment_upload_dialog.dart';
@@ -21,6 +22,7 @@ class NoteFilesPage extends StatefulWidget {
     this.attachmentExporter,
     this.attachmentPicker,
     this.attachmentSharer,
+    this.attachmentOpener,
   });
   final AuthRepository repository;
   final StoredSession session;
@@ -29,6 +31,7 @@ class NoteFilesPage extends StatefulWidget {
   final AttachmentExporter? attachmentExporter;
   final AttachmentPicker? attachmentPicker;
   final AttachmentSharer? attachmentSharer;
+  final AttachmentOpener? attachmentOpener;
   @override
   State<NoteFilesPage> createState() => _NoteFilesPageState();
 }
@@ -189,6 +192,42 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
       await _load();
     } on Object catch (error) {
       if (mounted) setState(() => _error = '无法上传附件：$error');
+    } finally {
+      if (mounted) setState(() => _opening = null);
+    }
+  }
+
+  Future<void> _openAttachment(NoteFile file) async {
+    if (_loading || _opening != null || _batch != null || !file.isAttachment) {
+      return;
+    }
+    setState(() {
+      _opening = file.id;
+      _error = null;
+    });
+    try {
+      final bytes = await widget.repository.noteAttachment(
+        widget.session,
+        widget.noteId,
+        file,
+        cachedOnly: _cachedOnly,
+      );
+      if (!mounted) return;
+      await (widget.attachmentOpener ?? AttachmentOpener()).open(
+        file.title,
+        bytes,
+        canOpen: () => mounted,
+      );
+    } on AttachmentOpenException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } on Object {
+      if (mounted) {
+        setState(
+          () => _error = _cachedOnly
+              ? '打开附件失败：未缓存、缓存已失效或系统无法打开，请联网下载后重试'
+              : '打开附件失败，请检查网络或系统文件打开功能后重试（最大 32 MiB）',
+        );
+      }
     } finally {
       if (mounted) setState(() => _opening = null);
     }
@@ -395,6 +434,13 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
                           ? Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                IconButton(
+                                  tooltip: '打开附件',
+                                  icon: const Icon(Icons.open_in_new),
+                                  onPressed: _opening != null || _batch != null
+                                      ? null
+                                      : () => _openAttachment(file),
+                                ),
                                 IconButton(
                                   tooltip: '保存附件',
                                   icon: const Icon(Icons.save_alt),
