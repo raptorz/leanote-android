@@ -15,7 +15,7 @@
 ## 当前现场（2026-10-12）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
+- 最近提交：`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
 - 本轮起始未提交改动全部属于上一轮缓存偏好持久化：schema v8、repository、workspace、测试和 docs；没有把它们覆盖。
 - 缓存偏好：静态检查无问题，完整测试 463 项通过（上一轮日志 `/private/tmp/gemsnote-cache-pref-full.log`）；本轮已核对实际差异，提交前继续核验。
 - 本轮 Android 构建实际失败：Gradle 9.3.1 all.zip 损坏，`zip END header not found`。日志 `/private/tmp/gemsnote-goal-build.log`，当前缓存文件 55,145,614 字节。尚未成功生成 APK，也没有原生设备验收证据。
@@ -122,3 +122,6 @@ M21 最终验证：`flutter analyze --no-pub` 无问题；`flutter test --no-pub
 最终全量重新通过，没有删除失败测试或缩减断言。
 构建 session 32002 已继续安装 Android SDK Platform 36/34，尚未返回终态；不要重新启动重复构建。
 下一优先项继续 M06 离线笔记本操作及 M23 双平台分享接收；服务端幂等/删除/标签缺口维持只读记录。
+
+M21 已提交 `5700811`。本机构建实际生成 `android/.kotlin/sessions/*.salive`，
+已加入精确忽略规则 `/android/.kotlin/`，不跟踪编译器缓存，也没有删除缓存。
