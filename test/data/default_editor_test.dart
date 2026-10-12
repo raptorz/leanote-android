@@ -128,6 +128,56 @@ void main() {
       expect(await db.lastSyncUsn(a.cacheKey), 3);
     },
   );
+  test(
+    'cache opt-in persists across logout and reset and isolates accounts',
+    () async {
+      expect(await db.autoCacheFiles(a.cacheKey), false);
+      await db.setAutoCacheFiles(a.cacheKey, true);
+      await db.setDefaultEditor(a.cacheKey, DefaultEditor.markdown);
+      await db.setNoteSort(a.cacheKey, NoteSort.titleAscending);
+      expect(await db.autoCacheFiles(b.cacheKey), false);
+      expect(await db.autoCacheFiles(c.cacheKey), false);
+      await db.deactivate(a.cacheKey);
+      await db.raw.close();
+      db = await AppDatabase.open(databasePath: path);
+      expect(await db.autoCacheFiles(a.cacheKey), true);
+      await snapshot(a);
+      expect(await db.autoCacheFiles(a.cacheKey), true);
+      expect(await db.defaultEditor(a.cacheKey), DefaultEditor.markdown);
+      expect(await db.noteSort(a.cacheKey), NoteSort.titleAscending);
+      expect(await db.pendingNoteIds(a.cacheKey), isEmpty);
+      expect(await db.lastSyncUsn(a.cacheKey), 3);
+      await db.setAutoCacheFiles(a.cacheKey, false);
+      expect(await db.autoCacheFiles(a.cacheKey), false);
+      await expectLater(
+        db.setAutoCacheFiles('missing', true),
+        throwsStateError,
+      );
+    },
+  );
+
+  test('v7 upgrade preserves pending content and preferences; caching defaults off', () async {
+    final note = await db.createLocalNote(
+      account: a,
+      notebookId: '',
+      isMarkdown: true,
+      content: 'unsynced',
+    );
+    await db.setDefaultEditor(a.cacheKey, DefaultEditor.markdown);
+    await db.setNoteSort(a.cacheKey, NoteSort.titleAscending);
+    await db.raw.execute('DROP TABLE account_cache_preferences');
+    await db.raw.setVersion(7);
+    await db.raw.close();
+    db = await AppDatabase.open(databasePath: path);
+    expect(await db.raw.getVersion(), AppDatabase.schemaVersion);
+    expect(await db.autoCacheFiles(a.cacheKey), false);
+    expect(await db.defaultEditor(a.cacheKey), DefaultEditor.markdown);
+    expect(await db.noteSort(a.cacheKey), NoteSort.titleAscending);
+    expect(await db.pendingNoteIds(a.cacheKey), {note.noteId});
+    expect((await db.dirtyNotes(a.cacheKey)).single.content, 'unsynced');
+    expect(await db.lastSyncUsn(a.cacheKey), 3);
+  });
+
   test('missing accounts cannot acquire orphan preferences', () async {
     await expectLater(
       db.setDefaultEditor('missing', DefaultEditor.markdown),

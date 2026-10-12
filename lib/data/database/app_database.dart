@@ -20,7 +20,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 7;
+  static const schemaVersion = 8;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -46,6 +46,7 @@ class AppDatabase {
         if (oldVersion < 5) await db.execute(_fileCacheSchema);
         if (oldVersion < 6) await db.execute(_preferencesSchema);
         if (oldVersion < 7) await db.execute(_sortPreferencesSchema);
+        if (oldVersion < 8) await db.execute(_cachePreferencesSchema);
       },
     );
     return AppDatabase._(database);
@@ -322,6 +323,30 @@ class AppDatabase {
       logo: row['logo']! as String,
     );
   }
+
+  Future<bool> autoCacheFiles(String accountId) async {
+    final rows = await raw.query(
+      'account_cache_preferences',
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+    );
+    return rows.isNotEmpty && rows.single['enabled'] == 1;
+  }
+
+  Future<void> setAutoCacheFiles(String accountId, bool enabled) =>
+      raw.transaction((txn) async {
+        final accounts = await txn.query(
+          'accounts',
+          columns: ['account_id'],
+          where: 'account_id = ?',
+          whereArgs: [accountId],
+        );
+        if (accounts.isEmpty) throw StateError('accountCacheMissing');
+        await txn.insert('account_cache_preferences', {
+          'account_id': accountId,
+          'enabled': enabled ? 1 : 0,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      });
 
   Future<NoteSort> noteSort(String accountId) async {
     final rows = await raw.query(
@@ -1370,6 +1395,12 @@ class AppDatabase {
 
   // Local preferences intentionally outlive account snapshot REPLACE. They do
   // not participate in synchronization or cascade with downloaded cache rows.
+  static const _cachePreferencesSchema =
+      '''CREATE TABLE IF NOT EXISTS account_cache_preferences (
+        account_id TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL CHECK (enabled IN (0, 1))
+      )''';
+
   static const _sortPreferencesSchema =
       """CREATE TABLE IF NOT EXISTS account_note_sort (
         account_id TEXT PRIMARY KEY,
@@ -1473,5 +1504,6 @@ class AppDatabase {
     _fileCacheSchema,
     _preferencesSchema,
     _sortPreferencesSchema,
+    _cachePreferencesSchema,
   ];
 }

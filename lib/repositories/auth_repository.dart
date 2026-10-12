@@ -747,6 +747,12 @@ class AuthRepository {
   Future<void> clearFileCache(StoredSession session) =>
       _database.clearFileCache(session.account.cacheKey);
 
+  Future<bool> autoCacheFiles(StoredSession session) =>
+      _database.autoCacheFiles(session.account.cacheKey);
+
+  Future<void> setAutoCacheFiles(StoredSession session, bool enabled) =>
+      _database.setAutoCacheFiles(session.account.cacheKey, enabled);
+
   Future<NoteSort> noteSort(StoredSession session) =>
       _database.noteSort(session.account.cacheKey);
 

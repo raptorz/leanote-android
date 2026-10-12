@@ -335,7 +335,7 @@ Widget 测试覆盖完整工作区重建、加载失败重试与保存失败重�
 ## 离线资源缓存管理
 
 账号菜单的 FileCacheDialog 通过 repository 读取当前账号 note_files 中非 NULL bytes 的数量
-及 length(bytes) 总和，空附件算一个已缓存文件。当前 schema v7 无需升级。
+及 length(bytes) 总和，空附件算一个已缓存文件。该缓存管理功能无需额外升级表结构。
 清理仅更新当前账号文件行的 bytes=NULL、cached_at=0，并轮换全部行的 generation，
 包含尚未完成下载的文件行，防止旧请求回写；保留文件元数据、笔记、dirty 和 USN。
 
@@ -384,3 +384,20 @@ AttachmentOpener 再次限制 32 MiB（允许空附件），在 getTemporaryDire
 Android 使用私有缓存路径与插件 FileProvider，Manifest 合并显式移除插件自带的共享存储/媒体读取权限，
 不需要扫描用户文件目录。iOS 使用插件 DocumentInteraction。原生测试仍待设备验收；
 本机 Android APK 构建在 Gradle 解压阶段遇到 `zip END header not found`，并未验证插件编译或权限合并结果。
+
+## 同步后资源缓存偏好
+
+schema v8 新增 `account_cache_preferences`，以规范化服务器地址和用户 ID 为键，
+保存默认关闭的同步后缓存开关。与其他偏好一样，不依赖账号快照的级联删除，
+退出和重新同步保留；写入前在事务内校验账号缓存仍存在，不改变 dirty 或 USN。
+v7 升级只建表，保留正文、默认编辑器和排序偏好。
+
+工作区异步恢复设置，但恢复和开启开关都不启动下载。仍需成功同步或选择
+“开始资源缓存”；菜单提示可能使用移动数据。读取失败关闭自动缓存并提供
+重试入口，读写期间禁用切换和手动开始，保存失败保留原值并提示。
+关闭成功后取消队列后续任务，在途请求不强制中断。持久化只保存偏好，
+不保存任务进度，不增加系统后台执行能力。
+
+验证：`flutter test test/data/default_editor_test.dart test/account_file_cache_page_test.dart`，
+覆盖 v7 升级、账号隔离、重启/退出/快照替换、失败重试、保存等待期间禁用操作，
+以及恢复设置不发起下载。原生生命周期与弱网仍需设备验收。

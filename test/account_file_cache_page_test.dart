@@ -12,6 +12,25 @@ import 'package:gemsnote/ui/workspace_page.dart';
 import 'foreground_sync_test.dart' show ForegroundRepository;
 
 class CacheRepository extends ForegroundRepository {
+  bool cacheEnabled = false;
+  bool failRead = false;
+  bool failWrite = false;
+  Completer<void>? saveGate;
+  int writes = 0;
+  @override
+  Future<bool> autoCacheFiles(StoredSession session) async {
+    if (failRead) throw StateError('read');
+    return cacheEnabled;
+  }
+
+  @override
+  Future<void> setAutoCacheFiles(StoredSession session, bool enabled) async {
+    writes++;
+    await saveGate?.future;
+    if (failWrite) throw StateError('write');
+    cacheEnabled = enabled;
+  }
+
   int fileLists = 0;
   final gate = Completer<List<NoteFile>>();
   @override
@@ -37,6 +56,93 @@ class CacheRepository extends ForegroundRepository {
 }
 
 void main() {
+  testWidgets(
+    'cache preference restores without download; read and write failures retry',
+    (tester) async {
+      final repo = CacheRepository()
+        ..cacheEnabled = true
+        ..failRead = true;
+      final session = StoredSession(
+        account: Account(
+          userId: 'u',
+          server: Uri.parse('https://notes.test'),
+          username: 'u',
+          email: '',
+          logo: '',
+        ),
+        token: 't',
+      );
+      Future<void> mount() async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: WorkspacePage(
+              repository: repo,
+              session: session,
+              onSignedOut: () {},
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      Future<void> menu() async {
+        await tester.tap(find.byTooltip('账号菜单'));
+        await tester.pumpAndSettle();
+      }
+
+      Finder toggle() => find.byWidgetPredicate(
+        (w) => w is CheckedPopupMenuItem<String> && w.value == 'autoCache',
+      );
+      await mount();
+      await menu();
+      expect(
+        tester.widget<CheckedPopupMenuItem<String>>(toggle()).enabled,
+        false,
+      );
+      repo.failRead = false;
+      await tester.tap(find.text('读取资源缓存设置失败，点击重试'));
+      await tester.pumpAndSettle();
+      await menu();
+      expect(
+        tester.widget<CheckedPopupMenuItem<String>>(toggle()).checked,
+        true,
+      );
+      expect(repo.fileLists, 0);
+      repo.failWrite = true;
+      await tester.tap(toggle());
+      await tester.pumpAndSettle();
+      expect(find.text('保存资源缓存设置失败，仍使用原设置，请重试'), findsOneWidget);
+      expect(repo.cacheEnabled, true);
+      repo.failWrite = false;
+      repo.saveGate = Completer<void>();
+      await menu();
+      expect(
+        tester.widget<CheckedPopupMenuItem<String>>(toggle()).checked,
+        true,
+      );
+      await tester.tap(toggle());
+      await tester.pumpAndSettle();
+      await menu();
+      expect(
+        tester.widget<CheckedPopupMenuItem<String>>(toggle()).enabled,
+        false,
+      );
+      expect(repo.writes, 2);
+      repo.saveGate!.complete();
+      await tester.tapAt(const Offset(10, 500));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox());
+      await mount();
+      await menu();
+      expect(
+        tester.widget<CheckedPopupMenuItem<String>>(toggle()).checked,
+        false,
+      );
+      expect(repo.fileLists, 0);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets(
     'cache management waits for running queue before measuring and clearing',
     (tester) async {

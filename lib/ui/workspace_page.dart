@@ -125,6 +125,53 @@ class _WorkspacePageState extends State<WorkspacePage>
   bool _accountOpen = false;
   bool _foreground = true;
   bool _autoCacheFiles = false;
+  bool _cachePreferenceBusy = false;
+  bool _cachePreferenceLoaded = false;
+
+  Future<void> _loadCachePreference() async {
+    if (_cachePreferenceBusy) return;
+    setState(() => _cachePreferenceBusy = true);
+    try {
+      final enabled = await widget.repository.autoCacheFiles(widget.session);
+      if (mounted && !_signedOut) {
+        setState(() {
+          _autoCacheFiles = enabled;
+          _cachePreferenceLoaded = true;
+        });
+      }
+    } on Object {
+      // Leave caching off until a successful read; the account menu offers retry.
+    } finally {
+      if (mounted) setState(() => _cachePreferenceBusy = false);
+    }
+  }
+
+  Future<void> _toggleCachePreference() async {
+    if (_cachePreferenceBusy ||
+        !_cachePreferenceLoaded ||
+        _loggingOut ||
+        _signedOut) {
+      return;
+    }
+    final enabled = !_autoCacheFiles;
+    setState(() => _cachePreferenceBusy = true);
+    try {
+      await widget.repository.setAutoCacheFiles(widget.session, enabled);
+      if (mounted && !_signedOut) {
+        setState(() => _autoCacheFiles = enabled);
+        if (!enabled) _fileQueue?.cancel();
+      }
+    } on Object {
+      if (mounted && !_signedOut) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('保存资源缓存设置失败，仍使用原设置，请重试')));
+      }
+    } finally {
+      if (mounted) setState(() => _cachePreferenceBusy = false);
+    }
+  }
+
   AccountFileCache? _fileQueue;
   Future<void>? _fileTask;
   String? _fileStatus;
@@ -231,6 +278,7 @@ class _WorkspacePageState extends State<WorkspacePage>
   void _startFileCache() {
     if (_cacheDialogOpen ||
         !_autoCacheFiles ||
+        _cachePreferenceBusy ||
         !_foreground ||
         _signedOut ||
         _loggingOut ||
@@ -291,6 +339,7 @@ class _WorkspacePageState extends State<WorkspacePage>
     _refreshPending();
     _refreshAvatarCache();
     unawaited(_loadNoteSort());
+    unawaited(_loadCachePreference());
     if (widget.refreshAvatarOnStart) unawaited(_refreshRemoteAvatar());
   }
 
@@ -1160,9 +1209,9 @@ class _WorkspacePageState extends State<WorkspacePage>
               if (value == 'resetSync') _sync(reset: true);
               if (value == 'autoSync') _toggleAutoSync();
               if (value == 'autoCache') {
-                setState(() => _autoCacheFiles = !_autoCacheFiles);
-                if (!_autoCacheFiles) _fileQueue?.cancel();
+                _toggleCachePreference();
               }
+              if (value == 'retryCachePreference') _loadCachePreference();
               if (value == 'cacheFiles' && !_syncing && !_loggingOut) {
                 _startFileCache();
               }
@@ -1186,9 +1235,21 @@ class _WorkspacePageState extends State<WorkspacePage>
               CheckedPopupMenuItem(
                 value: 'autoCache',
                 checked: _autoCacheFiles,
-                child: const Text('同步后缓存图片和附件（本次会话）'),
+                enabled:
+                    _cachePreferenceLoaded &&
+                    !_cachePreferenceBusy &&
+                    !_loggingOut,
+                child: const Text('同步后缓存图片和附件（可能使用移动数据）'),
               ),
-              if (_autoCacheFiles && _fileTask == null)
+              if (!_cachePreferenceLoaded)
+                PopupMenuItem(
+                  value: 'retryCachePreference',
+                  enabled: !_cachePreferenceBusy,
+                  child: Text(
+                    _cachePreferenceBusy ? '正在读取资源缓存设置…' : '读取资源缓存设置失败，点击重试',
+                  ),
+                ),
+              if (_autoCacheFiles && !_cachePreferenceBusy && _fileTask == null)
                 const PopupMenuItem(value: 'cacheFiles', child: Text('开始资源缓存')),
               if (_fileTask != null)
                 const PopupMenuItem(value: 'stopCache', child: Text('停止资源缓存')),
