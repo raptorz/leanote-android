@@ -1008,9 +1008,12 @@ class Api2Client {
     final uri = _uri(server, path, token: token);
     late http.Response response;
     try {
-      response = await _http
-          .post(uri, body: fields)
-          .timeout(const Duration(minutes: 2));
+      final request = http.Request('POST', uri)
+        ..followRedirects = false
+        ..bodyFields = fields;
+      response = await (() async => http.Response.fromStream(
+        await _http.send(request),
+      ))().timeout(const Duration(minutes: 2));
     } on Exception {
       throw const ApiException('networkUnavailable');
     }
@@ -1064,15 +1067,14 @@ class Api2Client {
     final uri = _uri(server, path, token: token, query: query);
     late http.Response response;
     try {
-      response = method == 'POST'
-          ? await _http
-                .post(
-                  uri,
-                  headers: const {'Content-Type': 'application/json'},
-                  body: jsonEncode(body),
-                )
-                .timeout(const Duration(seconds: 60))
-          : await _http.get(uri).timeout(const Duration(seconds: 60));
+      final request = http.Request(method, uri)..followRedirects = false;
+      if (method == 'POST') {
+        request.headers['Content-Type'] = 'application/json';
+        request.body = jsonEncode(body);
+      }
+      response = await (() async => http.Response.fromStream(
+        await _http.send(request),
+      ))().timeout(const Duration(seconds: 60));
     } on Exception {
       throw const ApiException('networkUnavailable');
     }

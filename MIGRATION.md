@@ -15,11 +15,11 @@
 ## 当前现场（2026-10-12）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
+- 最近提交：`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
 - 本轮起始未提交改动全部属于上一轮缓存偏好持久化：schema v8、repository、workspace、测试和 docs；没有把它们覆盖。
 - 缓存偏好：静态检查无问题，完整测试 463 项通过（上一轮日志 `/private/tmp/gemsnote-cache-pref-full.log`）；本轮已核对实际差异，提交前继续核验。
 - 本轮 Android 构建实际失败：Gradle 9.3.1 all.zip 损坏，`zip END header not found`。日志 `/private/tmp/gemsnote-goal-build.log`，当前缓存文件 55,145,614 字节。尚未成功生成 APK，也没有原生设备验收证据。
-- 下一步：提交已验证的缓存偏好单元；修复 API2 JSON/表单请求自动重定向边界；修复构建环境；继续最高优先级功能。
+- 当前任务：API2 JSON/表单禁止重定向已实现，核心合同 59 项、全量 478 项测试通过；修复构建环境中，官方 Gradle 完整包正在下载，尚未替换旧缓存。下一步继续离线笔记本/资源与双平台分享。
 
 ## 功能对照索引
 
@@ -46,7 +46,7 @@
 | M15 图片上传与正文插入 | desktop-app/webapi/proxy.go | /api2/file/pasteImage → File.PasteImage | ui/edit/NoteEditActivity | services/note_image_picker.dart、ui/note_image_upload_dialog.dart；API2 | 在线原文插入已实现；离线上传、WebView 插入和中断恢复未完 |
 | M16 附件上传下载、打开、分享 | desktop-app/service/file_service.go、webapi/proxy.go | Api2.UploadAttachment、ApiFile.GetAttach | service/NoteFileService | ui/note_files_page.dart、services/attachment_*；API2 | 在线上传、下载、离线保存/分享/打开已实现；离线上传队列、原生 intent/DocumentInteraction 验证未完 |
 | M17 资源任务与缓存管理 | desktop-app/service/file_service.go | ApiNote.GetNote + ApiFile | background/NoteSyncService | services/account_file_cache.dart、file_cache_batch.dart、ui/file_cache_dialog.dart；API2 | 进程内任务/清理/64MiB 配额已实现；持久队列、失败恢复和系统后台执行未完 |
-| M18 缓存偏好持久化 | desktop-app/db 配置、service/file_service.go | 无新增请求 | ui/SettingsActivity | app_database schema v8、workspace_page；本地 | 本轮已实现；账号隔离、升级、读写失败/重试测试通过；待提交 |
+| M18 缓存偏好持久化 | desktop-app/db 配置、service/file_service.go | 无新增请求 | ui/SettingsActivity | app_database schema v8、workspace_page；本地 | 已提交 f524502；账号隔离、升级、读写失败/重试测试通过 |
 | M19 账号资料、头像、密码 | desktop-app/webapi/background_profile.go、proxy.go | Api2.UploadAvatar、User.UpdateUsername/UpdatePwd、web/emailChange | ui/SettingsActivity | ui/account_page.dart、avatar_upload_dialog.dart；API2 + 允许的公开头像 | 主要功能已实现；头像相机/裁剪/更多格式未完；帐号变更与缓存竞态验收 |
 | M20 默认编辑器、语言、关于 | desktop-app/webapi/about.go、应用配置 | 默认编辑器与语言本地；协议版本 API2 | ui/SettingsActivity、AboutActivity | default_editor_dialog.dart、about_dialog.dart；API2 | 编辑器/版本已实现，界面国际化与语言设置未实现；中英系统及切换测试待做 |
 | M21 多账号快速切换 | desktop-app/app.go、db 配置 | Api2.TokenLogin、ApiUser.Info | service/AccountService、ui/MainActivity | app.dart、data/session/session_store.dart | 未完成；当前单活动 session；账号切换不能串缓存/资源/待处理分享 |
@@ -54,7 +54,7 @@
 | M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity | Android 纯文本已实现；Android 文件/图片/多项及 iOS Share Extension 未实现；冷/热启动、队列持久化/账号确认/幂等测试 |
 | M24 Android 小组件 | Desktop 无等价 | 本地快照，无新接口 | appwidget/NoteAppWidget、WidgetService、RedirActivity | 未实现 | 笔记列表/新建入口、账号切换、锁屏隐私、刷新及系统生命周期验收 |
 | M25 Android/iOS 发布与运行 | desktop-app/.github/workflows 为发布参考 | 无 | 旧 Android 构建参考 | android、ios、.github/workflows | Android 构建当前被损坏 Gradle 包阻塞；iOS 模拟器/签名/设备验收未完成；不自动发布 |
-| M26 API2 边界与网络错误 | desktop-app/api/client.go | conf/routes、Api2Controller、api/* | 禁止复用旧请求 | lib/core/api/api2_client.dart | 未发现直接 Legacy 业务调用；JSON/表单自动重定向待修；旧正文路径仅解析 FileId，绝不请求原路径 |
+| M26 API2 边界与网络错误 | desktop-app/api/client.go | conf/routes、Api2Controller、api/* | 禁止复用旧请求 | lib/core/api/api2_client.dart | 未发现直接 Legacy 业务调用；JSON/表单已禁止自动重定向，真实 HTTP 测试覆盖 GET/JSON/form × 301/302/303/307/308；旧正文路径仅解析 FileId，绝不请求原路径 |
 
 ## API2 审计与接口缺口
 
@@ -74,3 +74,11 @@
 每轮先读本文件与 `git -C mobile-app status --short`，核对当前源码。每项独立功能审查 diff、静态检查、相关测试，定期全量测试和 Android 构建；失败如实记录并修复。不得将未验证的平台行为记为完成。
 提交前明确暂存路径并检查 cached diff。提交 hash 在下一次功能更新时记入本文件，避免为写自身 hash 反复追加提交。
 当前整体目标未完成：表中所有“部分/未实现/阻塞/待验证”保持可追踪，不因某个单元通过而缩小目标。
+
+## 本轮验证补充
+
+M26：`test/core/api2_redirect_test.dart` 使用本地真实 HTTP server + IOClient，
+返回重定向到 `/api/legacy-target`，确认只收到一次原 API2 请求并返回 ApiException。
+已有 JSON/表单字段、认证和上传测试保持通过。未改变公开头像允许策略，
+没有修改服务端或 desktop 的默认重定向行为。
+全量测试日志 `/private/tmp/gemsnote-api2-full.log`：478 passed。
