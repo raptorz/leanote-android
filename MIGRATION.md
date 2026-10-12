@@ -15,11 +15,11 @@
 ## 当前现场（2026-10-12）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
+- 最近提交：`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
 - 本轮起始未提交改动全部属于上一轮缓存偏好持久化：schema v8、repository、workspace、测试和 docs；没有把它们覆盖。
 - 缓存偏好：静态检查无问题，完整测试 463 项通过（上一轮日志 `/private/tmp/gemsnote-cache-pref-full.log`）；本轮已核对实际差异，提交前继续核验。
 - 本轮 Android 构建实际失败：Gradle 9.3.1 all.zip 损坏，`zip END header not found`。日志 `/private/tmp/gemsnote-goal-build.log`，当前缓存文件 55,145,614 字节。尚未成功生成 APK，也没有原生设备验收证据。
-- 当前任务：API2 JSON/表单禁止重定向已实现，核心合同 59 项、全量 478 项测试通过；修复构建环境中，官方 Gradle 完整包正在下载，尚未替换旧缓存。下一步继续离线笔记本/资源与双平台分享。
+- 当前任务：API2 JSON/表单禁止重定向已实现，核心合同 59 项、全量 478 项测试通过；已修复损坏 Gradle 缓存并开始重新构建，尚未获得 APK 结果。下一步继续离线笔记本/资源与双平台分享。
 
 ## 功能对照索引
 
@@ -53,7 +53,7 @@
 | M22 导入导出、对外分享 | desktop-app/webapi/local.go | 本地操作无需新接口 | ui/edit/NoteEditActivity | services/note_importer.dart、note_exporter.dart、note_sharer.dart | 原文导入导出及系统分享已实现；完整含资源导出仍待对照；Android/iOS 文件与分享面板验收 |
 | M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity | Android 纯文本已实现；Android 文件/图片/多项及 iOS Share Extension 未实现；冷/热启动、队列持久化/账号确认/幂等测试 |
 | M24 Android 小组件 | Desktop 无等价 | 本地快照，无新接口 | appwidget/NoteAppWidget、WidgetService、RedirActivity | 未实现 | 笔记列表/新建入口、账号切换、锁屏隐私、刷新及系统生命周期验收 |
-| M25 Android/iOS 发布与运行 | desktop-app/.github/workflows 为发布参考 | 无 | 旧 Android 构建参考 | android、ios、.github/workflows | Android 构建当前被损坏 Gradle 包阻塞；iOS 模拟器/签名/设备验收未完成；不自动发布 |
+| M25 Android/iOS 发布与运行 | desktop-app/.github/workflows 为发布参考 | 无 | 旧 Android 构建参考 | android、ios、.github/workflows | 损坏 Gradle 包已修复，Android 构建结果待确认；iOS 模拟器/签名/设备验收未完成；不自动发布 |
 | M26 API2 边界与网络错误 | desktop-app/api/client.go | conf/routes、Api2Controller、api/* | 禁止复用旧请求 | lib/core/api/api2_client.dart | 未发现直接 Legacy 业务调用；JSON/表单已禁止自动重定向，真实 HTTP 测试覆盖 GET/JSON/form × 301/302/303/307/308；旧正文路径仅解析 FileId，绝不请求原路径 |
 
 ## API2 审计与接口缺口
@@ -82,3 +82,24 @@ M26：`test/core/api2_redirect_test.dart` 使用本地真实 HTTP server + IOCli
 已有 JSON/表单字段、认证和上传测试保持通过。未改变公开头像允许策略，
 没有修改服务端或 desktop 的默认重定向行为。
 全量测试日志 `/private/tmp/gemsnote-api2-full.log`：478 passed。
+
+## 构建恢复记录
+
+官方完整 Gradle 9.3.1 all.zip 已下载，并核验官方 SHA-256：
+`17f277867f6914d61b1aa02efab1ba7bb439ad652ca485cd8ca6842fccec6e43`；ZIP 全部条目 CRC 检查通过。
+已将损坏缓存备份至 `/private/tmp/gemsnote-gradle-corrupt-backup.zip`，并以同版本正确包替换。
+未更改仓库 Gradle 版本或删除其他缓存。
+重新执行 `flutter build apk --debug --no-pub`，进程工具 session **32002** 尚运行；
+日志 `/private/tmp/gemsnote-goal-build-repaired.log`，Gradle daemon PID 40720。
+恢复时先轮询原 session 或核对实际进程，不能仅凭本段认定仍在运行或重启构建。
+M26 改动静态分析最终无问题；全量 478 测试通过。整个迁移目标仍未完成。
+
+## 下一项接口核对：M06 离线笔记本
+
+已对照 `desktop-app/sync/push.go::sendNotebookChanges`：父节点优先，上传成功后替换关联 ID。
+服务端 `ApiNotebookController.AddNotebook` 每次生成新的 ObjectId，没有 ClientNotebookId 或幂等键；
+网络中断后自动重发创建会产生重复笔记本。因此不能直接照搬重复重试。
+B05（后续服务端需求）：增加创建幂等标识或查询创建结果能力，并遵循 API2 兼容规则。
+客户端仍可实现离线队列/编辑/依赖映射及不确定状态的明确恢复流程，不能以此阻塞全部迁移。
+更新/移动使用源 USN，待验证重放、远端冲突与本地并发编辑；父级链校验仍由客户端快照承担。
+后续实现时必须涵盖 SQLite 快照合并、重置/退出保护和 dirty 指示，不能只加 UI 开关。
