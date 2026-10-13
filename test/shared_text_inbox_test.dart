@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/services/shared_text_inbox.dart';
@@ -11,6 +12,27 @@ void main() {
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   tearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+  for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
+    test('$platform reads a durable share on start and resume', () async {
+      debugDefaultTargetPlatformOverride = platform;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      var body = 'cold start';
+      messenger.setMockMethodCallHandler(
+        channel,
+        (_) async => {'id': id, 'text': body, 'accountKey': 'server/user'},
+      );
+      final inbox = SharedTextInbox(channel: channel);
+      addTearDown(inbox.dispose);
+      expect(inbox.supported, isTrue);
+      await inbox.start();
+      expect(inbox.pending!.text, 'cold start');
+      expect(inbox.pending!.accountKey, 'server/user');
+      body = 'share received while app was backgrounded';
+      await inbox.refresh();
+      expect(inbox.pending!.text, body);
+    });
+  }
 
   test('validates byte limit, IDs and binary data without interpreting URLs or HTML', () {
     for (final content in ['', '  ', 'a\u0000b', '中' * 90000]) {

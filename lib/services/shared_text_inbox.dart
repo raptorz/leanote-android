@@ -38,14 +38,16 @@ class SharedText {
   }
 }
 
-/// Android owns the durable queue, including while Flutter is on the login page.
+/// Native Android/iOS storage owns the durable queue, even before login.
 /// Entries are acknowledged only after import or explicit discard.
 class SharedTextInbox extends ChangeNotifier {
   SharedTextInbox({MethodChannel? channel, bool? supported})
     : _channel = channel ?? const MethodChannel('gemsnote/shared_text'),
       supported =
           supported ??
-          (!kIsWeb && defaultTargetPlatform == TargetPlatform.android);
+          (!kIsWeb &&
+              (defaultTargetPlatform == TargetPlatform.android ||
+                  defaultTargetPlatform == TargetPlatform.iOS));
   static final _handlerOwners = <(BinaryMessenger, String), SharedTextInbox>{};
   final MethodChannel _channel;
   final bool supported;

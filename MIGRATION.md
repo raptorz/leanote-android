@@ -12,14 +12,14 @@
 - 旧 Android 小组件保留为目标。深链、生物识别属于既有规划扩展，是否为旧功能对应项还需核对，不能冒充已迁移。
 - 注册、博客、演示账号、旧数据库迁移目前按原迁移方案排除；若发现与必要移动功能有依赖需重新记录。
 
-## 当前现场（2026-10-12）
+## 当前现场（2026-10-13）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
+- 最近提交：`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
 - 本轮起始未提交改动全部属于上一轮缓存偏好持久化：schema v8、repository、workspace、测试和 docs；没有把它们覆盖。
 - 缓存偏好：静态检查无问题，完整测试 463 项通过（上一轮日志 `/private/tmp/gemsnote-cache-pref-full.log`）；本轮已核对实际差异，提交前继续核验。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
-- 当前任务：已有笔记本离线重命名/移动及队列保护已实现，最终验证/提交中。下一步继续双平台分享接收及其余未完成迁移；离线新建等仍见缺口清单。
+- 当前任务：M23 iOS 单项文本/网页分享扩展及共享收件队列已实现，存储测试/Flutter 回归通过；缺少完整 Xcode，iOS 类型检查/构建/签名/设备验收待做。Android/iOS 文件、图片、多项分享仍未完成；继续其他不依赖 Xcode 的迁移。
 
 ## 功能对照索引
 
@@ -51,7 +51,7 @@
 | M20 默认编辑器、语言、关于 | desktop-app/webapi/about.go、应用配置 | 默认编辑器与语言本地；协议版本 API2 | ui/SettingsActivity、AboutActivity | default_editor_dialog.dart、about_dialog.dart；API2 | 编辑器/版本已实现，界面国际化与语言设置未实现；中英系统及切换测试待做 |
 | M21 多账号快速切换 | desktop-app/app.go、db 配置 | Api2.TokenLogin、ApiUser.Info | service/AccountService、ui/MainActivity | app.dart、data/session/session_store.dart | 本轮实现切换/添加账号、登录页恢复已登录账号；保留离线修改与多账号凭据，切换前等待资源任务、重建工作区；静态检查和全量 488 项测试通过；原生安全存储/生命周期验收仍待进行 |
 | M22 导入导出、对外分享 | desktop-app/webapi/local.go | 本地操作无需新接口 | ui/edit/NoteEditActivity | services/note_importer.dart、note_exporter.dart、note_sharer.dart | 原文导入导出及系统分享已实现；完整含资源导出仍待对照；Android/iOS 文件与分享面板验收 |
-| M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity | Android 纯文本已实现；Android 文件/图片/多项及 iOS Share Extension 未实现；冷/热启动、队列持久化/账号确认/幂等测试 |
+| M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity、ios/ShareExtension 与 Shared | Android 纯文本已有；iOS 单项文本/网页分享代码与 App Group 队列已接入，存储及 Flutter 测试通过，iOS 构建/签名/真机待验收；双平台文件/图片/多项尚未完成 |
 | M24 Android 小组件 | Desktop 无等价 | 本地快照，无新接口 | appwidget/NoteAppWidget、WidgetService、RedirActivity | 未实现 | 笔记列表/新建入口、账号切换、锁屏隐私、刷新及系统生命周期验收 |
 | M25 Android/iOS 发布与运行 | desktop-app/.github/workflows 为发布参考 | 无 | 旧 Android 构建参考 | android、ios、.github/workflows | 损坏 Gradle 包已修复，Android debug APK 已构建成功；iOS 模拟器/签名/设备验收未完成；不自动发布 |
 | M26 API2 边界与网络错误 | desktop-app/api/client.go | conf/routes、Api2Controller、api/* | 禁止复用旧请求 | lib/core/api/api2_client.dart | 未发现直接 Legacy 业务调用；JSON/表单已禁止自动重定向，真实 HTTP 测试覆盖 GET/JSON/form × 301/302/303/307/308；旧正文路径仅解析 FileId，绝不请求原路径 |
@@ -152,3 +152,16 @@ M06 本批最终验证：静态检查无问题；完整测试 **501 项全部通
 （`/private/tmp/gemsnote-offline-book-full.log`）。最终原子快照读取改动后的 Android debug
 增量构建通过（11.5 秒，session 62456 已退出 0），APK 权限复查符合预期。
 本轮无构建进程需要继续等待。下一轮直接从 Git/本文件恢复并推进 M23 双平台分享接收。
+
+## M23 iOS 文本与网页分享接收（2026-10-13）
+
+- 新增 ShareExtension target，Runner 在 Thin Binary 之前嵌入扩展，并建立构建依赖；三种配置共用 App Group entitlement，版本跟随 Flutter。
+- 扩展接收单项纯文本或 HTTP(S) URL，可编辑后保存；拒绝不支持的输入/多项，不访问链接，不在扩展登录。主应用前台刷新后沿用现有账号/笔记本确认、claim、稳定 ID 幂等导入和成功后 acknowledge。
+- App Group 队列独立于 Flutter 生命周期，最多 8 项、单项 256 KiB UTF-8；跨进程 flock + 原子写入，保留损坏数据并报错，不共享凭据。取消、重复提交、异步读取超时和写入失败均有保护。
+- Swift 生产存储源码在本机 CLT 编译并执行测试，持久化/账号绑定/容量/字节限制/损坏文件/8 进程并发全部通过；脚本 `scripts/test_ios_share_store.sh`。
+- plist/pbxproj 解析、工程引用、依赖/嵌入顺序、全部配置 entitlement 校验通过；Swift 界面与桥接源码语法解析通过（不是 UIKit 类型检查）。
+- Flutter analyze 无问题，完整测试 **503 项通过**；日志沿用 `/private/tmp/gemsnote-offline-book-analyze.log` 与 `/private/tmp/gemsnote-offline-book-full.log`，已覆盖旧日志。
+- 本机只有 `/Library/Developer/CommandLineTools`，无完整 Xcode。扩展编译、App Group provisioning、模拟器/设备/归档均未宣称完成；详见 `docs/IOS_SHARING.md`。
+- 整体 M23 未完成：双平台文件/图片/多项、原生输入提供方兼容与生命周期验收待做。没有改服务端或新增 Legacy 请求。
+- 恢复执行时发现 Goal 元数据为 blocked；当前仍存在独立可执行工作，不能据此停止全部迁移，也不能把本次文本子集标成整个目标完成。
+- 本批 Android debug APK 回归构建通过（12.5 秒，session 32680 已退出 0），日志 `/private/tmp/gemsnote-goal-build-repaired.log`；这是 Android 构建证据，不是 iOS 扩展验证。
