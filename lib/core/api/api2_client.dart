@@ -607,6 +607,29 @@ class Api2Client {
     );
   }
 
+  Future<int> createTag({
+    required Uri server,
+    required String token,
+    required String userId,
+    required String name,
+  }) async {
+    final data = await _requestFormJson(
+      server: server,
+      path: '/api2/tag/addTag',
+      token: token,
+      fields: {'tag': name},
+    );
+    final usn = data['Usn'];
+    if (data['Tag'] != name ||
+        data['UserId'] != userId ||
+        data['IsDeleted'] != false ||
+        usn is! int ||
+        usn <= 0) {
+      throw const ApiException('invalidResponse');
+    }
+    return usn;
+  }
+
   Future<List<SharedNote>> sharedNotes({
     required Uri server,
     required String token,

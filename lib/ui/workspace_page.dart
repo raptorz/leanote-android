@@ -670,7 +670,7 @@ class _WorkspacePageState extends State<WorkspacePage>
                 barrierDismissible: false,
                 builder: (_) => NoteTagsDialog(
                   tags: note.tags,
-                  loadSuggestions: () => widget.repository.tagCounts(
+                  loadSuggestions: () => widget.repository.availableTags(
                     widget.session.account.cacheKey,
                   ),
                   onSave: (tags) => widget.repository.saveNoteTags(
@@ -733,6 +733,7 @@ class _WorkspacePageState extends State<WorkspacePage>
         builder: (_) => TagsPage(
           repository: widget.repository,
           accountId: widget.session.account.cacheKey,
+          session: widget.session,
         ),
       ),
     );

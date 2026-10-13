@@ -22,6 +22,12 @@ void main() {
       'zero': 0,
     };
     expect(tagChoices(counts).map((e) => e.key), ['Alpha', 'alpha', 'beta']);
+    expect(tagChoices(counts, includeUnused: true).map((e) => e.key), [
+      'Alpha',
+      'alpha',
+      'beta',
+      'zero',
+    ]);
     expect(tagChoices(counts, excluded: {'Alpha', 'alpha'}).single.key, 'beta');
     expect(
       tagChoices(Map.fromEntries(counts.entries.toList().reversed))

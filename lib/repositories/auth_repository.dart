@@ -490,6 +490,7 @@ class AuthRepository {
     StoredSession session, {
     SyncProgressCallback? onProgress,
   }) async {
+    if (_sync.metadataUpdating) throw StateError('metadataUpdateInProgress');
     if (_sync.attachmentUploading) {
       throw StateError('attachmentUploadInProgress');
     }
@@ -512,6 +513,7 @@ class AuthRepository {
     StoredSession session, {
     bool discardSessionWithPendingChanges = false,
   }) async {
+    if (_sync.metadataUpdating) throw StateError('metadataUpdateInProgress');
     if (_sync.attachmentUploading) {
       throw StateError('attachmentUploadInProgress');
     }
@@ -796,6 +798,27 @@ class AuthRepository {
 
   Future<Map<String, int>> tagCounts(String accountId) =>
       _database.tagCounts(accountId);
+
+  Future<Map<String, int>> availableTags(String accountId) =>
+      _database.tagCounts(accountId, includeUnused: true);
+
+  Future<void> createTag(StoredSession session, String value) async {
+    final name = value.trim();
+    if (name.isEmpty ||
+        name.runes.length > 200 ||
+        RegExp(r'[\x00-\x1f\x7f]').hasMatch(name)) {
+      throw const FormatException('标签名称需为 1–200 个字符，且不能包含换行或控制字符');
+    }
+    await _sync.runMetadataUpdate(() async {
+      final usn = await _api.createTag(
+        server: session.account.server,
+        token: session.token,
+        userId: session.account.userId,
+        name: name,
+      );
+      await _database.cacheTag(session.account.cacheKey, name, usn);
+    });
+  }
 
   Future<List<Note>> notesForTag(String accountId, String tag) =>
       _database.notesForTag(accountId, tag);

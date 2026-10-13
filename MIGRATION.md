@@ -15,11 +15,10 @@
 ## 当前现场（2026-10-13）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
-- 本轮起始未提交改动全部属于上一轮缓存偏好持久化：schema v8、repository、workspace、测试和 docs；没有把它们覆盖。
-- 缓存偏好：静态检查无问题，完整测试 463 项通过（上一轮日志 `/private/tmp/gemsnote-cache-pref-full.log`）；本轮已核对实际差异，提交前继续核验。
+- 最近提交：`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
+- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 515 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
-- 当前任务：M23 iOS 单项文本/网页分享扩展及共享收件队列已实现，存储测试/Flutter 回归通过；缺少完整 Xcode，iOS 类型检查/构建/签名/设备验收待做。Android/iOS 文件、图片、多项分享仍未完成；继续其他不依赖 Xcode 的迁移。
+- 当前任务：M23 iOS 文本/网页子集已提交；M11 标签目录/在线创建/零引用候选已完成验证，准备提交。下一步继续 Android 分享接收；双平台文件/图片/多项和其他迁移项仍未完成。iOS 类型检查/构建/签名/设备验收需要完整 Xcode。
 
 ## 功能对照索引
 
@@ -39,7 +38,7 @@
 | M08 移动、星标、回收站 | desktop-app/db/note_repo.go、sync/push.go | ApiNoteController.UpdateNote/DeleteTrash | service/NoteService | ui/note_reader_page.dart、workspace_page.dart；API2 | 核心已实现；trash_delete_test.dart、pending_sync_test.dart；跨客户端回收站回归待验证 |
 | M09 完整复制与冲突副本 | desktop-app/webapi/local.go、sync/push.go | NoteController.CopyNote、ApiNoteController | service/NoteService | domain/models/conflict_copy.dart；API2 | 仅无资源保守子集；附件/图片克隆、复杂 HTML、删除冲突未完；不得丢资源或覆盖原笔记 |
 | M10 搜索、排序、所有笔记 | desktop-app/db/note_repo.go | 本地搜索，内容来自 API2 同步 | ui/SearchActivity | ui/note_search_page.dart、domain/models/note_sort.dart | 本地实现；搜索分页、排序持久化已有测试；大数据量性能/FTS 待评估 |
-| M11 标签编辑与管理 | desktop-app/api/client_api.go AddTag/DeleteTag | api/ApiTagController、ApiNoteController.UpdateNote | service/TagService | ui/tags_page.dart、note_tags_dialog.dart；API2 | 部分；全局管理待做，清空标签合同阻塞；删除所有标签后同步不能残留或产生空标签 |
+| M11 标签编辑与管理 | desktop-app/api/client_api.go AddTag/DeleteTag | api/ApiTagController、ApiNoteController.UpdateNote | service/TagService | ui/tags_page.dart、note_tags_dialog.dart；API2 | 部分；新增未使用标签目录、在线创建及笔记编辑候选；全局删除/重命名未完成，删除 USN 合同 B06 与清空标签 B02 待服务端后续处理 |
 | M12 历史浏览恢复 | desktop-app/api/client_api.go GetHistories/GetHistoryContent | ApiNoteController.GetHistories/GetHistoryContent | service/NoteService | ui/note_history_page.dart；API2 | 文本已实现；历史资源占位，媒体恢复语义待补；history_restore_test.dart |
 | M13 共享笔记 | desktop-app/sharedsync/sharedsync.go、api/shared_api.go | api/ApiSharedController | 旧版无完整等价 | ui/shared_notes_page.dart、data/database shared cache；API2 | 只读列表/正文已实现；共享资源缓存与权限撤销、共享编辑和权限管理仍待核对/实现 |
 | M14 图片缓存、预览、保存 | desktop-app/service/file_service.go | api/ApiFileController.GetImage | ui/PictureViewerActivity、service/NoteFileService | ui/cached_markdown_image.dart、services/image_exporter.dart；API2 | 已有缓存隔离/原始字节保存测试；原生文件窗口待验收 |
@@ -66,6 +65,8 @@
 - B02：清空标签：`ApiNoteController.UpdateNote` 仅在 `Has("Tags[0]")` 时更新；需要明确表达空集合且不会创建空标签的合同，以及向后兼容策略。
 - B03：共享编辑/权限管理：需继续核对 desktop 代理与服务端权限合同，不能把 readonly shared snapshot 当作写权限。
 - B04：上传依赖 API2 浏览器 session；已实现一次性会话登录/身份校验/注销，未回退 Legacy。离线队列需要明确凭据获取与重试幂等。
+
+- B06：`TagService.DeleteTagApi` 返回递增的 `toUsn`，却向数据库写入传入的旧 `usn`；`GeSyncTags` 使用 `Usn > afterUsn`，已同步客户端可能永远收不到删除。该 API 也不调用 `UpdateNoteToDeleteTag`，与旧 Web 全局删除行为不同。后续需明确是目录隐藏还是从所有笔记移除，并修正递增 USN、并发条件更新和删除重放；客户端暂不接入全局删除，也不能以删除重建冒充重命名。
 
 以上服务端需求只记录，不修改服务端。
 
@@ -165,3 +166,15 @@ M06 本批最终验证：静态检查无问题；完整测试 **501 项全部通
 - 整体 M23 未完成：双平台文件/图片/多项、原生输入提供方兼容与生命周期验收待做。没有改服务端或新增 Legacy 请求。
 - 恢复执行时发现 Goal 元数据为 blocked；当前仍存在独立可执行工作，不能据此停止全部迁移，也不能把本次文本子集标成整个目标完成。
 - 本批 Android debug APK 回归构建通过（12.5 秒，session 32680 已退出 0），日志 `/private/tmp/gemsnote-goal-build-repaired.log`；这是 Android 构建证据，不是 iOS 扩展验证。
+
+## M11 标签目录及在线创建（2026-10-13）
+
+- 对照 Desktop `api/client_api.go::AddTag` 与服务端 `ApiTag.AddTag` / `TagService.AddOrUpdateTag`，新增 API2 `POST /api2/tag/addTag` 表单调用，校验回包名称、账号、正 USN 和非删除状态；禁止重定向。
+- 标签页默认仍按本地笔记引用数显示前 10；可显示全部目录标签（包含零引用项）并过滤。数量来自本地未删除且非回收站笔记，不采信服务端可能过期的 Count。
+- 在线创建不修改已有笔记；服务端确认后缓存到当前账号目录，不推进同步游标。重复名称复用服务端已有记录语义，失败不自动重发；回包不确定时提示先同步核对。
+- 笔记标签编辑候选包含未使用标签；选择后仍走本地笔记 dirty 队列与 API2 同步。原有“使用中的标签”浏览统计不变。
+- 创建与同步、上传、全量快照及账号切换互斥，创建中禁止退出；界面防重复提交，失败保留输入并可重试。
+- 新增 `test/data/tag_catalog_test.dart` 和 `test/tag_catalog_page_test.dart`：API2 表单/编码、账号隔离、非法响应、离线失败、dirty/游标保留、互斥、列表过滤、零引用候选、失败重试与返回保护。
+- 静态分析无问题，完整 **515 项测试通过**；Android debug APK 构建通过（10.0 秒，session 51994 已退出 0）。最新日志仍为 `/private/tmp/gemsnote-offline-book-analyze.log`、`/private/tmp/gemsnote-offline-book-full.log`、`/private/tmp/gemsnote-goal-build-repaired.log`。
+- M11 尚未全部完成：全局删除/重命名缺少可靠合同，已记录 B06；清空笔记标签仍受 B02 限制；本次未改服务端。
+- iOS 分享子集已提交 `fddcb90`；标题字节上限与组合字符测试后续提交 `536de61`，原生存储测试再次通过；iOS 设备验证状态未变化。

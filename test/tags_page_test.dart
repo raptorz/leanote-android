@@ -78,7 +78,12 @@ void main() {
             .widget<Text>(
               find
                   .descendant(
-                    of: find.byType(ListTile).first,
+                    of: find
+                        .descendant(
+                          of: find.byType(ListView),
+                          matching: find.byType(ListTile),
+                        )
+                        .first,
                     matching: find.byType(Text),
                   )
                   .first,

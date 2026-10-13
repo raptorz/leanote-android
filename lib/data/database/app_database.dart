@@ -870,7 +870,29 @@ class AppDatabase {
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   });
 
-  Future<Map<String, int>> tagCounts(String accountId) async {
+  Future<void> cacheTag(String accountId, String name, int usn) async {
+    await raw.transaction((txn) async {
+      final existing = await txn.query(
+        'tags',
+        columns: ['usn'],
+        where: 'account_id = ? AND name = ?',
+        whereArgs: [accountId, name],
+      );
+      if (existing.isNotEmpty && (existing.single['usn'] as int) > usn) {
+        return;
+      }
+      await txn.insert('tags', {
+        'account_id': accountId,
+        'name': name,
+        'usn': usn,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    });
+  }
+
+  Future<Map<String, int>> tagCounts(
+    String accountId, {
+    bool includeUnused = false,
+  }) async {
     final rows = await raw.query(
       'notes',
       columns: ['tags_json'],
@@ -878,6 +900,18 @@ class AppDatabase {
       whereArgs: [accountId],
     );
     final counts = <String, int>{};
+    if (includeUnused) {
+      final catalog = await raw.query(
+        'tags',
+        columns: ['name'],
+        where: 'account_id = ?',
+        whereArgs: [accountId],
+      );
+      for (final row in catalog) {
+        final name = row['name'] as String;
+        if (name.trim().isNotEmpty) counts[name] = 0;
+      }
+    }
     for (final row in rows) {
       final tags = (jsonDecode(row['tags_json'] as String) as List)
           .cast<String>()

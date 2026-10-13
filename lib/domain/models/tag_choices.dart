@@ -4,12 +4,13 @@ List<MapEntry<String, int>> tagChoices(
   String query = '',
   Set<String> excluded = const {},
   int? limit,
+  bool includeUnused = false,
 }) {
   final key = query.trim().toLowerCase();
   final entries = counts.entries
       .where(
         (entry) =>
-            entry.value > 0 &&
+            (entry.value > 0 || (includeUnused && entry.value == 0)) &&
             entry.key.trim().isNotEmpty &&
             !excluded.contains(entry.key) &&
             entry.key.toLowerCase().contains(key),

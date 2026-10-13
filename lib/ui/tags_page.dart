@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../repositories/auth_repository.dart';
 import '../domain/models/tag_choices.dart';
+import 'create_tag_dialog.dart';
 
 class TagsPage extends StatefulWidget {
   const TagsPage({
     required this.repository,
     required this.accountId,
+    this.session,
     super.key,
   });
 
   final AuthRepository repository;
   final String accountId;
+  final StoredSession? session;
 
   @override
   State<TagsPage> createState() => _TagsPageState();
@@ -20,6 +23,30 @@ class TagsPage extends StatefulWidget {
 class _TagsPageState extends State<TagsPage> {
   late Future<Map<String, int>> _tags;
   final _filter = TextEditingController();
+  bool _includeUnused = false;
+
+  Future<Map<String, int>> _loadTags() => _includeUnused
+      ? widget.repository.availableTags(widget.accountId)
+      : widget.repository.tagCounts(widget.accountId);
+
+  Future<void> _createTag() async {
+    final session = widget.session;
+    if (session == null || session.account.cacheKey != widget.accountId) return;
+    final created = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => CreateTagDialog(
+        onCreate: (name) => widget.repository.createTag(session, name),
+      ),
+    );
+    if (created == true && mounted) {
+      setState(() {
+        _includeUnused = true;
+        _filter.clear();
+        _tags = _loadTags();
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -30,12 +57,22 @@ class _TagsPageState extends State<TagsPage> {
   @override
   void initState() {
     super.initState();
-    _tags = widget.repository.tagCounts(widget.accountId);
+    _tags = _loadTags();
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('标签')),
+    appBar: AppBar(
+      title: const Text('标签'),
+      actions: [
+        if (widget.session != null)
+          IconButton(
+            onPressed: _createTag,
+            tooltip: '创建标签',
+            icon: const Icon(Icons.add),
+          ),
+      ],
+    ),
     body: FutureBuilder<Map<String, int>>(
       future: _tags,
       builder: (context, snapshot) {
@@ -43,7 +80,7 @@ class _TagsPageState extends State<TagsPage> {
           return Center(
             child: TextButton(
               onPressed: () => setState(() {
-                _tags = widget.repository.tagCounts(widget.accountId);
+                _tags = _loadTags();
               }),
               child: const Text('读取标签失败，点击重试'),
             ),
@@ -56,7 +93,8 @@ class _TagsPageState extends State<TagsPage> {
         final entries = tagChoices(
           snapshot.data!,
           query: _filter.text,
-          limit: filtering ? null : 10,
+          limit: filtering || _includeUnused ? null : 10,
+          includeUnused: _includeUnused,
         );
         return Column(
           children: [
@@ -78,14 +116,30 @@ class _TagsPageState extends State<TagsPage> {
                 onChanged: (_) => setState(() {}),
               ),
             ),
-            if (!filtering && snapshot.data!.length > 10)
+            CheckboxListTile(
+              title: const Text('显示未使用标签'),
+              value: _includeUnused,
+              onChanged: (value) => setState(() {
+                _includeUnused = value ?? false;
+                _tags = _loadTags();
+              }),
+            ),
+            if (!filtering && !_includeUnused && snapshot.data!.length > 10)
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
                 child: Text('显示笔记最多的 10 个标签，其他请过滤查找'),
               ),
             Expanded(
               child: entries.isEmpty
-                  ? Center(child: Text(filtering ? '没有匹配的标签' : '暂无被笔记引用的标签'))
+                  ? Center(
+                      child: Text(
+                        filtering
+                            ? '没有匹配的标签'
+                            : _includeUnused
+                            ? '暂无标签'
+                            : '暂无被笔记引用的标签',
+                      ),
+                    )
                   : ListView.builder(
                       itemCount: entries.length,
                       itemBuilder: (context, index) {

@@ -26,8 +26,20 @@ class SyncCoordinator {
   bool _resetting = false;
   bool _fullSync = false;
   bool _attachmentUploading = false;
+  bool _metadataUpdating = false;
   bool get isBusy => _running != null;
   bool get attachmentUploading => _attachmentUploading;
+  bool get metadataUpdating => _metadataUpdating;
+
+  /// Keep catalog writes separate from snapshot downloads and cursor changes.
+  Future<void> runMetadataUpdate(Future<void> Function() action) {
+    if (_running != null) return Future.error(StateError('syncInProgress'));
+    _metadataUpdating = true;
+    return _running = Future<void>(action).whenComplete(() {
+      _running = null;
+      _metadataUpdating = false;
+    });
+  }
 
   Future<void> runAttachmentUpload(
     Future<void> Function() action, {
@@ -102,6 +114,9 @@ class SyncCoordinator {
     required String token,
     SyncProgressCallback? onProgress,
   }) {
+    if (_metadataUpdating) {
+      return Future.error(StateError('metadataUpdateInProgress'));
+    }
     if (_attachmentUploading) {
       return Future.error(StateError('attachmentUploadInProgress'));
     }
@@ -163,6 +178,9 @@ class SyncCoordinator {
     required String token,
     SyncProgressCallback? onProgress,
   }) {
+    if (_metadataUpdating) {
+      return Future.error(StateError('metadataUpdateInProgress'));
+    }
     if (_attachmentUploading) {
       return Future.error(StateError('attachmentUploadInProgress'));
     }

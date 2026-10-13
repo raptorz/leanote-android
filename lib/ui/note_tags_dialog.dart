@@ -127,6 +127,7 @@ class _NoteTagsDialogState extends State<NoteTagsDialog> {
                       query: _input.text,
                       excluded: _tags.toSet(),
                       limit: 20,
+                      includeUnused: true,
                     );
                     if (choices.isEmpty) return const SizedBox.shrink();
                     return Column(
