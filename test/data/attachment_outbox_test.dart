@@ -160,4 +160,19 @@ void main() {
     await outbox.stage('n', file);
     expect((await outbox.list()).length, 1);
   });
+
+  test(
+    'v11 upgrade preserves old attachment originals and upload states',
+    () async {
+      final id = await outbox.stage('n', file);
+      await outbox.markSending(id);
+      await db.raw.execute('ALTER TABLE attachment_outbox DROP COLUMN kind');
+      await db.raw.setVersion(11);
+      await reopen();
+      final restored = (await outbox.list()).single;
+      expect(restored.kind, 'attachment');
+      expect(restored.state, 'uncertain');
+      expect((await outbox.file(id)).bytes, [1, 2, 3]);
+    },
+  );
 }

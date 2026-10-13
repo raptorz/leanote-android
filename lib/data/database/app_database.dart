@@ -24,7 +24,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 11;
+  static const schemaVersion = 12;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -65,6 +65,11 @@ class AppDatabase {
           }
         }
         if (oldVersion < 11) await db.execute(AttachmentOutbox.schema);
+        if (oldVersion == 11) {
+          await db.execute(
+            "ALTER TABLE attachment_outbox ADD COLUMN kind TEXT NOT NULL DEFAULT 'attachment'",
+          );
+        }
       },
     );
     return AppDatabase._(database);

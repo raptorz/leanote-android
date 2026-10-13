@@ -108,11 +108,11 @@ class AuthRepository {
             file,
           );
         } on StateError {
-          return null;
+          return _outbox(session).insertedImage(noteId, id);
         }
       }
     }
-    return null;
+    return _outbox(session).insertedImage(noteId, id);
   }
 
   Future<List<NoteFile>> noteFiles(
@@ -162,6 +162,8 @@ class AuthRepository {
     NoteImageUpload image, {
     required String identity,
     required String password,
+    Future<void> Function()? beforeSend,
+    Future<void> Function(String reference)? confirmed,
   }) async {
     if (identity.trim().isEmpty || password.isEmpty) {
       throw const FormatException('请输入当前账号和密码');
@@ -189,7 +191,9 @@ class AuthRepository {
           password: password,
           noteId: noteId,
           image: image,
+          beforeSend: beforeSend,
         );
+        await confirmed?.call(reference);
       },
       account: session.account,
       token: session.token,
@@ -283,6 +287,50 @@ class AuthRepository {
   Future<AttachmentUpload> stagedAttachment(StoredSession session, String id) =>
       _outbox(session).file(id);
 
+  Future<String> stageNoteImage(
+    StoredSession session,
+    String noteId,
+    NoteImageUpload image,
+  ) => _outbox(session).stageImage(noteId, image);
+
+  Future<void> insertStagedImage(StoredSession session, String id) async {
+    if (_sync.isBusy) throw StateError('请等待当前同步或上传完成');
+    await _outbox(session).insertImage(id);
+  }
+
+  Future<String> uploadStagedImage(
+    StoredSession session,
+    String id, {
+    required String identity,
+    required String password,
+  }) async {
+    final outbox = _outbox(session);
+    final item = (await outbox.list()).where((e) => e.id == id).firstOrNull;
+    if (item == null || !item.isImage || item.state != 'pending') {
+      throw StateError('图片不是待上传状态，请先核实已有结果');
+    }
+    final file = await outbox.file(id);
+    final image = await NoteImageUpload.normalize(file.bytes);
+    final reference = await uploadNoteImage(
+      session,
+      item.noteId,
+      image,
+      identity: identity,
+      password: password,
+      beforeSend: () => outbox.markSending(id),
+      confirmed: (reference) async {
+        final fileId = cachedImageFileId(
+          Uri.parse(reference),
+          session.account.server,
+        );
+        if (fileId == null) throw StateError('图片地址无效');
+        await outbox.confirm(id, fileId);
+      },
+    );
+    await insertStagedImage(session, id);
+    return reference;
+  }
+
   Future<void> removeStagedAttachment(StoredSession session, String id) async {
     if (_sync.isBusy) throw StateError('请等待当前同步或上传完成');
     await _outbox(session).remove(id);
@@ -304,7 +352,7 @@ class AuthRepository {
   }) async {
     final outbox = _outbox(session);
     final item = (await outbox.list()).where((e) => e.id == id).firstOrNull;
-    if (item == null || item.state != 'pending') {
+    if (item == null || item.isImage || item.state != 'pending') {
       throw StateError('附件不是待上传状态，请先核实已有结果');
     }
     final file = await outbox.file(id);

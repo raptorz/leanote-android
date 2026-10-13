@@ -693,17 +693,16 @@ class _WorkspacePageState extends State<WorkspacePage>
             note.noteId,
             uri,
           ),
-          onFiles: note.usn <= 0
-              ? null
-              : () => Navigator.of(context).push<void>(
-                  MaterialPageRoute(
-                    builder: (_) => NoteFilesPage(
-                      repository: widget.repository,
-                      session: widget.session,
-                      noteId: note.noteId,
-                    ),
-                  ),
-                ),
+          onFiles: () => Navigator.of(context).push<void>(
+            MaterialPageRoute(
+              builder: (_) => NoteFilesPage(
+                repository: widget.repository,
+                session: widget.session,
+                noteId: note.noteId,
+                initialCachedOnly: note.usn <= 0,
+              ),
+            ),
+          ),
           onHistory: note.usn == 0
               ? null
               : () async {
@@ -844,6 +843,13 @@ class _WorkspacePageState extends State<WorkspacePage>
               image,
               identity: identity,
               password: password,
+            );
+          },
+          stageImage: (image) async {
+            await widget.repository.stageNoteImage(
+              widget.session,
+              note.noteId,
+              image,
             );
           },
           loadCachedImage: (uri) => widget.repository.cachedInlineImage(
@@ -1352,7 +1358,7 @@ class _WorkspacePageState extends State<WorkspacePage>
               const PopupMenuItem(value: 'manageCache', child: Text('离线资源缓存')),
               const PopupMenuItem(
                 value: 'attachmentOutbox',
-                child: Text('本地待上传附件'),
+                child: Text('本地待上传资源'),
               ),
               const PopupMenuItem(value: 'sync', child: Text('立即同步')),
               const PopupMenuItem(value: 'fullSync', child: Text('完全同步（合并）')),

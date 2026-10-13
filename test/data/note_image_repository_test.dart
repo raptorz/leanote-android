@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/data/database/app_database.dart';
+import 'package:gemsnote/data/database/attachment_outbox.dart';
 import 'package:gemsnote/domain/models/account.dart';
 import 'package:gemsnote/repositories/auth_repository.dart';
 import 'package:gemsnote/services/note_image_picker.dart';
@@ -25,7 +26,9 @@ class ImageApi extends UploadApi {
     required String password,
     required String noteId,
     required NoteImageUpload image,
+    Future<void> Function()? beforeSend,
   }) async {
+    await beforeSend?.call();
     uploads++;
     await duringUpload?.call();
     return reference;
@@ -71,6 +74,131 @@ void main() {
   tearDown(() => db.raw.close());
   Future<String> upload([String id = noteId]) =>
       repo.uploadNoteImage(session, id, image, identity: 'user', password: 'p');
+
+  test('offline image uploads once, appends latest HTML and remains readable before sync', () async {
+    final id = await repo.stageNoteImage(session, noteId, image);
+    expect(api.uploads, 0);
+    api.duringUpload = () => db.saveEditedText(
+      session.account.cacheKey,
+      noteId,
+      'changed',
+      '<p>newer &amp; safe</p>',
+    );
+    expect(
+      await repo.uploadStagedImage(session, id, identity: 'u', password: 'p'),
+      reference,
+    );
+    final current = (await db.notes(session.account.cacheKey)).single;
+    expect(
+      current.content,
+      '<p>newer &amp; safe</p>\n<img src="$reference" alt="">\n',
+    );
+    expect(current.title, 'changed');
+    expect(await db.pendingNoteIds(session.account.cacheKey), {noteId});
+    expect((await repo.pendingAttachments(session)).single.state, 'inserted');
+    expect(
+      await repo.cachedInlineImage(session, noteId, Uri.parse(reference)),
+      image.bytes,
+    );
+    expect(
+      await repo.cachedInlineImage(session, 'other-note', Uri.parse(reference)),
+      isNull,
+    );
+    expect(
+      await repo.cachedInlineImage(
+        session,
+        noteId,
+        Uri.parse('https://other.test$reference'),
+      ),
+      isNull,
+    );
+    await repo.insertStagedImage(session, id);
+    expect(
+      (await db.notes(session.account.cacheKey)).single.content,
+      current.content,
+    );
+    await expectLater(
+      repo.uploadStagedImage(session, id, identity: 'u', password: 'p'),
+      throwsStateError,
+    );
+    expect(api.uploads, 1);
+    expect(await db.lastSyncUsn(session.account.cacheKey), 5);
+  });
+
+  test(
+    'failed body insertion retains uploaded image ID for local-only recovery',
+    () async {
+      final id = await repo.stageNoteImage(session, noteId, image);
+      api.duringUpload = () => db.saveLocalNote(
+        session.account.cacheKey,
+        original.copyWith(isTrash: true),
+      );
+      await expectLater(
+        repo.uploadStagedImage(session, id, identity: 'u', password: 'p'),
+        throwsStateError,
+      );
+      expect((await repo.pendingAttachments(session)).single.state, 'uploaded');
+      await db.saveLocalNote(
+        session.account.cacheKey,
+        original.copyWith(content: 'restored', isMarkdown: true),
+      );
+      await repo.insertStagedImage(session, id);
+      expect(
+        (await db.notes(session.account.cacheKey)).single.content,
+        'restored\n![]($reference)\n',
+      );
+      expect(api.uploads, 1);
+    },
+  );
+
+  test(
+    'lost image response never appends guessed references or silently retries',
+    () async {
+      final id = await repo.stageNoteImage(session, noteId, image);
+      api.duringUpload = () async => throw StateError('timeout');
+      await expectLater(
+        repo.uploadStagedImage(session, id, identity: 'u', password: 'p'),
+        throwsStateError,
+      );
+      expect(
+        (await repo.pendingAttachments(session)).single.state,
+        'uncertain',
+      );
+      expect(
+        (await db.notes(session.account.cacheKey)).single.content,
+        original.content,
+      );
+      await expectLater(repo.insertStagedImage(session, id), throwsStateError);
+      await expectLater(
+        repo.uploadStagedAttachment(session, id, identity: 'u', password: 'p'),
+        throwsStateError,
+      );
+      expect((await repo.stagedAttachment(session, id)).bytes, image.bytes);
+      expect(api.uploads, 1);
+    },
+  );
+
+  test('confirmed image insertion and acknowledgement roll back together on local write failure', () async {
+    final id = await repo.stageNoteImage(session, noteId, image);
+    final outbox = AttachmentOutbox(db.raw, session.account);
+    await outbox.markSending(id);
+    await outbox.confirm(id, '507f1f77bcf86cd799439012');
+    await db.raw.execute(
+      "CREATE TRIGGER fail_image_ack BEFORE UPDATE OF state ON attachment_outbox WHEN NEW.state = 'inserted' BEGIN SELECT RAISE(ABORT, 'disk failure'); END",
+    );
+    await expectLater(
+      repo.insertStagedImage(session, id),
+      throwsA(isA<DatabaseException>()),
+    );
+    expect(
+      (await db.notes(session.account.cacheKey)).single.content,
+      original.content,
+    );
+    expect((await repo.pendingAttachments(session)).single.state, 'uploaded');
+    await db.raw.execute('DROP TRIGGER fail_image_ack');
+    await repo.insertStagedImage(session, id);
+    expect((await repo.pendingAttachments(session)).single.state, 'inserted');
+  });
 
   test('dirty draft uploads first, then inserted reference persists locally and syncs', () async {
     await db.saveEditedText(session.account.cacheKey, noteId, 'Title', 'draft');

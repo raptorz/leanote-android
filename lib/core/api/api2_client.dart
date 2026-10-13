@@ -111,6 +111,7 @@ class Api2Client {
     required String password,
     required String noteId,
     required NoteImageUpload image,
+    Future<void> Function()? beforeSend,
   }) async {
     if (!RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(noteId) ||
         identity.trim().isEmpty ||
@@ -139,6 +140,7 @@ class Api2Client {
       fields: {'noteId': noteId},
       avatar: image.bytes,
       filename: 'image.png',
+      beforeSend: beforeSend,
     );
     final id = result['Id'];
     if (id is! String || !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(id)) {

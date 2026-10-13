@@ -64,6 +64,7 @@ void main() {
         const noteId = '507f1f77bcf86cd799439011';
         const imageId = '507f1f77bcf86cd799439012';
         var uploads = 0;
+        var markedSending = false;
         var logouts = 0;
         final api = Api2Client(
           httpClient: MockClient((request) async {
@@ -93,6 +94,7 @@ void main() {
                   200,
                 );
               case '/api2/file/pasteImage':
+                expect(markedSending, isTrue);
                 uploads++;
                 expect(request.followRedirects, false);
                 expect(request.headers['Cookie'], 'session=s');
@@ -127,6 +129,9 @@ void main() {
           password: 'p',
           noteId: noteId,
           image: await NoteImageUpload.normalize(png),
+          beforeSend: () async {
+            markedSending = true;
+          },
         );
         if (scenario == 'ok') {
           expect(await future, '/api2/file/getImage?fileId=$imageId');
@@ -138,6 +143,10 @@ void main() {
           ['foreign-note', 'wrong-session'].contains(scenario) ? 0 : 1,
         );
         expect(logouts, scenario == 'foreign-note' ? 0 : 1);
+        expect(
+          markedSending,
+          !['foreign-note', 'wrong-session'].contains(scenario),
+        );
       },
     );
   }

@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../../domain/models/account.dart';
 import '../../domain/models/attachment_upload.dart';
+import '../../services/note_image_picker.dart';
 
 class PendingAttachment {
   const PendingAttachment({
@@ -14,13 +15,17 @@ class PendingAttachment {
     required this.size,
     required this.state,
     required this.remoteId,
+    this.kind = 'attachment',
   });
   final String id, noteId, name, state, remoteId;
+  final String kind;
+  bool get isImage => kind == 'image';
   final int size;
   String get statusLabel => switch (state) {
     'pending' => '待上传',
     'uncertain' => '上传结果待确认',
     'uploaded' => '已上传，本地副本保留',
+    'inserted' => '已插入本地正文',
     _ => '状态异常，请导出保留',
   };
 }
@@ -41,10 +46,18 @@ class AttachmentOutbox {
     bytes BLOB NOT NULL,
     state TEXT NOT NULL DEFAULT 'pending',
     remote_id TEXT NOT NULL DEFAULT '',
+    kind TEXT NOT NULL DEFAULT 'attachment',
     created_at INTEGER NOT NULL
   )''';
 
   Future<String> stage(String noteId, AttachmentUpload file) =>
+      _stage(noteId, file, 'attachment');
+  Future<String> stageImage(String noteId, NoteImageUpload image) => _stage(
+    noteId,
+    AttachmentUpload(name: 'image.png', bytes: image.bytes),
+    'image',
+  );
+  Future<String> _stage(String noteId, AttachmentUpload file, String kind) =>
       database.transaction((txn) async {
         final owner = await txn.query(
           'notes',
@@ -70,6 +83,7 @@ class AttachmentOutbox {
           'account_id': account.cacheKey,
           'note_id': noteId,
           'name': file.name,
+          'kind': kind,
           'bytes': file.bytes,
           'created_at': DateTime.now().millisecondsSinceEpoch,
         });
@@ -86,6 +100,7 @@ class AttachmentOutbox {
         'LENGTH(bytes) AS size',
         'state',
         'remote_id',
+        'kind',
       ],
       where: 'account_id = ?${noteId == null ? '' : ' AND note_id = ?'}',
       whereArgs: [account.cacheKey, ?noteId],
@@ -100,6 +115,7 @@ class AttachmentOutbox {
             size: r['size'] as int,
             state: r['state'] as String,
             remoteId: r['remote_id'] as String,
+            kind: r['kind'] as String,
           ),
         )
         .toList();
@@ -152,5 +168,62 @@ class AttachmentOutbox {
       where: 'account_id = ? AND id = ?',
       whereArgs: [account.cacheKey, id],
     );
+  }
+
+  /// Body insertion and acknowledgement are one transaction. Retry after a
+  /// process crash cannot append a second image or overwrite intervening edits.
+  Future<void> insertImage(String id) => database.transaction((txn) async {
+    final tasks = await txn.query(
+      'attachment_outbox',
+      where: 'account_id = ? AND id = ? AND kind = ?',
+      whereArgs: [account.cacheKey, id, 'image'],
+    );
+    if (tasks.isEmpty) throw StateError('本地图片任务不存在');
+    final task = tasks.single;
+    if (task['state'] == 'inserted') return;
+    final remoteId = task['remote_id'] as String;
+    if (task['state'] != 'uploaded' ||
+        !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(remoteId)) {
+      throw StateError('图片上传结果尚未确认');
+    }
+    final notes = await txn.query(
+      'notes',
+      where: 'account_id = ? AND server_id = ? AND owner_server_id = ? AND is_trash = 0 AND local_is_deleted = 0',
+      whereArgs: [account.cacheKey, task['note_id'], account.userId],
+    );
+    if (notes.isEmpty) throw StateError('原笔记不存在或已在回收站，图片原件仍保留');
+    final note = notes.single;
+    final reference = '/api2/file/getImage?fileId=$remoteId';
+    final markup = note['is_markdown'] == 1
+        ? '\n![]($reference)\n'
+        : '\n<img src="$reference" alt="">\n';
+    await txn.update(
+      'notes',
+      {
+        'content': '${note['content']}$markup',
+        'is_dirty': 1,
+        'updated_time': DateTime.now().toUtc().toIso8601String(),
+      },
+      where: 'account_id = ? AND server_id = ?',
+      whereArgs: [account.cacheKey, task['note_id']],
+    );
+    await txn.update(
+      'attachment_outbox',
+      {'state': 'inserted'},
+      where: 'account_id = ? AND id = ?',
+      whereArgs: [account.cacheKey, id],
+    );
+  });
+
+  Future<Uint8List?> insertedImage(String noteId, String fileId) async {
+    final rows = await database.rawQuery(
+      '''SELECT o.bytes FROM attachment_outbox o JOIN notes n ON n.account_id = o.account_id AND n.server_id = o.note_id
+      WHERE o.account_id = ? AND o.note_id = ? AND o.remote_id = ? AND o.kind = 'image' AND o.state = 'inserted'
+      AND n.owner_server_id = ? AND n.is_trash = 0 AND n.local_is_deleted = 0 LIMIT 1''',
+      [account.cacheKey, noteId, fileId, account.userId],
+    );
+    return rows.isEmpty
+        ? null
+        : Uint8List.fromList(rows.single['bytes'] as List<int>);
   }
 }

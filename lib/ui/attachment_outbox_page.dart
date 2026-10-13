@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../data/database/attachment_outbox.dart';
 import '../repositories/auth_repository.dart';
 import '../services/attachment_exporter.dart';
+import '../services/note_image_picker.dart';
 import 'attachment_upload_dialog.dart';
+import 'note_image_upload_dialog.dart';
 import 'note_files_page.dart';
 
 class AttachmentOutboxPage extends StatefulWidget {
@@ -98,10 +100,14 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
             item.id,
           );
         }
+      } else if (action == 'insert') {
+        await widget.repository.insertStagedImage(widget.session, item.id);
       } else if (action == 'retry') {
         if (await _confirm(
           '重新允许上传？',
-          '先查看服务端文件列表，核实“${item.name}”没有上传成功。若原请求已成功，再次上传会产生重复附件。',
+          item.isImage
+              ? '图片可能已经上传，但响应未收到。未关联正文的图片可能不出现在文件列表中；重新上传可能产生多余资源。确认接受后才允许重试，本地原件不会删除。'
+              : '先查看服务端文件列表，核实“${item.name}”没有上传成功。若原请求已成功，再次上传会产生重复附件。',
         )) {
           await widget.repository.retryUncertainAttachment(
             widget.session,
@@ -118,6 +124,24 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
           await (widget.exporter ?? AttachmentExporter()).save(
             file.name,
             file.bytes,
+          );
+        } else if (action == 'upload' && item.isImage) {
+          final image = await NoteImageUpload.normalize(file.bytes);
+          if (!mounted) return;
+          await showDialog<String>(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => NoteImageUploadDialog(
+              identity: widget.session.account.username,
+              image: image,
+              upload: (identity, password) =>
+                  widget.repository.uploadStagedImage(
+                    widget.session,
+                    item.id,
+                    identity: identity,
+                    password: password,
+                  ),
+            ),
           );
         } else if (action == 'upload') {
           await showDialog<bool>(
@@ -150,7 +174,7 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
     canPop: !_busy,
     child: Scaffold(
       appBar: AppBar(
-        title: const Text('本地待上传附件'),
+        title: const Text('本地待上传资源'),
         actions: [
           IconButton(
             onPressed: _busy ? null : _load,
@@ -164,7 +188,7 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
           const Padding(
             padding: EdgeInsets.all(12),
             child: Text(
-              '原件保存在本机，不会自动上传或随缓存清理。联网后逐项上传；需要当前密码，密码不保存。上传完成后可移除本地副本。',
+              '原件保存在本机，不会自动上传或随缓存清理。联网后逐项上传；需要当前密码，密码不保存。图片会追加到最新正文末尾并保存，再同步笔记以完成关联。',
             ),
           ),
           if (_busy) const LinearProgressIndicator(),
@@ -195,9 +219,14 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
                           onSelected: (value) => _action(item, value),
                           itemBuilder: (_) => [
                             if (item.state == 'pending')
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'upload',
-                                child: Text('上传附件'),
+                                child: Text(item.isImage ? '上传并插入图片' : '上传附件'),
+                              ),
+                            if (item.isImage && item.state == 'uploaded')
+                              const PopupMenuItem(
+                                value: 'insert',
+                                child: Text('插入到笔记末尾'),
                               ),
                             const PopupMenuItem(
                               value: 'files',

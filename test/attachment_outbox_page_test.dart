@@ -20,6 +20,14 @@ class FixedAttachmentPicker extends AttachmentPicker {
 
 class OutboxRepository extends FilesRepository {
   String state = 'uncertain';
+  bool image = false;
+  int inserts = 0;
+  @override
+  Future<void> insertStagedImage(StoredSession session, String id) async {
+    inserts++;
+    state = 'inserted';
+  }
+
   bool removed = false;
   int writes = 0, uploads = 0, stages = 0;
   @override
@@ -36,6 +44,7 @@ class OutboxRepository extends FilesRepository {
             size: 3,
             state: state,
             remoteId: '',
+            kind: image ? 'image' : 'attachment',
           ),
         ];
   @override
@@ -151,13 +160,13 @@ void main() {
             repository: repo,
             session: session,
             noteId: 'note',
+            initialCachedOnly: true,
             attachmentPicker: FixedAttachmentPicker(),
           ),
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(SwitchListTile));
-      await tester.pumpAndSettle();
+      expect(repo.listModes, [true]);
       final requests = repo.listModes.length;
       await tester.tap(find.byTooltip('本地附件'));
       await tester.pumpAndSettle();
@@ -170,4 +179,27 @@ void main() {
       expect(find.textContaining('附件已保存到本机'), findsOneWidget);
     },
   );
+
+  testWidgets('confirmed image recovers insertion without uploading again', (
+    tester,
+  ) async {
+    final repo = OutboxRepository()
+      ..image = true
+      ..state = 'uploaded';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AttachmentOutboxPage(repository: repo, session: session),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await choose(tester, '插入到笔记末尾');
+    await tester.pumpAndSettle();
+    expect(repo.inserts, 1);
+    expect(repo.uploads, 0);
+    expect(find.textContaining('已插入本地正文'), findsOneWidget);
+    await tester.tap(find.byTooltip('附件操作'));
+    await tester.pumpAndSettle();
+    expect(find.text('上传并插入图片'), findsNothing);
+    expect(find.text('插入到笔记末尾'), findsNothing);
+  });
 }

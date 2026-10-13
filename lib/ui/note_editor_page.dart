@@ -18,6 +18,7 @@ class NoteEditorPage extends StatefulWidget {
     required this.saveText,
     this.loadCachedImage,
     this.uploadImage,
+    this.stageImage,
     this.pickImage,
     this.identity = '',
     super.key,
@@ -26,6 +27,7 @@ class NoteEditorPage extends StatefulWidget {
   final Note note;
   final String identity;
   final Future<NoteImageUpload?> Function()? pickImage;
+  final Future<void> Function(NoteImageUpload image)? stageImage;
   final Future<String> Function(
     NoteImageUpload image,
     String identity,
@@ -262,6 +264,28 @@ class _NoteEditorPageState extends State<NoteEditorPage>
     }
   }
 
+  Future<void> _stageImage() async {
+    if (_busy || widget.stageImage == null) return;
+    setState(() => _insertingImage = true);
+    try {
+      final image = await (widget.pickImage ?? NoteImagePicker().pick)();
+      if (!mounted || image == null || !await _flush() || !mounted) return;
+      await widget.stageImage!(image);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('图片已暂存到本机。联网后从账号菜单的“本地待上传资源”上传并插入正文。')),
+        );
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('暂存图片失败：$error')));
+      }
+    } finally {
+      if (mounted) setState(() => _insertingImage = false);
+    }
+  }
+
   Widget _formatButton(
     String label,
     IconData icon,
@@ -370,6 +394,12 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                 child: Row(
                   children: [
                     _historyButtons(),
+                    if (widget.stageImage != null)
+                      IconButton(
+                        tooltip: '离线暂存图片',
+                        icon: const Icon(Icons.add_photo_alternate),
+                        onPressed: _busy ? null : _stageImage,
+                      ),
                     if (widget.uploadImage != null)
                       IconButton(
                         tooltip: widget.note.isMarkdown ? '插入图片' : '在文末插入图片',

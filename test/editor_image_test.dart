@@ -22,6 +22,7 @@ void main() {
     WidgetTester tester, {
     bool markdown = true,
     Future<NoteImageUpload?> Function()? pick,
+    Future<void> Function(NoteImageUpload)? stage,
     required Future<void> Function(String, String) save,
     required Future<String> Function(NoteImageUpload, String, String) upload,
   }) async {
@@ -38,6 +39,7 @@ void main() {
           pickImage: pick ?? () async => image,
           saveText: save,
           uploadImage: upload,
+          stageImage: stage,
         ),
       ),
     );
@@ -47,6 +49,54 @@ void main() {
     await tester.tap(find.byTooltip(markdown ? '插入图片' : '在文末插入图片'));
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+    'offline image staging saves current text first without network or credentials',
+    (tester) async {
+      final events = <String>[];
+      await open(
+        tester,
+        save: (_, body) async {
+          events.add('save:$body');
+        },
+        stage: (picked) async {
+          expect(picked.bytes, image.bytes);
+          events.add('stage');
+        },
+        upload: (_, _, _) async => throw StateError('must not upload'),
+      );
+      await tester.enterText(find.byType(TextField).last, 'offline draft');
+      await tester.tap(find.byTooltip('离线暂存图片'));
+      await tester.pumpAndSettle();
+      expect(events, ['save:offline draft', 'stage']);
+      expect(find.byType(NoteImageUploadDialog), findsNothing);
+      expect(
+        tester.widget<TextField>(find.byType(TextField).last).controller!.text,
+        'offline draft',
+      );
+      expect(find.textContaining('图片已暂存到本机'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'failed draft save prevents staging an image against stale text',
+    (tester) async {
+      var stages = 0;
+      await open(
+        tester,
+        save: (_, _) async => throw StateError('disk full'),
+        stage: (_) async {
+          stages++;
+        },
+        upload: (_, _, _) async => throw StateError('must not upload'),
+      );
+      await tester.enterText(find.byType(TextField).last, 'offline draft');
+      await tester.tap(find.byTooltip('离线暂存图片'));
+      await tester.pumpAndSettle();
+      expect(stages, 0);
+      expect(find.textContaining('保存到本地失败'), findsOneWidget);
+    },
+  );
 
   Future<void> submit(WidgetTester tester) async {
     await tester.enterText(

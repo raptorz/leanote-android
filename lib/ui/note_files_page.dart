@@ -24,6 +24,7 @@ class NoteFilesPage extends StatefulWidget {
     this.attachmentPicker,
     this.attachmentSharer,
     this.attachmentOpener,
+    this.initialCachedOnly = false,
   });
   final AuthRepository repository;
   final StoredSession session;
@@ -33,6 +34,7 @@ class NoteFilesPage extends StatefulWidget {
   final AttachmentPicker? attachmentPicker;
   final AttachmentSharer? attachmentSharer;
   final AttachmentOpener? attachmentOpener;
+  final bool initialCachedOnly;
   @override
   State<NoteFilesPage> createState() => _NoteFilesPageState();
 }
@@ -99,6 +101,7 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
   @override
   void initState() {
     super.initState();
+    _cachedOnly = widget.initialCachedOnly;
     _load();
   }
 
@@ -354,7 +357,7 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
           },
           itemBuilder: (_) => const [
             PopupMenuItem(value: 'stage', child: Text('离线添加附件')),
-            PopupMenuItem(value: 'outbox', child: Text('本地待上传附件')),
+            PopupMenuItem(value: 'outbox', child: Text('本地待上传资源')),
           ],
         ),
         IconButton(
