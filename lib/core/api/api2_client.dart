@@ -157,6 +157,7 @@ class Api2Client {
     required String password,
     required String noteId,
     required AttachmentUpload file,
+    Future<void> Function()? beforeSend,
   }) async {
     if (!RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(noteId) ||
         identity.trim().isEmpty ||
@@ -186,6 +187,7 @@ class Api2Client {
       fields: {'noteId': noteId},
       avatar: file.bytes,
       filename: file.name,
+      beforeSend: beforeSend,
     );
     final id = result['Id'];
     if (id is! String || !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(id)) {
@@ -203,6 +205,7 @@ class Api2Client {
     required Map<String, String> fields,
     Uint8List? avatar,
     String filename = 'avatar.png',
+    Future<void> Function()? beforeSend,
   }) async {
     final cookies = <String, String>{};
     Future<Map<String, Object?>> call(
@@ -275,6 +278,7 @@ class Api2Client {
       if (bootstrap['Ok'] != true || user is! Map || user['UserId'] != userId) {
         throw const ApiException('accountMismatch');
       }
+      await beforeSend?.call();
       final result = await call(
         path,
         body: fields,

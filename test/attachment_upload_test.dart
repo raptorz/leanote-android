@@ -52,11 +52,13 @@ void main() {
     'wrong-session',
     'rejected',
     'unknown-result',
+    'journal-failure',
   ]) {
     test('API2 attachment upload contract: $scenario', () async {
       const noteId = '507f1f77bcf86cd799439011';
       const fileId = '507f1f77bcf86cd799439012';
       var uploads = 0;
+      var markedSending = false;
       final paths = <String>[];
       final api = Api2Client(
         httpClient: MockClient((request) async {
@@ -89,6 +91,7 @@ void main() {
                 200,
               );
             case '/api2/attachments/upload':
+              expect(markedSending, isTrue);
               uploads++;
               expect(request.method, 'POST');
               expect(request.followRedirects, false);
@@ -125,6 +128,10 @@ void main() {
         identity: 'admin',
         password: 'pass',
         noteId: noteId,
+        beforeSend: () async {
+          if (scenario == 'journal-failure') throw StateError('disk full');
+          markedSending = true;
+        },
         file: AttachmentUpload(
           name: 'example.txt',
           bytes: Uint8List.fromList(utf8.encode('payload')),
@@ -132,12 +139,24 @@ void main() {
       );
       if (scenario == 'ok') {
         expect(await future, fileId);
+      } else if (scenario == 'journal-failure') {
+        await expectLater(future, throwsStateError);
       } else {
         await expectLater(future, throwsA(isA<ApiException>()));
       }
       expect(
         uploads,
-        ['foreign-note', 'wrong-session'].contains(scenario) ? 0 : 1,
+        ['foreign-note', 'wrong-session', 'journal-failure'].contains(scenario)
+            ? 0
+            : 1,
+      );
+      expect(
+        markedSending,
+        ![
+          'foreign-note',
+          'wrong-session',
+          'journal-failure',
+        ].contains(scenario),
       );
       if (scenario != 'foreign-note') expect(paths.last, '/api2/logout');
     });

@@ -11,6 +11,7 @@ import '../services/attachment_opener.dart';
 import '../services/file_cache_batch.dart';
 import '../services/attachment_picker.dart';
 import 'attachment_upload_dialog.dart';
+import 'attachment_outbox_page.dart';
 
 class NoteFilesPage extends StatefulWidget {
   const NoteFilesPage({
@@ -197,6 +198,28 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
     }
   }
 
+  Future<void> _stageAttachment() async {
+    if (_loading || _opening != null || _batch != null) return;
+    setState(() => _opening = 'stage');
+    try {
+      final file = await (widget.attachmentPicker ?? AttachmentPicker()).pick();
+      if (file == null || !mounted) return;
+      await widget.repository.stageAttachment(
+        widget.session,
+        widget.noteId,
+        file,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('附件已保存到本机，可从待上传附件中处理')));
+      }
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = '暂存附件失败：$error');
+    } finally {
+      if (mounted) setState(() => _opening = null);
+    }
+  }
+
   Future<void> _openAttachment(NoteFile file) async {
     if (_loading || _opening != null || _batch != null || !file.isAttachment) {
       return;
@@ -309,6 +332,31 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
     appBar: AppBar(
       title: const Text('图片与附件'),
       actions: [
+        PopupMenuButton<String>(
+          tooltip: '本地附件',
+          enabled: !_loading && _opening == null && _batch == null,
+          onSelected: (value) async {
+            if (value == 'stage') {
+              await _stageAttachment();
+            }
+            if (value == 'outbox' && context.mounted) {
+              await Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => AttachmentOutboxPage(
+                    repository: widget.repository,
+                    session: widget.session,
+                    noteId: widget.noteId,
+                  ),
+                ),
+              );
+            }
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem(value: 'stage', child: Text('离线添加附件')),
+            PopupMenuItem(value: 'outbox', child: Text('本地待上传附件')),
+          ],
+        ),
         IconButton(
           tooltip: '上传附件',
           icon: const Icon(Icons.upload_file),

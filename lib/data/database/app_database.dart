@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'file_download_journal.dart';
+import 'attachment_outbox.dart';
 
 import '../../domain/models/account.dart';
 import '../../domain/models/default_editor.dart';
@@ -23,7 +24,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 10;
+  static const schemaVersion = 11;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -63,6 +64,7 @@ class AppDatabase {
             await db.execute(statement);
           }
         }
+        if (oldVersion < 11) await db.execute(AttachmentOutbox.schema);
       },
     );
     return AppDatabase._(database);
@@ -1706,5 +1708,6 @@ class AppDatabase {
     _sortPreferencesSchema,
     _cachePreferencesSchema,
     ...FileDownloadJournal.schema,
+    AttachmentOutbox.schema,
   ];
 }

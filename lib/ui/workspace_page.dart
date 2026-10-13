@@ -7,6 +7,7 @@ import '../domain/models/note.dart';
 import '../domain/models/default_editor.dart';
 import 'default_editor_dialog.dart';
 import 'file_cache_dialog.dart';
+import 'attachment_outbox_page.dart';
 import '../domain/models/note_image_reference.dart';
 import '../domain/models/note_sort.dart';
 import '../domain/models/notebook.dart';
@@ -281,6 +282,30 @@ class _WorkspacePageState extends State<WorkspacePage>
   }
 
   bool _cacheDialogOpen = false;
+
+  Future<void> _openAttachmentOutbox() async {
+    if (_accountOpen || _syncing || _loggingOut || _signedOut) return;
+    _accountOpen = true;
+    try {
+      await _stopFileCache();
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => AttachmentOutboxPage(
+            repository: widget.repository,
+            session: widget.session,
+          ),
+        ),
+      );
+      if (mounted) {
+        await _reloadNotes();
+        await _refreshPending();
+      }
+    } finally {
+      _accountOpen = false;
+    }
+  }
 
   Future<void> _manageFileCache() async {
     if (_cacheDialogOpen || _syncing || _loggingOut || _signedOut) return;
@@ -1305,6 +1330,7 @@ class _WorkspacePageState extends State<WorkspacePage>
               }
               if (value == 'stopCache') _fileQueue?.cancel();
               if (value == 'manageCache') _manageFileCache();
+              if (value == 'attachmentOutbox') _openAttachmentOutbox();
               if (value == 'trash') _openTrash();
               if (value == 'about') {
                 showDialog<void>(
@@ -1324,6 +1350,10 @@ class _WorkspacePageState extends State<WorkspacePage>
                 ),
               const PopupMenuItem(value: 'defaultEditor', child: Text('默认编辑器')),
               const PopupMenuItem(value: 'manageCache', child: Text('离线资源缓存')),
+              const PopupMenuItem(
+                value: 'attachmentOutbox',
+                child: Text('本地待上传附件'),
+              ),
               const PopupMenuItem(value: 'sync', child: Text('立即同步')),
               const PopupMenuItem(value: 'fullSync', child: Text('完全同步（合并）')),
               CheckedPopupMenuItem(

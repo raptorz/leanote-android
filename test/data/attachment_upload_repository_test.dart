@@ -66,7 +66,9 @@ class UploadApi extends Api2Client {
     required String password,
     required String noteId,
     required AttachmentUpload file,
+    Future<void> Function()? beforeSend,
   }) async {
+    await beforeSend?.call();
     uploads++;
     await duringUpload?.call();
     return fileId;
@@ -146,6 +148,111 @@ void main() {
         (await db.cachedNoteFiles(session.account.cacheKey, noteId)).single.id,
         fileId,
       );
+    },
+  );
+
+  test('staged attachment is confirmed before failed refresh and never uploaded twice', () async {
+    final id = await repo.stageAttachment(session, noteId, file);
+    api.failRefresh = true;
+    expect(
+      await repo.uploadStagedAttachment(
+        session,
+        id,
+        identity: 'u',
+        password: 'p',
+      ),
+      isFalse,
+    );
+    final item = (await repo.pendingAttachments(session)).single;
+    expect(item.state, 'uploaded');
+    expect(item.remoteId, fileId);
+    expect((await repo.stagedAttachment(session, id)).bytes, [1]);
+    await expectLater(
+      repo.uploadStagedAttachment(session, id, identity: 'u', password: 'p'),
+      throwsStateError,
+    );
+    expect(api.uploads, 1);
+  });
+
+  test(
+    'lost upload response preserves original and requires explicit retry',
+    () async {
+      final id = await repo.stageAttachment(session, noteId, file);
+      api.duringUpload = () async => throw StateError('timeout');
+      await expectLater(
+        repo.uploadStagedAttachment(session, id, identity: 'u', password: 'p'),
+        throwsStateError,
+      );
+      expect(
+        (await repo.pendingAttachments(session)).single.state,
+        'uncertain',
+      );
+      await expectLater(
+        repo.uploadStagedAttachment(session, id, identity: 'u', password: 'p'),
+        throwsStateError,
+      );
+      expect(api.uploads, 1);
+      await repo.retryUncertainAttachment(session, id);
+      api.duringUpload = null;
+      expect(
+        await repo.uploadStagedAttachment(
+          session,
+          id,
+          identity: 'u',
+          password: 'p',
+        ),
+        isTrue,
+      );
+      expect(api.uploads, 2);
+      expect((await repo.pendingAttachments(session)).single.state, 'uploaded');
+    },
+  );
+
+  test(
+    'note conflicts before file request leave queued attachment retryable',
+    () async {
+      final id = await repo.stageAttachment(session, noteId, file);
+      await db.saveLocalNote(
+        session.account.cacheKey,
+        original.copyWith(content: 'draft'),
+      );
+      api.failNoteSave = true;
+      await expectLater(
+        repo.uploadStagedAttachment(session, id, identity: 'u', password: 'p'),
+        throwsStateError,
+      );
+      expect((await repo.pendingAttachments(session)).single.state, 'pending');
+      expect(api.uploads, 0);
+    },
+  );
+
+  test(
+    'in-flight queued uploads block task deletion and manual retry',
+    () async {
+      final id = await repo.stageAttachment(session, noteId, file);
+      final started = Completer<void>(), gate = Completer<void>();
+      api.duringUpload = () {
+        started.complete();
+        return gate.future;
+      };
+      final pending = repo.uploadStagedAttachment(
+        session,
+        id,
+        identity: 'u',
+        password: 'p',
+      );
+      await started.future;
+      await expectLater(
+        repo.removeStagedAttachment(session, id),
+        throwsStateError,
+      );
+      await expectLater(
+        repo.retryUncertainAttachment(session, id),
+        throwsStateError,
+      );
+      gate.complete();
+      await pending;
+      expect((await repo.pendingAttachments(session)).single.state, 'uploaded');
     },
   );
   test(

@@ -304,7 +304,7 @@ void main() {
       await db.raw.execute('DROP TABLE cache_download_jobs');
       await db.raw.setVersion(9);
       await reopen();
-      expect(await db.raw.getVersion(), 10);
+      expect(await db.raw.getVersion(), AppDatabase.schemaVersion);
       expect(await db.autoCacheFiles(account.cacheKey), isTrue);
       expect((await db.notes(account.cacheKey)).single.title, 'Note');
       expect((await journal.plan(['n'])).single.usn, 3);

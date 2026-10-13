@@ -15,8 +15,8 @@
 ## 当前现场（2026-10-13）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
-- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 526 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
+- 最近提交：`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
+- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 539 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
 - 当前任务：M17 下载队列已持久化并验证，接着补齐离线上传与 Android 资源类分享。iOS 与发布按最新要求暂缓，不作为当前功能迁移的执行前置条件。
 
@@ -43,8 +43,8 @@
 | M13 共享笔记 | desktop-app/sharedsync/sharedsync.go、api/shared_api.go | api/ApiSharedController | 旧版无完整等价 | ui/shared_notes_page.dart、data/database shared cache；API2 | 只读列表/正文已实现；共享资源缓存与权限撤销、共享编辑和权限管理仍待核对/实现 |
 | M14 图片缓存、预览、保存 | desktop-app/service/file_service.go | api/ApiFileController.GetImage | ui/PictureViewerActivity、service/NoteFileService | ui/cached_markdown_image.dart、services/image_exporter.dart；API2 | 已有缓存隔离/原始字节保存测试；原生文件窗口待验收 |
 | M15 图片上传与正文插入 | desktop-app/webapi/proxy.go | /api2/file/pasteImage → File.PasteImage | ui/edit/NoteEditActivity | services/note_image_picker.dart、ui/note_image_upload_dialog.dart；API2 | 在线原文插入已实现；离线上传、WebView 插入和中断恢复未完 |
-| M16 附件上传下载、打开、分享 | desktop-app/service/file_service.go、webapi/proxy.go | Api2.UploadAttachment、ApiFile.GetAttach | service/NoteFileService | ui/note_files_page.dart、services/attachment_*；API2 | 在线上传、下载、离线保存/分享/打开已实现；离线上传队列、原生 intent/DocumentInteraction 验证未完 |
-| M17 资源任务与缓存管理 | desktop-app/service/file_service.go | ApiNote.GetNote + ApiFile | background/NoteSyncService | services/account_file_cache.dart、file_cache_batch.dart、ui/file_cache_dialog.dart；API2 | 账号资源下载队列已持久化（schema v10），支持重启/暂停续传、逐文件失败恢复、失效快照拦截；64MiB 缓存与任务清理已实现；离线上传与系统后台执行未完 |
+| M16 附件上传下载、打开、分享 | desktop-app/service/file_service.go、webapi/proxy.go | Api2.UploadAttachment、ApiFile.GetAttach | service/NoteFileService | ui/note_files_page.dart、services/attachment_*；API2 | 在线上传、下载、离线保存/分享/打开已实现；附件离线暂存、持久上传状态及结果不确定时手动恢复已实现（schema v11）；原生 intent 验证未完，iOS 暂缓 |
+| M17 资源任务与缓存管理 | desktop-app/service/file_service.go | ApiNote.GetNote + ApiFile | background/NoteSyncService | services/account_file_cache.dart、file_cache_batch.dart、ui/file_cache_dialog.dart；API2 | 账号资源下载队列已持久化（schema v10），支持重启/暂停续传、逐文件失败恢复、失效快照拦截；64MiB 缓存与任务清理已实现；附件离线上传暂存已实现；图片离线上传与系统后台执行未完 |
 | M18 缓存偏好持久化 | desktop-app/db 配置、service/file_service.go | 无新增请求 | ui/SettingsActivity | app_database schema v8、workspace_page；本地 | 已提交 f524502；账号隔离、升级、读写失败/重试测试通过 |
 | M19 账号资料、头像、密码 | desktop-app/webapi/background_profile.go、proxy.go | Api2.UploadAvatar、User.UpdateUsername/UpdatePwd、web/emailChange | ui/SettingsActivity | ui/account_page.dart、avatar_upload_dialog.dart；API2 + 允许的公开头像 | 主要功能已实现；头像相机/裁剪/更多格式未完；帐号变更与缓存竞态验收 |
 | M20 默认编辑器、语言、关于 | desktop-app/webapi/about.go、应用配置 | 默认编辑器与语言本地；协议版本 API2 | ui/SettingsActivity、AboutActivity | default_editor_dialog.dart、about_dialog.dart；API2 | 编辑器/版本已实现，界面国际化与语言设置未实现；中英系统及切换测试待做 |
@@ -198,4 +198,13 @@ M06 本批最终验证：静态检查无问题；完整测试 **501 项全部通
 - 登录只读取任务状态，不自动联网；账号菜单手动开始或已开启的同步后缓存触发恢复。笔记版本/文件列表变化后旧任务失效，清理缓存同时删除下载任务；配额淘汰不会形成重复下载循环。
 - 任务没有密码/token；账号隔离、会话切换仍等待下载排空。下载进度不修改同步游标或笔记正文。
 - 新增 SQLite 重开进程模拟、失败/暂停续传、列表重试、字节写入后未确认、旧代次回调、账号隔离、配额淘汰和 v9 升级测试；界面恢复不联网及仅待办任务清理有回归覆盖。
-- 静态检查通过，完整 Flutter 测试 526 项通过。本批未新增原生代码，Android 构建证据仍为上批；系统后台执行与设备验收没有完成。
+- 静态检查通过，完整 Flutter 测试 539 项通过。本批未新增原生代码，Android 构建证据仍为上批；系统后台执行与设备验收没有完成。
+
+## M16：离线附件原件与上传恢复（2026-10-13）
+
+- 图片与附件页面增加“离线添加附件”，支持尚未同步的新笔记；账号菜单/笔记内可查看暂存任务、导出原件、逐项上传和确认移除。暂存不联网、不索取密码、不自动上传。
+- schema v11 独立保存原件与 pending/uncertain/uploaded 状态，账号和服务器隔离；下载缓存清理、配额淘汰、重新同步和笔记删除均不级联删除原件。孤立任务仍可从账号菜单导出或移除。全账号合计上限 64 个/64 MiB，拒绝超额而不淘汰未上传文件。
+- 上传仅在当前笔记保存/所有权/当前账号密码验证成功且即将发送文件时持久写入 uncertain；写入失败不会发文件请求。收到成功附件 ID 后先保存 uploaded，再尝试刷新。刷新失败不回退为可重复上传。
+- 请求中断或成功响应未持久保存时保留 uncertain 和原件；用户查看服务端列表、明确确认后才允许重试。API2 尚无幂等键，不能假称自动去重；不会保存密码或会话 cookie。
+- 复用同步互斥锁，上传期间禁止重复上传、移除任务、重试状态切换、重置同步和退出。仅上传目标笔记正文，不顺带同步其他笔记。
+- 测试覆盖数据库重开、服务器重置、账号隔离、容量上限、v10 升级、丢失响应、刷新失败、正文冲突、上传互斥，以及离线界面和危险操作确认。静态检查通过，完整 Flutter 回归 539 项通过，Android debug APK 构建通过（48.6 秒）。没有原生设备验收证据。

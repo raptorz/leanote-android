@@ -5,6 +5,7 @@ import '../core/api/api2_client.dart';
 import '../core/api/api_exception.dart';
 import '../data/database/app_database.dart';
 import '../data/database/file_download_journal.dart';
+import '../data/database/attachment_outbox.dart';
 import '../services/account_file_cache.dart';
 import '../data/session/session_store.dart';
 import '../domain/models/account.dart';
@@ -205,6 +206,8 @@ class AuthRepository {
     AttachmentUpload file, {
     required String identity,
     required String password,
+    Future<void> Function()? beforeSend,
+    Future<void> Function(String id)? confirmed,
   }) async {
     var refreshed = false;
     if (identity.trim().isEmpty || password.isEmpty) {
@@ -217,12 +220,14 @@ class AuthRepository {
             .firstOrNull;
         if (local == null ||
             local.userId != session.account.userId ||
+            local.isTrash ||
+            local.isDeleted ||
             local.usn <= 0 ||
             (await _database.pendingNoteIds(session.account.cacheKey))
                 .contains(noteId)) {
           throw StateError('请先同步此笔记，再上传附件');
         }
-        await _api.uploadAttachment(
+        final remoteId = await _api.uploadAttachment(
           server: session.account.server,
           token: session.token,
           userId: session.account.userId,
@@ -230,7 +235,9 @@ class AuthRepository {
           password: password,
           noteId: noteId,
           file: file,
+          beforeSend: beforeSend,
         );
+        await confirmed?.call(remoteId);
         try {
           final pending = _fileRefreshes['${session.account.cacheKey}:$noteId'];
           if (pending != null) await pending;
@@ -260,6 +267,56 @@ class AuthRepository {
       noteId: noteId,
     );
     return refreshed;
+  }
+
+  AttachmentOutbox _outbox(StoredSession session) =>
+      AttachmentOutbox(_database.raw, session.account);
+  Future<List<PendingAttachment>> pendingAttachments(
+    StoredSession session, {
+    String? noteId,
+  }) => _outbox(session).list(noteId: noteId);
+  Future<String> stageAttachment(
+    StoredSession session,
+    String noteId,
+    AttachmentUpload file,
+  ) => _outbox(session).stage(noteId, file);
+  Future<AttachmentUpload> stagedAttachment(StoredSession session, String id) =>
+      _outbox(session).file(id);
+
+  Future<void> removeStagedAttachment(StoredSession session, String id) async {
+    if (_sync.isBusy) throw StateError('请等待当前同步或上传完成');
+    await _outbox(session).remove(id);
+  }
+
+  Future<void> retryUncertainAttachment(
+    StoredSession session,
+    String id,
+  ) async {
+    if (_sync.isBusy) throw StateError('请等待当前同步或上传完成');
+    await _outbox(session).retryUncertain(id);
+  }
+
+  Future<bool> uploadStagedAttachment(
+    StoredSession session,
+    String id, {
+    required String identity,
+    required String password,
+  }) async {
+    final outbox = _outbox(session);
+    final item = (await outbox.list()).where((e) => e.id == id).firstOrNull;
+    if (item == null || item.state != 'pending') {
+      throw StateError('附件不是待上传状态，请先核实已有结果');
+    }
+    final file = await outbox.file(id);
+    return uploadAttachment(
+      session,
+      item.noteId,
+      file,
+      identity: identity,
+      password: password,
+      beforeSend: () => outbox.markSending(id),
+      confirmed: (remoteId) => outbox.confirm(id, remoteId),
+    );
   }
 
   Future<Uint8List> noteImage(
