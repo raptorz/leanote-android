@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/core/api/api2_client.dart';
 import 'package:gemsnote/data/database/app_database.dart';
@@ -12,6 +15,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'cached_login_test.dart' show MemorySessions;
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late AppDatabase db;
   late AuthRepository repo;
   late StoredSession session;
@@ -51,6 +55,133 @@ void main() {
     repo = AuthRepository(api, db, MemorySessions(), SyncCoordinator(api, db));
   });
   tearDown(() => db.raw.close());
+
+  test('binary share imports note and original atomically; failed native ack retry preserves edits', () async {
+    final resource = SharedText(
+      id: source.id,
+      title: 'file',
+      text: 'caption',
+      resourceKind: 'attachment',
+      resourceName: 'document.pdf',
+      resourceSize: 3,
+    );
+    final bytes = Uint8List.fromList([1, 2, 3]);
+    await repo.importSharedText(
+      session,
+      resource,
+      'book',
+      resourceBytes: bytes,
+    );
+    expect(
+      (await repo.pendingAttachments(session)).single.name,
+      'document.pdf',
+    );
+    expect((await repo.pendingAttachments(session)).single.noteId, source.id);
+    await db.saveEditedText(
+      session.account.cacheKey,
+      source.id,
+      'edited',
+      'new body',
+    );
+    final again = await repo.importSharedText(
+      session,
+      resource,
+      'book',
+      resourceBytes: bytes,
+    );
+    expect(again.content, 'new body');
+    expect((await repo.pendingAttachments(session)).length, 1);
+    expect(
+      (await repo.stagedAttachment(
+        session,
+        (await repo.pendingAttachments(session)).single.id,
+      )).bytes,
+      bytes,
+    );
+    expect(await db.lastSyncUsn(session.account.cacheKey), 2);
+  });
+
+  test('outbox write failure rolls back imported note, retaining native share for retry', () async {
+    final resource = SharedText(
+      id: source.id,
+      title: 'file',
+      text: 'caption',
+      resourceKind: 'attachment',
+      resourceName: 'a.bin',
+      resourceSize: 1,
+    );
+    await db.raw.execute(
+      "CREATE TRIGGER fail_share BEFORE INSERT ON attachment_outbox BEGIN SELECT RAISE(ABORT, 'disk full'); END",
+    );
+    await expectLater(
+      repo.importSharedText(
+        session,
+        resource,
+        'book',
+        resourceBytes: Uint8List(1),
+      ),
+      throwsA(isA<DatabaseException>()),
+    );
+    expect(await db.notes(session.account.cacheKey), isEmpty);
+    expect(await repo.pendingAttachments(session), isEmpty);
+    await db.raw.execute('DROP TRIGGER fail_share');
+    await repo.importSharedText(
+      session,
+      resource,
+      'book',
+      resourceBytes: Uint8List(1),
+    );
+    expect((await db.notes(session.account.cacheKey)).length, 1);
+  });
+
+  test('missing or invalid image bytes do not create a partial note', () async {
+    final resource = SharedText(
+      id: source.id,
+      title: 'image',
+      text: 'caption',
+      resourceKind: 'image',
+      resourceName: 'image.png',
+      resourceSize: 3,
+    );
+    await expectLater(
+      repo.importSharedText(session, resource, 'book'),
+      throwsStateError,
+    );
+    await expectLater(
+      repo.importSharedText(
+        session,
+        resource,
+        'book',
+        resourceBytes: Uint8List(3),
+      ),
+      throwsFormatException,
+    );
+    expect(await db.notes(session.account.cacheKey), isEmpty);
+    expect(await repo.pendingAttachments(session), isEmpty);
+  });
+
+  test('shared PNG becomes normalized image task without sending requests or temporary paths', () async {
+    final bytes = File('assets/images/gemsnote_s.png').readAsBytesSync();
+    final resource = SharedText(
+      id: source.id,
+      title: 'image',
+      text: 'caption',
+      resourceKind: 'image',
+      resourceName: 'original.png',
+      resourceSize: bytes.length,
+    );
+    final note = await repo.importSharedText(
+      session,
+      resource,
+      'book',
+      resourceBytes: bytes,
+    );
+    expect(note.content, 'caption');
+    final item = (await repo.pendingAttachments(session)).single;
+    expect(item.isImage, isTrue);
+    expect(item.state, 'pending');
+    expect(item.name, 'image.png');
+  });
   test(
     'import creates dirty Markdown with stable ID and complete source offline',
     () async {

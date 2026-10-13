@@ -13,6 +13,63 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   tearDown(() => messenger.setMockMethodCallHandler(channel, null));
 
+  test('resource bytes require explicit account-bound read and exact persisted size', () async {
+    final calls = <String>[];
+    var short = false;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call.method);
+      if (call.method == 'peek') {
+        return {
+          'id': id,
+          'text': 'file',
+          'resourceKind': 'attachment',
+          'resourceName': 'a.pdf',
+          'resourceSize': 3,
+        };
+      }
+      if (call.method == 'readResource') {
+        expect(call.arguments, {'id': id, 'accountKey': 'account'});
+        return Uint8List(short ? 2 : 3);
+      }
+      return null;
+    });
+    final inbox = SharedTextInbox(channel: channel, supported: true);
+    addTearDown(inbox.dispose);
+    await inbox.start();
+    expect(calls, ['peek']);
+    expect(inbox.pending!.hasResource, isTrue);
+    await inbox.claim(inbox.pending!, 'account');
+    expect((await inbox.readResource(inbox.pending!, 'account')).length, 3);
+    short = true;
+    await expectLater(
+      inbox.readResource(inbox.pending!, 'account'),
+      throwsStateError,
+    );
+    expect(calls, isNot(contains('acknowledge')));
+  });
+
+  test(
+    'invalid resource metadata is rejected rather than imported as text',
+    () {
+      for (final values in [
+        {'resourceKind': 'other', 'resourceName': 'a', 'resourceSize': 1},
+        {'resourceKind': '', 'resourceName': 'a', 'resourceSize': 1},
+        {'resourceKind': 'image', 'resourceName': '../a', 'resourceSize': 1},
+        {'resourceKind': 'attachment', 'resourceName': 'a', 'resourceSize': 0},
+        {
+          'resourceKind': 'attachment',
+          'resourceName': 'a',
+          'resourceSize': 32 * 1024 * 1024 + 1,
+        },
+      ]) {
+        expect(
+          () => SharedText.fromMap({'id': id, 'text': 'file', ...values}),
+          throwsFormatException,
+        );
+      }
+    },
+  );
+
   for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
     test('$platform reads a durable share on start and resume', () async {
       debugDefaultTargetPlatformOverride = platform;

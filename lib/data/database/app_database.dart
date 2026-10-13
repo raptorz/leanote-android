@@ -10,6 +10,7 @@ import 'file_download_journal.dart';
 import 'attachment_outbox.dart';
 
 import '../../domain/models/account.dart';
+import '../../domain/models/attachment_upload.dart';
 import '../../domain/models/default_editor.dart';
 import '../../domain/models/conflict_copy.dart';
 import '../../domain/models/note.dart';
@@ -1044,6 +1045,8 @@ class AppDatabase {
     required String notebookId,
     required String title,
     required String content,
+    AttachmentUpload? resource,
+    bool resourceIsImage = false,
   }) => raw.transaction((txn) async {
     if (!RegExp(r'^[0-9a-f]{24}$').hasMatch(shareId)) {
       throw const FormatException('invalidShareId');
@@ -1080,6 +1083,14 @@ class AppDatabase {
       whereArgs: [account.cacheKey, shareId],
     );
     await batch.commit(noResult: true);
+    if (resource != null) {
+      await AttachmentOutbox(raw, account).stageInTransaction(
+        txn,
+        shareId,
+        resource,
+        kind: resourceIsImage ? 'image' : 'attachment',
+      );
+    }
     return note;
   });
 

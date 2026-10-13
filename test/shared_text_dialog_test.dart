@@ -17,6 +17,7 @@ void main() {
     required Future<Note> Function(SharedText, String) save,
     required Future<void> Function() ack,
     bool canImport = true,
+    SharedText? resource,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -26,7 +27,7 @@ void main() {
               onPressed: () => showDialog<Note>(
                 context: context,
                 builder: (_) => SharedTextDialog(
-                  source: source,
+                  source: resource ?? source,
                   notebooks: [
                     Notebook.fromJson({
                       'NotebookId': 'b',
@@ -80,6 +81,42 @@ void main() {
       await tester.pumpAndSettle();
       expect(events, ['save', 'ack']);
       expect(find.byType(SharedTextDialog), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'resource metadata survives edits and image can be imported as original attachment',
+    (tester) async {
+      final events = <String>[];
+      await open(
+        tester,
+        resource: SharedText(
+          id: source.id,
+          title: 'photo',
+          text: 'caption',
+          resourceKind: 'image',
+          resourceName: 'photo.jpg',
+          resourceSize: 123,
+        ),
+        save: (edited, target) async {
+          expect(edited.resourceKind, 'attachment');
+          expect(edited.resourceName, 'photo.jpg');
+          expect(edited.resourceSize, 123);
+          events.add('save');
+          return note;
+        },
+        ack: () async {
+          events.add('ack');
+        },
+      );
+      await tester.tap(find.byType(CheckboxListTile));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Target book'));
+      await tester.tap(find.text('Target book'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('保存笔记'));
+      await tester.pumpAndSettle();
+      expect(events, ['save', 'ack']);
     },
   );
   testWidgets(

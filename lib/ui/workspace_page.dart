@@ -257,10 +257,17 @@ class _WorkspacePageState extends State<WorkspacePage>
               source.accountKey == widget.session.account.cacheKey,
           onImport: (edited, notebookId) async {
             await _shareInbox.claim(source, widget.session.account.cacheKey);
+            final bytes = source.hasResource
+                ? await _shareInbox.readResource(
+                    source,
+                    widget.session.account.cacheKey,
+                  )
+                : null;
             return widget.repository.importSharedText(
               widget.session,
               edited,
               notebookId,
+              resourceBytes: bytes,
             );
           },
           onAcknowledge: () => _shareInbox.acknowledge(source),

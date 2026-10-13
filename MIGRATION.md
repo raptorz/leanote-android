@@ -15,10 +15,10 @@
 ## 当前现场（2026-10-13）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
-- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 547 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
+- 最近提交：`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
+- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 554 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
-- 当前任务：M17 下载队列已持久化并验证，接着补齐离线上传与 Android 资源类分享。iOS 与发布按最新要求暂缓，不作为当前功能迁移的执行前置条件。
+- 当前任务：持久下载、离线图片/附件暂存与 Android 资源分享已实现并验证，继续补齐离线新建笔记本及其余功能缺口。iOS 与发布按最新要求暂缓，不作为当前功能迁移的执行前置条件。
 
 ## 功能对照索引
 
@@ -50,7 +50,7 @@
 | M20 默认编辑器、语言、关于 | desktop-app/webapi/about.go、应用配置 | 默认编辑器与语言本地；协议版本 API2 | ui/SettingsActivity、AboutActivity | default_editor_dialog.dart、about_dialog.dart；API2 | 编辑器/版本已实现，界面国际化与语言设置未实现；中英系统及切换测试待做 |
 | M21 多账号快速切换 | desktop-app/app.go、db 配置 | Api2.TokenLogin、ApiUser.Info | service/AccountService、ui/MainActivity | app.dart、data/session/session_store.dart | 本轮实现切换/添加账号、登录页恢复已登录账号；保留离线修改与多账号凭据，切换前等待资源任务、重建工作区；静态检查和全量 488 项测试通过；原生安全存储/生命周期验收仍待进行 |
 | M22 导入导出、对外分享 | desktop-app/webapi/local.go | 本地操作无需新接口 | ui/edit/NoteEditActivity | services/note_importer.dart、note_exporter.dart、note_sharer.dart | 原文导入导出及系统分享已实现；完整含资源导出仍待对照；Android/iOS 文件与分享面板验收 |
-| M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity、ios/ShareExtension 与 Shared | Android 单项/多项文本及文本文件已实现，JVM/Flutter 测试和 APK 构建通过；iOS 单项文本/网页与 App Group 队列已有，存储测试通过但 iOS 构建/签名/真机待验收；二进制资源、iOS 文件/多项未完成 |
+| M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity、ios/ShareExtension 与 Shared | Android 单项/多项文本、文本文件、图片与二进制附件接收已实现，含私有原件暂存、账号认领和事务导入；JVM/Flutter 测试和 APK 构建通过，设备生命周期验收待做；iOS 文件/多项及验证暂缓 |
 | M24 Android 小组件 | Desktop 无等价 | 本地快照，无新接口 | appwidget/NoteAppWidget、WidgetService、RedirActivity | 未实现 | 笔记列表/新建入口、账号切换、锁屏隐私、刷新及系统生命周期验收 |
 | M25 Android/iOS 发布与运行 | desktop-app/.github/workflows 为发布参考 | 无 | 旧 Android 构建参考 | android、ios、.github/workflows | 损坏 Gradle 包已修复，Android debug APK 已构建成功；iOS 模拟器/签名/设备验收未完成；不自动发布 |
 | M26 API2 边界与网络错误 | desktop-app/api/client.go | conf/routes、Api2Controller、api/* | 禁止复用旧请求 | lib/core/api/api2_client.dart | 未发现直接 Legacy 业务调用；JSON/表单已禁止自动重定向，真实 HTTP 测试覆盖 GET/JSON/form × 301/302/303/307/308；旧正文路径仅解析 FileId，绝不请求原路径 |
@@ -217,3 +217,12 @@ M06 本批最终验证：静态检查无问题；完整测试 **501 项全部通
 - 尚未同步的新笔记也能从阅读页进入图片与附件，默认只读取本地列表，支持离线添加附件。
 - 新增并发正文变化、插入事务回滚、缺失/回收站恢复、未知结果、重复插入、v11 升级、编辑器暂存顺序、凭据隔离与队列恢复界面测试。
 - 静态检查通过，完整 Flutter 测试 547 项通过，Android debug APK 构建通过（19.4 秒）；iOS 与发布未执行。
+
+## M23：Android 图片与二进制附件分享（2026-10-13）
+
+- 扩展 SEND/SEND_MULTIPLE 和 content URI 接收，支持纯文本、PNG/JPEG 图片及其他二进制附件；图片可以选择普通附件模式保留原始文件。仍拒绝自身 provider、任意文件路径，不新增媒体/存储权限，不持久持有来源授权。
+- 原生原件采用随机 ID 私有路径，最多 32 MiB/文件、96 MiB/暂存目录，最多 8 项待导入；fsync 后保存队列。最多 2 个读取 worker，15 秒超时拒收迟到结果，文件暂存和清理互斥，保留已入队/在途原件。
+- 账号认领后才能通过 bridge 按 ID 读取；笔记和资源 outbox 单事务导入，写入失败回滚笔记、保留原生分享。ack 失败重试不会重复创建笔记或附件；不会联网或自动上传。
+- 测试覆盖原件重开、容量/超时取消/路径限制、在途清理、资源元数据与长度验证、导入事务回滚、重复导入保留后续编辑，以及图片/普通附件模式。JVM 测试通过，完整 Flutter 554 项通过；原生 URI 授权与 provider/生命周期仍待设备验收，iOS 按范围暂缓。
+
+本批收尾：静态检查无问题，Android debug APK 最终构建通过（3.8 秒）；JVM 资源测试通过，完整 Flutter 测试 554 项通过。没有新增设备验收证据。

@@ -987,11 +987,26 @@ class AuthRepository {
   Future<Note> importSharedText(
     StoredSession session,
     SharedText source,
-    String notebookId,
-  ) {
+    String notebookId, {
+    Uint8List? resourceBytes,
+  }) async {
     if (source.accountKey.isNotEmpty &&
         source.accountKey != session.account.cacheKey) {
       throw StateError('此分享已指定其他账号');
+    }
+    AttachmentUpload? resource;
+    if (source.hasResource) {
+      if (resourceBytes == null ||
+          resourceBytes.length != source.resourceSize) {
+        throw StateError('分享资源不完整');
+      }
+      final image = source.resourceKind == 'image'
+          ? await NoteImageUpload.normalize(resourceBytes)
+          : null;
+      resource = AttachmentUpload(
+        name: image == null ? source.resourceName : 'image.png',
+        bytes: image?.bytes ?? resourceBytes,
+      );
     }
     return _database.importSharedText(
       account: session.account,
@@ -999,6 +1014,8 @@ class AuthRepository {
       notebookId: notebookId,
       title: source.suggestedTitle,
       content: source.text,
+      resource: resource,
+      resourceIsImage: source.resourceKind == 'image',
     );
   }
 

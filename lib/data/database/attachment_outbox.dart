@@ -58,37 +58,49 @@ class AttachmentOutbox {
     'image',
   );
   Future<String> _stage(String noteId, AttachmentUpload file, String kind) =>
-      database.transaction((txn) async {
-        final owner = await txn.query(
-          'notes',
-          columns: ['server_id'],
-          where: 'account_id = ? AND server_id = ? AND owner_server_id = ? AND is_trash = 0 AND local_is_deleted = 0',
-          whereArgs: [account.cacheKey, noteId, account.userId],
-        );
-        if (owner.isEmpty) throw StateError('不能向不存在或回收站中的笔记添加附件');
-        final usage = (await txn.rawQuery(
-          'SELECT COUNT(*) AS count, COALESCE(SUM(LENGTH(bytes)), 0) AS size FROM attachment_outbox',
-        )).single;
-        if ((usage['count'] as int) >= maxItems ||
-            (usage['size'] as int) + file.bytes.length > maxBytes) {
-          throw StateError('本地附件暂存已满（最多 64 个、合计 64 MiB），请先处理或导出已有附件');
-        }
-        final random = Random.secure();
-        final id = List.generate(
-          16,
-          (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
-        ).join();
-        await txn.insert('attachment_outbox', {
-          'id': id,
-          'account_id': account.cacheKey,
-          'note_id': noteId,
-          'name': file.name,
-          'kind': kind,
-          'bytes': file.bytes,
-          'created_at': DateTime.now().millisecondsSinceEpoch,
-        });
-        return id;
-      });
+      database.transaction(
+        (txn) => stageInTransaction(txn, noteId, file, kind: kind),
+      );
+
+  Future<String> stageInTransaction(
+    DatabaseExecutor txn,
+    String noteId,
+    AttachmentUpload file, {
+    String kind = 'attachment',
+  }) async {
+    if (!{'attachment', 'image'}.contains(kind)) {
+      throw StateError('invalidResourceKind');
+    }
+    final owner = await txn.query(
+      'notes',
+      columns: ['server_id'],
+      where: 'account_id = ? AND server_id = ? AND owner_server_id = ? AND is_trash = 0 AND local_is_deleted = 0',
+      whereArgs: [account.cacheKey, noteId, account.userId],
+    );
+    if (owner.isEmpty) throw StateError('不能向不存在或回收站中的笔记添加附件');
+    final usage = (await txn.rawQuery(
+      'SELECT COUNT(*) AS count, COALESCE(SUM(LENGTH(bytes)), 0) AS size FROM attachment_outbox',
+    )).single;
+    if ((usage['count'] as int) >= maxItems ||
+        (usage['size'] as int) + file.bytes.length > maxBytes) {
+      throw StateError('本地附件暂存已满（最多 64 个、合计 64 MiB），请先处理或导出已有附件');
+    }
+    final random = Random.secure();
+    final id = List.generate(
+      16,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+    await txn.insert('attachment_outbox', {
+      'id': id,
+      'account_id': account.cacheKey,
+      'note_id': noteId,
+      'name': file.name,
+      'kind': kind,
+      'bytes': file.bytes,
+      'created_at': DateTime.now().millisecondsSinceEpoch,
+    });
+    return id;
+  }
 
   Future<List<PendingAttachment>> list({String? noteId}) async {
     final rows = await database.query(

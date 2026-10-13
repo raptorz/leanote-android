@@ -9,6 +9,9 @@ class SharedText {
     required this.title,
     required this.text,
     this.accountKey = '',
+    this.resourceKind = '',
+    this.resourceName = '',
+    this.resourceSize = 0,
   }) {
     if (!RegExp(r'^[0-9a-f]{24}$').hasMatch(id) ||
         text.trim().isEmpty ||
@@ -16,17 +19,37 @@ class SharedText {
         utf8.encode(text).length > 256 * 1024) {
       throw const FormatException('分享文本无效或超过 256 KiB');
     }
+    if (hasResource &&
+        (!{'image', 'attachment'}.contains(resourceKind) ||
+            resourceName.isEmpty ||
+            resourceName.length > 255 ||
+            resourceName.contains(RegExp(r'[\\/\x00-\x1f\x7f]')) ||
+            resourceName == '.' ||
+            resourceName == '..' ||
+            resourceSize <= 0 ||
+            resourceSize > 32 * 1024 * 1024)) {
+      throw const FormatException('分享资源信息无效或超过 32 MiB');
+    }
+    if (!hasResource && (resourceName.isNotEmpty || resourceSize != 0)) {
+      throw const FormatException('分享资源类型缺失');
+    }
   }
   final String id;
   final String title;
   final String text;
   final String accountKey;
+  final String resourceKind, resourceName;
+  final int resourceSize;
+  bool get hasResource => resourceKind.isNotEmpty;
 
   factory SharedText.fromMap(Map<Object?, Object?> map) => SharedText(
     id: map['id'] as String,
     title: map['title'] as String? ?? '',
     text: map['text'] as String,
     accountKey: map['accountKey'] as String? ?? '',
+    resourceKind: map['resourceKind'] as String? ?? '',
+    resourceName: map['resourceName'] as String? ?? '',
+    resourceSize: map['resourceSize'] as int? ?? 0,
   );
 
   String get suggestedTitle {
@@ -85,6 +108,18 @@ class SharedTextInbox extends ChangeNotifier {
 
   Future<void> claim(SharedText item, String accountKey) => _channel
       .invokeMethod<void>('claim', {'id': item.id, 'accountKey': accountKey});
+
+  Future<Uint8List> readResource(SharedText item, String accountKey) async {
+    if (!item.hasResource) throw StateError('分享不包含资源');
+    final bytes = await _channel.invokeMethod<Uint8List>('readResource', {
+      'id': item.id,
+      'accountKey': accountKey,
+    });
+    if (bytes == null || bytes.length != item.resourceSize) {
+      throw StateError('分享资源不完整，请重新分享');
+    }
+    return bytes;
+  }
 
   Future<void> acknowledge(SharedText item) async {
     await _channel.invokeMethod<void>('acknowledge', {'id': item.id});

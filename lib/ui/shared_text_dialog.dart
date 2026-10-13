@@ -33,6 +33,7 @@ class _SharedTextDialogState extends State<SharedTextDialog> {
   bool _busy = false;
   Note? _imported;
   String? _error;
+  late bool _asImage = widget.source.resourceKind == 'image';
 
   @override
   void dispose() {
@@ -54,6 +55,11 @@ class _SharedTextDialogState extends State<SharedTextDialog> {
           title: _title.text,
           text: _body.text,
           accountKey: widget.source.accountKey,
+          resourceKind: widget.source.hasResource
+              ? (_asImage ? 'image' : 'attachment')
+              : '',
+          resourceName: widget.source.resourceName,
+          resourceSize: widget.source.resourceSize,
         ),
         _notebook!,
       );
@@ -110,7 +116,7 @@ class _SharedTextDialogState extends State<SharedTextDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: AlertDialog(
-      title: const Text('导入分享文本'),
+      title: Text(widget.source.hasResource ? '导入分享文件' : '导入分享文本'),
       content: SizedBox(
         width: 440,
         child: SingleChildScrollView(
@@ -120,6 +126,21 @@ class _SharedTextDialogState extends State<SharedTextDialog> {
             children: [
               Text('保存到：${widget.accountLabel}'),
               const Text('按 Markdown 保存文本，不抓取网页或下载资源。保存后待同步上传。'),
+              if (widget.source.hasResource) ...[
+                Text(
+                  '${widget.source.resourceName} · ${widget.source.resourceSize} 字节',
+                ),
+                const Text('文件将保存到本机待上传资源。联网后可从账号菜单上传，导入不会自动上传文件。'),
+                if (widget.source.resourceKind == 'image')
+                  CheckboxListTile(
+                    title: const Text('作为正文图片暂存'),
+                    subtitle: const Text('取消勾选可作为普通附件保留原始文件'),
+                    value: _asImage,
+                    onChanged: _busy || _imported != null || !widget.canImport
+                        ? null
+                        : (value) => setState(() => _asImage = value ?? false),
+                  ),
+              ],
               if (!widget.canImport) const Text('此分享已指定其他账号，请切换账号后继续，或忽略这条分享。'),
               TextField(
                 controller: _title,
