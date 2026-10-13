@@ -452,6 +452,31 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                         Icons.code_outlined,
                         fenceMarkdownCode,
                       ),
+                      _formatButton(
+                        '任务列表',
+                        Icons.check_box_outlined,
+                        (value) => prefixMarkdownLines(value, '- [ ] '),
+                      ),
+                      _formatButton(
+                        '插入表格',
+                        Icons.table_chart_outlined,
+                        insertMarkdownTable,
+                      ),
+                      _formatButton(
+                        '分隔线',
+                        Icons.horizontal_rule,
+                        (value) => insertMarkdownBlock(value, '---'),
+                      ),
+                      _formatButton(
+                        '行内公式',
+                        Icons.functions,
+                        (value) => wrapMarkdown(value, r'$'),
+                      ),
+                      _formatButton(
+                        '公式块',
+                        Icons.calculate_outlined,
+                        fenceMarkdownMath,
+                      ),
                       IconButton(
                         tooltip: '插入链接',
                         icon: const Icon(Icons.link),

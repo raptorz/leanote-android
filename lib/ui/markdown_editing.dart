@@ -115,3 +115,59 @@ TextEditingValue fenceMarkdownCode(TextEditingValue value) {
     ),
   );
 }
+
+TextEditingValue insertMarkdownBlock(TextEditingValue value, String block) {
+  final selection = _selection(value);
+  // Insertion tools preserve selected prose; wrapping tools use a separate path.
+  final position = selection.end;
+  final before = value.text.substring(0, position);
+  final after = value.text.substring(position);
+  final leading = before.isEmpty || before.endsWith('\n\n')
+      ? ''
+      : before.endsWith('\n')
+      ? '\n'
+      : '\n\n';
+  final trailing = after.isEmpty || after.startsWith('\n\n')
+      ? '\n'
+      : after.startsWith('\n')
+      ? '\n'
+      : '\n\n';
+  final inserted = '$leading$block$trailing';
+  return TextEditingValue(
+    text: value.text.replaceRange(position, position, inserted),
+    selection: TextSelection.collapsed(
+      offset: position + leading.length + block.length,
+    ),
+  );
+}
+
+TextEditingValue insertMarkdownTable(TextEditingValue value) =>
+    insertMarkdownBlock(
+      value,
+      '| 标题 1 | 标题 2 |\n| --- | --- |\n| 内容 1 | 内容 2 |',
+    );
+
+TextEditingValue fenceMarkdownMath(TextEditingValue value) {
+  final selection = _selection(value);
+  final selected = value.text.substring(selection.start, selection.end);
+  final before = value.text.substring(0, selection.start);
+  final after = value.text.substring(selection.end);
+  final leading = before.isEmpty || before.endsWith('\n\n')
+      ? ''
+      : before.endsWith('\n')
+      ? '\n'
+      : '\n\n';
+  final trailing = after.isEmpty || after.startsWith('\n\n')
+      ? '\n'
+      : after.startsWith('\n')
+      ? '\n'
+      : '\n\n';
+  final body = '$leading\$\$\n$selected\n\$\$$trailing';
+  return TextEditingValue(
+    text: value.text.replaceRange(selection.start, selection.end, body),
+    selection: TextSelection(
+      baseOffset: selection.start + leading.length + 3,
+      extentOffset: selection.start + leading.length + 3 + selected.length,
+    ),
+  );
+}
