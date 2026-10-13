@@ -16,6 +16,7 @@ import '../../domain/models/attachment_upload.dart';
 import '../../domain/models/default_editor.dart';
 import '../../domain/models/conflict_copy.dart';
 import '../../domain/models/note.dart';
+import '../../domain/models/note_search_result.dart';
 import '../../domain/models/note_sort.dart';
 import '../../domain/models/note_file.dart';
 import '../../domain/models/file_cache_usage.dart';
@@ -1019,6 +1020,49 @@ class AppDatabase {
     String accountId,
     String query, {
     int limit = 50,
+  }) async => (await _searchRows(
+    accountId,
+    query,
+    limit: limit,
+  )).map(_noteFromRow).toList(growable: false);
+
+  Future<List<NoteSearchResult>> searchNoteSummaries(
+    String accountId,
+    String query, {
+    int limit = 50,
+  }) async =>
+      (await _searchRows(
+            accountId,
+            query,
+            limit: limit,
+            columns: ['server_id', 'title', 'updated_time', 'is_markdown'],
+          ))
+          .map(
+            (row) => NoteSearchResult(
+              noteId: row['server_id']! as String,
+              title: row['title']! as String,
+              updatedTime: row['updated_time']! as String,
+              isMarkdown: row['is_markdown'] == 1,
+            ),
+          )
+          .toList(growable: false);
+
+  /// Re-read one result when it is opened, including concurrent local changes.
+  Future<Note?> searchableNote(String accountId, String noteId) async {
+    final rows = await raw.query(
+      'notes',
+      where: 'account_id = ? AND server_id = ? AND is_trash = 0 AND local_is_deleted = 0',
+      whereArgs: [accountId, noteId],
+      limit: 1,
+    );
+    return rows.isEmpty ? null : _noteFromRow(rows.single);
+  }
+
+  Future<List<Map<String, Object?>>> _searchRows(
+    String accountId,
+    String query, {
+    required int limit,
+    List<String>? columns,
   }) async {
     if (limit < 1) throw ArgumentError.value(limit, 'limit');
     final escaped = query
@@ -1026,15 +1070,15 @@ class AppDatabase {
         .replaceAll('%', r'\%')
         .replaceAll('_', r'\_');
     final pattern = '%$escaped%';
-    final rows = await raw.query(
+    return raw.query(
       'notes',
+      columns: columns,
       where: '''account_id = ? AND is_trash = 0 AND local_is_deleted = 0
         AND (title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\')''',
       whereArgs: [accountId, pattern, pattern],
       orderBy: 'updated_time DESC, server_id',
       limit: limit,
     );
-    return rows.map(_noteFromRow).toList(growable: false);
   }
 
   Future<Note> createLocalNote({

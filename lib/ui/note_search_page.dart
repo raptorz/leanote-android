@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../domain/models/note.dart';
+import '../domain/models/note_search_result.dart';
 import '../repositories/auth_repository.dart';
 
 class NoteSearchPage extends StatefulWidget {
@@ -21,12 +21,14 @@ class NoteSearchPage extends StatefulWidget {
 
 class _NoteSearchPageState extends State<NoteSearchPage> {
   final _query = TextEditingController();
-  List<Note> _results = const [];
+  List<NoteSearchResult> _results = const [];
   var _generation = 0;
   static const _pageSize = 50;
   var _limit = _pageSize;
   var _retryLimit = _pageSize;
   bool _busy = false;
+  String? _openingId;
+  String? _openError;
   bool _hasMore = false;
   String? _error;
   Timer? _debounce;
@@ -43,6 +45,8 @@ class _NoteSearchPageState extends State<NoteSearchPage> {
     final generation = ++_generation;
     setState(() {
       _results = [];
+      _openingId = null;
+      _openError = null;
       _limit = _pageSize;
       _hasMore = false;
       _error = null;
@@ -66,7 +70,7 @@ class _NoteSearchPageState extends State<NoteSearchPage> {
     try {
       // Re-read the growing prefix rather than append offsets: concurrent
       // syncs or edits must not duplicate/skip rows across page boundaries.
-      final results = await widget.repository.searchNotes(
+      final results = await widget.repository.searchNoteSummaries(
         widget.session.account.cacheKey,
         _query.text.trim(),
         limit: requested + 1,
@@ -86,6 +90,35 @@ class _NoteSearchPageState extends State<NoteSearchPage> {
     }
   }
 
+  Future<void> _open(NoteSearchResult result) async {
+    if (_openingId != null) return;
+    final generation = _generation;
+    setState(() {
+      _openingId = result.noteId;
+      _openError = null;
+    });
+    try {
+      final note = await widget.repository.searchableNote(
+        widget.session.account.cacheKey,
+        result.noteId,
+      );
+      if (!mounted || generation != _generation) return;
+      if (note == null) {
+        setState(() => _openError = '笔记已删除或移入回收站，请重新搜索');
+      } else {
+        Navigator.pop(context, note);
+      }
+    } on Object catch (error) {
+      if (mounted && generation == _generation) {
+        setState(() => _openError = '读取笔记失败，点击笔记可重试：$error');
+      }
+    } finally {
+      if (mounted && generation == _generation) {
+        setState(() => _openingId = null);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -101,7 +134,15 @@ class _NoteSearchPageState extends State<NoteSearchPage> {
     ),
     body: Column(
       children: [
-        if (_busy) const LinearProgressIndicator(),
+        if (_busy || _openingId != null) const LinearProgressIndicator(),
+        if (_openError != null)
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              _openError!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
         if (_error != null)
           ListTile(
             title: Text(
@@ -156,7 +197,7 @@ class _NoteSearchPageState extends State<NoteSearchPage> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       subtitle: Text(note.updatedTime, maxLines: 1),
-                      onTap: () => Navigator.pop(context, note),
+                      onTap: _openingId == null ? () => _open(note) : null,
                     );
                   },
                 ),

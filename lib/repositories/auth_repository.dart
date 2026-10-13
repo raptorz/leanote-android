@@ -13,6 +13,7 @@ import '../domain/models/account.dart';
 import '../domain/models/default_editor.dart';
 import '../domain/models/attachment_upload.dart';
 import '../domain/models/note.dart';
+import '../domain/models/note_search_result.dart';
 import '../domain/models/note_sort.dart';
 import '../domain/models/note_file.dart';
 import '../domain/models/file_cache_usage.dart';
@@ -1035,6 +1036,15 @@ class AuthRepository {
     String query, {
     int limit = 50,
   }) => _database.searchNotes(accountId, query, limit: limit);
+
+  Future<List<NoteSearchResult>> searchNoteSummaries(
+    String accountId,
+    String query, {
+    int limit = 50,
+  }) => _database.searchNoteSummaries(accountId, query, limit: limit);
+
+  Future<Note?> searchableNote(String accountId, String noteId) =>
+      _database.searchableNote(accountId, noteId);
 
   Future<FileCacheUsage> fileCacheUsage(StoredSession session) =>
       _database.fileCacheUsage(session.account.cacheKey);

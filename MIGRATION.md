@@ -15,8 +15,8 @@
 ## 当前现场（2026-10-13）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`d221858` 头像裁剪与 Android 拍照；`d65eba0` 上传前 USN 回退预检；`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
-- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 620 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
+- 最近提交：`8e2d063` 离线 Markdown 数学公式与编辑工具；`d221858` 头像裁剪与 Android 拍照；`d65eba0` 上传前 USN 回退预检；`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
+- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 622 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
 - 当前任务：持久下载、离线图片/附件暂存与 Android 资源分享已实现并验证，离线新建笔记本与不确定结果恢复已实现，继续同步一致性及其余功能缺口。iOS 与发布按最新要求暂缓，不作为当前功能迁移的执行前置条件。
 
@@ -37,7 +37,7 @@
 | M07 笔记本删除 | desktop-app/api/client_api.go DeleteNotebook | api/ApiNotebookController.DeleteNotebook → service/NotebookService.DeleteNotebookForce | service/NotebookService | 暂未接入 | 服务端合同阻塞：子级/笔记处理及 USN 删除标记；仅提出需求 |
 | M08 移动、星标、回收站 | desktop-app/db/note_repo.go、sync/push.go | ApiNoteController.UpdateNote/DeleteTrash | service/NoteService | ui/note_reader_page.dart、workspace_page.dart；API2 | 核心已实现；trash_delete_test.dart、pending_sync_test.dart；跨客户端回收站回归待验证 |
 | M09 完整复制与冲突副本 | desktop-app/webapi/local.go、sync/push.go | NoteController.CopyNote、ApiNoteController | service/NoteService | domain/models/conflict_copy.dart；API2 | 仅无资源保守子集；附件/图片克隆、复杂 HTML、删除冲突未完；不得丢资源或覆盖原笔记 |
-| M10 搜索、排序、所有笔记 | desktop-app/db/note_repo.go | 本地搜索，内容来自 API2 同步 | ui/SearchActivity | ui/note_search_page.dart、domain/models/note_sort.dart | 本地实现；搜索分页、排序持久化已有测试；大数据量性能/FTS 待评估 |
+| M10 搜索、排序、所有笔记 | desktop-app/db/note_repo.go | 本地搜索，内容来自 API2 同步 | ui/SearchActivity | ui/note_search_page.dart、domain/models/note_sort.dart | 本地搜索、分页及排序已实现；结果仅加载独立摘要类型，打开时读取最新正文；2.5 万篇桌面磁盘基准 18–70ms，保留中文/任意子串匹配；手机数据量性能仍待验收 |
 | M11 标签编辑与管理 | desktop-app/api/client_api.go AddTag/DeleteTag | api/ApiTagController、ApiNoteController.UpdateNote | service/TagService | ui/tags_page.dart、note_tags_dialog.dart；API2 | 部分；新增未使用标签目录、在线创建及笔记编辑候选；全局删除/重命名未完成，删除 USN 合同 B06 与清空标签 B02 待服务端后续处理 |
 | M12 历史浏览恢复 | desktop-app/api/client_api.go GetHistories/GetHistoryContent | ApiNoteController.GetHistories/GetHistoryContent | service/NoteService | ui/note_history_page.dart；API2 | 文本已实现；历史资源占位，媒体恢复语义待补；history_restore_test.dart |
 | M13 共享笔记 | desktop-app/sharedsync/sharedsync.go、api/shared_api.go | api/ApiSharedController | 旧版无完整等价 | ui/shared_notes_page.dart、data/database shared cache；API2 | 只读列表/正文已实现；共享资源缓存与权限撤销、共享编辑和权限管理仍待核对/实现 |
@@ -234,7 +234,7 @@ M06 本批最终验证：静态检查无问题；完整测试 **501 项全部通
 - 服务端创建无幂等键（B05）：请求前持久标记 uncertain，响应丢失或本地确认失败不自动重发，冻结该笔记本改名/移动，原有子级与笔记完整保留。笔记本菜单提供“创建状态与恢复”，先读本地状态；用户主动查询服务端匹配项后可确认关联，或核实后显式恢复待创建状态。
 - 图片/附件上传先同步目标笔记本的必要父级，再上传目标正文；不会创建无关的待同步笔记本。
 - 数据库/同步测试覆盖重开、父子顺序、全量 ID 映射、旧页面编辑、响应丢失、事务回滚、账号隔离、父级未同步、请求期间编辑、异常响应和 v12 升级；UI 测试覆盖离线新建、重复提交、恢复确认和不自动联网。
-- 静态检查无问题，完整 Flutter 测试 620 项通过，Android debug APK 构建通过（10 秒）。服务端未修改，创建幂等键仍是后续可改善的接口能力。
+- 静态检查无问题，完整 Flutter 测试 622 项通过，Android debug APK 构建通过（10 秒）。服务端未修改，创建幂等键仍是后续可改善的接口能力。
 
 ## 2026-10-13 新笔记创建重试一致性
 
@@ -282,5 +282,11 @@ M06 本批最终验证：静态检查无问题；完整测试 **501 项全部通
 - 使用离线 Flutter 字体/排版支持 `$...$`、`$$...$$` 及括号式 TeX 分隔符；支持多行公式、横向滚动和长按查看可选原文。代码块、行内代码、转义美元与普通金额保留 Markdown 原义。
 - 不运行原始 HTML/脚本或加载远程公式资源。限制公式长度、嵌套、展开和尺寸，未知/不支持的 TeX、外链命令或超限公式显示原文，笔记正文保持不变。
 - Markdown 工具栏新增表格、任务列表、分隔线、行内公式和公式块；插入表格/分隔线保留被选正文，公式包裹后保持可编辑选区。
-- 新增 flutter_math_fork 与直接 markdown 依赖，沿用原有 pub 镜像及无关插件版本；vector_graphics_compiler 的约束要求 xml 从 7.1.0 调整为 7.0.1。完整 Flutter 测试 620 项通过，静态检查及 Android debug APK 构建通过。
+- 新增 flutter_math_fork 与直接 markdown 依赖，沿用原有 pub 镜像及无关插件版本；vector_graphics_compiler 的约束要求 xml 从 7.1.0 调整为 7.0.1。完整 Flutter 测试 622 项通过，静态检查及 Android debug APK 构建通过。
 - 实现参考：[flutter_math_fork 官方包文档](https://pub.dev/packages/flutter_math_fork)。不等同于完整 MathJax 扩展集合或流程图等其它 Markdown 扩展已迁移。
+
+## M10 搜索结果内存与读取一致性
+
+搜索页使用独立 `NoteSearchResult`，SQL 仅返回 ID、标题、更新时间和格式，不把正文带入列表，也不能误把摘要保存成空正文。保留已有增长前缀分页与字面 `%/_/\` 匹配。点击时按账号/笔记 ID 重新读取最新完整记录，排除已删除/回收站记录；连续点击去重，切换关键词/离开页面后丢弃过期读取，读取失败可再次点击重试。
+
+2026-10-13 在本机临时磁盘 SQLite 中创建 25,000 篇笔记、每篇约 4KiB 正文，通过 `test/performance/search_benchmark_test.dart` 的显式开关复现：`flutter test --no-pub --dart-define=SEARCH_BENCHMARK=true test/performance/search_benchmark_test.dart`。六次采样，普通标题 18–21ms，稀有正文 49–50ms，中文 67–70ms，不存在关键词 48ms，字面特殊字符 47–49ms。1,001 条结果避免传递 4,101,197 个正文字符。临时数据库自动清理，不设依赖硬件的通过阈值。此结果不代表手机耗时或冷启动磁盘结果；保留现有子串语义，未引入会改变中文/子串匹配的分词 FTS。完整 Flutter 测试 622 项通过；性能基准额外 1 项通过。无服务端改动。
