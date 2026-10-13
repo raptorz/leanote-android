@@ -60,6 +60,11 @@ struct SharedTextStoreTests {
     try rejects("pre-bound account") {
       try store.enqueue(SharedTextRecord(id: first.id, title: "", text: "text", accountKey: "A"))
     }
+    let combiningTitle = "a" + String(repeating: "\u{301}", count: 5000)
+    try check(combiningTitle.count == 1, "combining character fixture")
+    try rejects("one grapheme cannot bypass title byte limit") {
+      try store.enqueue(SharedTextRecord(id: first.id, title: combiningTitle, text: "text"))
+    }
     // Max-size control characters expand sixfold in JSON, still fit the disk bound.
     let escaped = String(repeating: "\u{1}", count: 256 * 1024)
     for index in 1...8 { try store.enqueue(record(index, text: escaped)) }
