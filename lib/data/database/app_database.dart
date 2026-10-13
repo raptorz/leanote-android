@@ -6,6 +6,8 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
+import 'file_download_journal.dart';
+
 import '../../domain/models/account.dart';
 import '../../domain/models/default_editor.dart';
 import '../../domain/models/conflict_copy.dart';
@@ -21,7 +23,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 9;
+  static const schemaVersion = 10;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -54,6 +56,11 @@ class AppDatabase {
             await db.execute(
               'ALTER TABLE notebooks ADD COLUMN is_dirty INTEGER NOT NULL DEFAULT 0',
             );
+          }
+        }
+        if (oldVersion < 10) {
+          for (final statement in FileDownloadJournal.schema) {
+            await db.execute(statement);
           }
         }
       },
@@ -117,18 +124,29 @@ class AppDatabase {
     return FileCacheUsage(
       files: rows.single['files'] as int,
       bytes: rows.single['size'] as int,
+      pendingDownloads: (await FileDownloadJournal(
+        raw,
+        accountId,
+      ).status()).notes,
     );
   }
 
   Future<void> clearFileCache(String accountId) async {
     // Rotate every row, including files not yet cached, so in-flight downloads
     // cannot refill this account using a pre-clear generation.
-    await raw.update(
-      'note_files',
-      {'bytes': null, 'cached_at': 0, 'generation': _objectId()},
-      where: 'account_id = ?',
-      whereArgs: [accountId],
-    );
+    await raw.transaction((txn) async {
+      await txn.update(
+        'note_files',
+        {'bytes': null, 'cached_at': 0, 'generation': _objectId()},
+        where: 'account_id = ?',
+        whereArgs: [accountId],
+      );
+      await txn.delete(
+        'cache_download_jobs',
+        where: 'account_id = ?',
+        whereArgs: [accountId],
+      );
+    });
   }
 
   Future<Uint8List> cachedNoteImage(
@@ -1687,5 +1705,6 @@ class AppDatabase {
     _preferencesSchema,
     _sortPreferencesSchema,
     _cachePreferencesSchema,
+    ...FileDownloadJournal.schema,
   ];
 }

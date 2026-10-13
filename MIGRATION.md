@@ -7,7 +7,7 @@
 - 主工作目录保持服务端仓库根目录。所有 Git 操作明确使用 `git -C mobile-app`；只提交此独立仓库的相关文件，不 push、不改写历史。
 - 服务端、desktop-app、legacy-android 仅作只读参考，不修改。主 Agent 顺序执行。
 - 业务通信必须为 API2。用户已明确允许公开头像直接访问；沿用同源、不携带凭据、不跟随重定向的下载策略。
-- 用户确认 Android 和 iOS 都需要分享功能（发送与接收）；iOS Share Extension 属于目标。
+- 2026-10-13 最新范围：iOS 原生实现与验证暂缓，发布工作暂缓；继续完成其余功能迁移。已有 iOS 代码保留，共享 Flutter 功能仍继续实现。
 - 服务端修改不属于本次目标。确认缺口后记录具体需求，交由后续处理，不回退 Legacy API。
 - 旧 Android 小组件保留为目标。深链、生物识别属于既有规划扩展，是否为旧功能对应项还需核对，不能冒充已迁移。
 - 注册、博客、演示账号、旧数据库迁移目前按原迁移方案排除；若发现与必要移动功能有依赖需重新记录。
@@ -15,10 +15,10 @@
 ## 当前现场（2026-10-13）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
-- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 516 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
+- 最近提交：`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
+- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 526 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
-- 当前任务：M23 Android 单项/多项文本与文本文件接收已实现并验证，准备提交；iOS 文本/网页子集和 M11 标签目录已提交。下一步补齐资源类分享、iOS 文件/多项及其余映射项。iOS 类型检查/构建/签名/设备验收需要完整 Xcode，不能阻塞其他可执行工作。
+- 当前任务：M17 下载队列已持久化并验证，接着补齐离线上传与 Android 资源类分享。iOS 与发布按最新要求暂缓，不作为当前功能迁移的执行前置条件。
 
 ## 功能对照索引
 
@@ -44,7 +44,7 @@
 | M14 图片缓存、预览、保存 | desktop-app/service/file_service.go | api/ApiFileController.GetImage | ui/PictureViewerActivity、service/NoteFileService | ui/cached_markdown_image.dart、services/image_exporter.dart；API2 | 已有缓存隔离/原始字节保存测试；原生文件窗口待验收 |
 | M15 图片上传与正文插入 | desktop-app/webapi/proxy.go | /api2/file/pasteImage → File.PasteImage | ui/edit/NoteEditActivity | services/note_image_picker.dart、ui/note_image_upload_dialog.dart；API2 | 在线原文插入已实现；离线上传、WebView 插入和中断恢复未完 |
 | M16 附件上传下载、打开、分享 | desktop-app/service/file_service.go、webapi/proxy.go | Api2.UploadAttachment、ApiFile.GetAttach | service/NoteFileService | ui/note_files_page.dart、services/attachment_*；API2 | 在线上传、下载、离线保存/分享/打开已实现；离线上传队列、原生 intent/DocumentInteraction 验证未完 |
-| M17 资源任务与缓存管理 | desktop-app/service/file_service.go | ApiNote.GetNote + ApiFile | background/NoteSyncService | services/account_file_cache.dart、file_cache_batch.dart、ui/file_cache_dialog.dart；API2 | 进程内任务/清理/64MiB 配额已实现；持久队列、失败恢复和系统后台执行未完 |
+| M17 资源任务与缓存管理 | desktop-app/service/file_service.go | ApiNote.GetNote + ApiFile | background/NoteSyncService | services/account_file_cache.dart、file_cache_batch.dart、ui/file_cache_dialog.dart；API2 | 账号资源下载队列已持久化（schema v10），支持重启/暂停续传、逐文件失败恢复、失效快照拦截；64MiB 缓存与任务清理已实现；离线上传与系统后台执行未完 |
 | M18 缓存偏好持久化 | desktop-app/db 配置、service/file_service.go | 无新增请求 | ui/SettingsActivity | app_database schema v8、workspace_page；本地 | 已提交 f524502；账号隔离、升级、读写失败/重试测试通过 |
 | M19 账号资料、头像、密码 | desktop-app/webapi/background_profile.go、proxy.go | Api2.UploadAvatar、User.UpdateUsername/UpdatePwd、web/emailChange | ui/SettingsActivity | ui/account_page.dart、avatar_upload_dialog.dart；API2 + 允许的公开头像 | 主要功能已实现；头像相机/裁剪/更多格式未完；帐号变更与缓存竞态验收 |
 | M20 默认编辑器、语言、关于 | desktop-app/webapi/about.go、应用配置 | 默认编辑器与语言本地；协议版本 API2 | ui/SettingsActivity、AboutActivity | default_editor_dialog.dart、about_dialog.dart；API2 | 编辑器/版本已实现，界面国际化与语言设置未实现；中英系统及切换测试待做 |
@@ -191,3 +191,11 @@ M06 本批最终验证：静态检查无问题；完整测试 **501 项全部通
 - aapt 复核合并 Manifest 确认 SEND/SEND_MULTIPLE 和 text/plain、text/markdown；权限仍仅 INTERNET 和应用自身 receiver permission，没有存储/媒体读取权限。
 - 另对齐 iOS 与 Dart 的 BOM/Unicode 空白验证，避免仅含不可见空白的记录入队后无法由 Flutter 读取；Swift 生产存储测试再次全部通过。
 - 当前未有设备运行证据；URI 授权、跨应用/云端 provider、冷热启动和超时生命周期见 `docs/ANDROID_SHARING.md`。Android 图片/二进制附件接收、iOS 文件/多项分享仍待迁移，整个目标未完成。
+
+## M17：持久资源下载队列（2026-10-13）
+
+- schema v10 保存账号、笔记 USN、逐文件缓存代次与结果；重启或暂停后只续传未完成项。并发仍限制为 3，停止等待已开始请求结束。
+- 登录只读取任务状态，不自动联网；账号菜单手动开始或已开启的同步后缓存触发恢复。笔记版本/文件列表变化后旧任务失效，清理缓存同时删除下载任务；配额淘汰不会形成重复下载循环。
+- 任务没有密码/token；账号隔离、会话切换仍等待下载排空。下载进度不修改同步游标或笔记正文。
+- 新增 SQLite 重开进程模拟、失败/暂停续传、列表重试、字节写入后未确认、旧代次回调、账号隔离、配额淘汰和 v9 升级测试；界面恢复不联网及仅待办任务清理有回归覆盖。
+- 静态检查通过，完整 Flutter 测试 526 项通过。本批未新增原生代码，Android 构建证据仍为上批；系统后台执行与设备验收没有完成。

@@ -173,7 +173,7 @@ void main() {
     await db.raw.setVersion(8);
     await db.raw.close();
     db = await AppDatabase.open(databasePath: path);
-    expect(await db.raw.getVersion(), 9);
+    expect(await db.raw.getVersion(), 10);
     expect(await db.dirtyNotebooks(account.cacheKey), isEmpty);
     expect(await db.pendingNoteIds(account.cacheKey), {note.noteId});
     expect((await db.notebooks(account.cacheKey)).length, 3);

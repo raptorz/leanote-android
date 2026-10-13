@@ -81,7 +81,11 @@ class _FileCacheDialogState extends State<FileCacheDialog> {
             const SizedBox(height: 12),
             if (_usage != null)
               Text('${_usage!.files} 个文件 · ${_usage!.sizeLabel}'),
-            const Text('仅统计当前账号已下载的图片和附件。清理后需联网重新下载；笔记正文、待同步修改和文件列表会保留。'),
+            if (_usage != null && _usage!.pendingDownloads > 0)
+              Text('待处理资源下载：${_usage!.pendingDownloads} 篇笔记'),
+            const Text(
+              '仅统计当前账号已下载的图片和附件。清理也会移除该账号的资源下载任务；笔记正文、待同步修改和文件列表会保留。清理后需联网重新下载。',
+            ),
             const SizedBox(height: 8),
             const Text('不包含导出或分享产生的副本。数据库空间可供后续复用，应用占用空间不一定立即缩小。'),
             if (_confirming) const Text('确认清理当前账号的离线图片和附件？'),
@@ -98,7 +102,8 @@ class _FileCacheDialogState extends State<FileCacheDialog> {
       actions: [
         if (_usage == null && !_busy)
           TextButton(onPressed: _load, child: const Text('重试读取')),
-        if (_usage != null && _usage!.files > 0)
+        if (_usage != null &&
+            (_usage!.files > 0 || _usage!.pendingDownloads > 0))
           FilledButton(
             onPressed: _busy
                 ? null

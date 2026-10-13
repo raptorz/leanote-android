@@ -72,6 +72,28 @@ void main() {
     },
   );
 
+  testWidgets('pending tasks can be cleared even without cached bytes', (
+    tester,
+  ) async {
+    var clears = 0;
+    await mount(
+      tester,
+      load: () async =>
+          const FileCacheUsage(files: 0, bytes: 0, pendingDownloads: 2),
+      clear: () async {
+        clears++;
+      },
+    );
+    expect(find.text('待处理资源下载：2 篇笔记'), findsOneWidget);
+    await tester.tap(find.text('清理缓存'));
+    await tester.pumpAndSettle();
+    expect(clears, 0);
+    await tester.tap(find.text('确认清理'));
+    await tester.pumpAndSettle();
+    expect(clears, 1);
+    expect(find.textContaining('待处理资源下载：'), findsNothing);
+  });
+
   testWidgets(
     'read and clear failures remain retryable without false success',
     (tester) async {

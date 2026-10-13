@@ -6,12 +6,18 @@ import 'package:gemsnote/domain/models/account.dart';
 import 'package:gemsnote/domain/models/note.dart';
 import 'package:gemsnote/domain/models/file_cache_usage.dart';
 import 'package:gemsnote/domain/models/note_file.dart';
+import 'package:gemsnote/data/database/file_download_journal.dart';
 import 'package:gemsnote/repositories/auth_repository.dart';
 import 'package:gemsnote/ui/workspace_page.dart';
 
 import 'foreground_sync_test.dart' show ForegroundRepository;
 
 class CacheRepository extends ForegroundRepository {
+  DownloadQueueStatus restored = const DownloadQueueStatus();
+  @override
+  Future<DownloadQueueStatus> downloadQueueStatus(
+    StoredSession session,
+  ) async => restored;
   bool cacheEnabled = false;
   bool failRead = false;
   bool failWrite = false;
@@ -61,6 +67,7 @@ void main() {
     (tester) async {
       final repo = CacheRepository()
         ..cacheEnabled = true
+        ..restored = const DownloadQueueStatus(notes: 2, files: 5, failed: 1)
         ..failRead = true;
       final session = StoredSession(
         account: Account(
@@ -102,6 +109,11 @@ void main() {
       repo.failRead = false;
       await tester.tap(find.text('读取资源缓存设置失败，点击重试'));
       await tester.pumpAndSettle();
+      expect(
+        find.textContaining('资源缓存进度已恢复：2 篇笔记、5 个文件待处理，失败 1 项'),
+        findsOneWidget,
+      );
+      expect(repo.calls, 0);
       await menu();
       expect(
         tester.widget<CheckedPopupMenuItem<String>>(toggle()).checked,

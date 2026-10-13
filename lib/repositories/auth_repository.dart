@@ -4,6 +4,8 @@ import 'dart:ui' as ui;
 import '../core/api/api2_client.dart';
 import '../core/api/api_exception.dart';
 import '../data/database/app_database.dart';
+import '../data/database/file_download_journal.dart';
+import '../services/account_file_cache.dart';
 import '../data/session/session_store.dart';
 import '../domain/models/account.dart';
 import '../domain/models/default_editor.dart';
@@ -834,6 +836,13 @@ class AuthRepository {
 
   Future<FileCacheUsage> fileCacheUsage(StoredSession session) =>
       _database.fileCacheUsage(session.account.cacheKey);
+
+  AccountFileCache fileCacheQueue(StoredSession session) => AccountFileCache(
+    journal: FileDownloadJournal(_database.raw, session.account.cacheKey),
+  );
+
+  Future<DownloadQueueStatus> downloadQueueStatus(StoredSession session) =>
+      FileDownloadJournal(_database.raw, session.account.cacheKey).status();
 
   Future<void> clearFileCache(StoredSession session) =>
       _database.clearFileCache(session.account.cacheKey);

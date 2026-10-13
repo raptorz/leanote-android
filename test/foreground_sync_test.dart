@@ -6,10 +6,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/domain/models/account.dart';
 import 'package:gemsnote/domain/models/notebook.dart';
 import 'package:gemsnote/repositories/auth_repository.dart';
+import 'package:gemsnote/data/database/file_download_journal.dart';
+import 'package:gemsnote/services/account_file_cache.dart';
 import 'package:gemsnote/sync/sync_coordinator.dart';
 import 'package:gemsnote/ui/workspace_page.dart';
 
 class ForegroundRepository implements AuthRepository {
+  @override
+  AccountFileCache fileCacheQueue(StoredSession session) => AccountFileCache();
+  @override
+  Future<DownloadQueueStatus> downloadQueueStatus(
+    StoredSession session,
+  ) async => const DownloadQueueStatus();
   int calls = 0;
   bool fail = false;
   bool dirty = true;

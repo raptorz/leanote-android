@@ -142,6 +142,7 @@ class _WorkspacePageState extends State<WorkspacePage>
           _autoCacheFiles = enabled;
           _cachePreferenceLoaded = true;
         });
+        unawaited(_restoreDownloadStatus());
       }
     } on Object {
       // Leave caching off until a successful read; the account menu offers retry.
@@ -179,6 +180,35 @@ class _WorkspacePageState extends State<WorkspacePage>
   AccountFileCache? _fileQueue;
   Future<void>? _fileTask;
   String? _fileStatus;
+  int _downloadStatusGeneration = 0;
+
+  Future<void> _restoreDownloadStatus() async {
+    final generation = ++_downloadStatusGeneration;
+    try {
+      final status = await widget.repository.downloadQueueStatus(
+        widget.session,
+      );
+      if (!mounted ||
+          _signedOut ||
+          _fileTask != null ||
+          generation != _downloadStatusGeneration) {
+        return;
+      }
+      if (!status.isEmpty) {
+        setState(
+          () => _fileStatus =
+              '资源缓存进度已恢复：${status.notes} 篇笔记、${status.files} 个文件待处理，失败 ${status.failed} 项；可从账号菜单开始继续',
+        );
+      }
+    } on Object {
+      if (mounted &&
+          !_signedOut &&
+          _fileTask == null &&
+          generation == _downloadStatusGeneration) {
+        setState(() => _fileStatus = '读取资源缓存任务失败，可从账号菜单开始重试');
+      }
+    }
+  }
 
   late final SharedTextInbox _shareInbox;
   bool _shareOpen = false;
@@ -266,7 +296,11 @@ class _WorkspacePageState extends State<WorkspacePage>
             await _stopFileCache();
             return widget.repository.fileCacheUsage(widget.session);
           },
-          clear: () => widget.repository.clearFileCache(widget.session),
+          clear: () async {
+            await widget.repository.clearFileCache(widget.session);
+            _downloadStatusGeneration++;
+            if (mounted) setState(() => _fileStatus = null);
+          },
         ),
       );
     } finally {
@@ -290,7 +324,8 @@ class _WorkspacePageState extends State<WorkspacePage>
         _fileTask != null) {
       return;
     }
-    final queue = _fileQueue = AccountFileCache();
+    final queue = _fileQueue = widget.repository.fileCacheQueue(widget.session);
+    _downloadStatusGeneration++;
     setState(() => _fileStatus = '正在准备离线资源缓存…');
     _fileTask = (() async {
       try {
@@ -319,7 +354,7 @@ class _WorkspacePageState extends State<WorkspacePage>
         if (mounted) {
           setState(
             () => _fileStatus =
-                '${_fileStatus ?? "资源缓存"}（${queue.cancelled ? "已停止" : "已结束"}；缓存限额 64 MiB）',
+                '${_fileStatus ?? "资源缓存"}（${queue.cancelled ? "已停止" : "已结束"}；未完成进度已保存，可再次开始继续；缓存限额 64 MiB）',
           );
         }
       } on Object catch (error) {
