@@ -36,6 +36,8 @@ class MainActivity : FlutterActivity() {
         val kind: String = "", val size: Long = 0)
     private var shareChannel: MethodChannel? = null
     private var widgetChannel: MethodChannel? = null
+    private var cameraChannel: MethodChannel? = null
+    private val avatarCamera by lazy { AvatarCamera(this) }
     private val prefs by lazy { getSharedPreferences("shared_text_inbox", MODE_PRIVATE) }
     private fun resources(): SharedResourceStore = synchronized(MainActivity::class.java) {
         resourceStore ?: SharedResourceStore(File(applicationContext.filesDir, "shared_resources")).also { resourceStore = it }
@@ -47,6 +49,11 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        avatarCamera.clearAbandonedCapture()
+        cameraChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "gemsnote/avatar_camera")
+        cameraChannel!!.setMethodCallHandler { call, result ->
+            if (call.method == "capture") avatarCamera.capture(result) else result.notImplemented()
+        }
         widgetChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "gemsnote/home_widget")
         widgetChannel!!.setMethodCallHandler { call, result ->
             try {
@@ -153,6 +160,10 @@ class MainActivity : FlutterActivity() {
         super.onNewIntent(intent)
         receiveWidget(intent)
         receiveText(intent)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (!avatarCamera.result(requestCode, resultCode)) super.onActivityResult(requestCode, resultCode, data)
     }
 
     private fun receiveWidget(incoming: Intent?) {
@@ -316,6 +327,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        cameraChannel?.setMethodCallHandler(null)
+        cameraChannel = null
         widgetChannel?.setMethodCallHandler(null)
         widgetChannel = null
         shareChannel?.setMethodCallHandler(null)

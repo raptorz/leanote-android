@@ -75,7 +75,16 @@ void main() {
       );
       await tester.tap(find.text('account'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('修改密码'));
+      await tester.scrollUntilVisible(
+        find.text('修改密码'),
+        150,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       await tester.tap(find.text('修改密码'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).at(1), 'old');

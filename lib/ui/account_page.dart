@@ -8,6 +8,7 @@ import 'account_avatar.dart';
 import 'account_field_dialog.dart';
 import 'password_change_dialog.dart';
 import 'avatar_upload_dialog.dart';
+import 'avatar_crop_dialog.dart';
 import '../services/avatar_picker.dart';
 
 class AccountPage extends StatefulWidget {
@@ -31,7 +32,7 @@ class _AccountPageState extends State<AccountPage> {
   Uint8List? _avatar;
   bool _passwordChanged = false;
 
-  Future<void> _uploadAvatar() async {
+  Future<void> _uploadAvatar({bool camera = false}) async {
     if (_busy || _passwordChanged) return;
     setState(() {
       _busy = true;
@@ -39,7 +40,14 @@ class _AccountPageState extends State<AccountPage> {
     });
     bool uploaded = false;
     try {
-      final bytes = await (widget.avatarPicker ?? AvatarPicker()).pick();
+      final picker = widget.avatarPicker ?? AvatarPicker();
+      final source = await (camera ? picker.capture() : picker.pick());
+      if (source == null || !mounted) return;
+      final bytes = await showDialog<Uint8List>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AvatarCropDialog(bytes: source),
+      );
       if (bytes == null || !mounted) return;
       uploaded =
           await showDialog<bool>(
@@ -63,10 +71,11 @@ class _AccountPageState extends State<AccountPage> {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('头像已上传，正在刷新')));
       }
-    } on Object {
+    } on Object catch (error) {
       if (mounted) {
         setState(
-          () => _error = '无法读取头像。请选择不超过 2 MiB、4096×4096 的有效 PNG/JPEG 图片。',
+          () => _error =
+              '无法读取头像：$error。文件需不超过 2 MiB、4096×4096，支持 PNG/JPEG/WebP/GIF/BMP。',
         );
       }
     } finally {
@@ -190,6 +199,11 @@ class _AccountPageState extends State<AccountPage> {
                   onPressed: _busy ? null : _uploadAvatar,
                   child: const Text('更换头像'),
                 ),
+                if ((widget.avatarPicker ?? AvatarPicker()).cameraSupported)
+                  OutlinedButton(
+                    onPressed: _busy ? null : () => _uploadAvatar(camera: true),
+                    child: const Text('拍照设置头像'),
+                  ),
                 if (_error != null)
                   Text(
                     _error!,

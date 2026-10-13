@@ -11,6 +11,12 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher">
+        <provider android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.avatar_camera"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/avatar_camera_paths" />
+        </provider>
         <receiver android:name=".NoteWidget" android:exported="false" android:label="@string/widget_description">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/note_widget_info" />
@@ -59,6 +65,7 @@
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
+        <intent><action android:name="android.media.action.IMAGE_CAPTURE" /></intent>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>

@@ -74,6 +74,19 @@ void main() {
           expect(repo.uploads, 0);
           expect(repo.refreshes, 0);
         } else {
+          for (var i = 0; i < 5; i++) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 50)),
+            );
+            await tester.pump(const Duration(milliseconds: 50));
+          }
+          await tester.tap(find.text('使用此头像'));
+          for (var i = 0; i < 5; i++) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 50)),
+            );
+            await tester.pump(const Duration(milliseconds: 50));
+          }
           await tester.enterText(find.byType(TextField).at(1), 'secret');
           await tester.tap(find.text('上传'));
           await tester.pumpAndSettle();
@@ -81,7 +94,7 @@ void main() {
           expect(repo.refreshes, 1);
           expect(
             tester.widget<AccountAvatar>(find.byType(AccountAvatar)).bytes,
-            image,
+            repo.uploaded,
           );
           expect(find.text('头像已上传，正在刷新'), findsOneWidget);
         }

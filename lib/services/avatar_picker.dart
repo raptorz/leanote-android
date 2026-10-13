@@ -2,16 +2,27 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 class AvatarPicker {
   AvatarPicker({Future<PlatformFile?> Function()? pick})
     : _pick = pick ?? _system;
   final Future<PlatformFile?> Function() _pick;
   static const maxBytes = 2 * 1024 * 1024;
+  bool get cameraSupported =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  Future<Uint8List?> capture() async {
+    if (!cameraSupported) throw UnsupportedError('当前平台暂不支持拍照');
+    final bytes = await const MethodChannel('gemsnote/avatar_camera')
+        .invokeMethod<Uint8List>('capture');
+    return bytes == null ? null : normalize(bytes, maxDimension: 1024);
+  }
+
   static Future<PlatformFile?> _system() => FilePicker.pickFile(
     dialogTitle: '选择头像',
     type: FileType.custom,
-    allowedExtensions: ['png', 'jpg', 'jpeg'],
+    allowedExtensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'],
   );
   Future<Uint8List?> pick() async {
     final file = await _pick();
@@ -28,10 +39,16 @@ class AvatarPicker {
       }
       data.add(chunk);
     }
-    return normalize(data.takeBytes());
+    return normalize(data.takeBytes(), maxDimension: 1024);
   }
 
-  static Future<Uint8List> normalize(Uint8List bytes) async {
+  static Future<Uint8List> normalize(
+    Uint8List bytes, {
+    int maxDimension = 256,
+  }) async {
+    if (maxDimension < 1 || maxDimension > 1024) {
+      throw ArgumentError.value(maxDimension);
+    }
     if (bytes.isEmpty || bytes.length > maxBytes) {
       throw const FormatException('头像大小无效');
     }
@@ -43,7 +60,17 @@ class AvatarPicker {
         bytes[0] == 255 &&
         bytes[1] == 216 &&
         bytes[2] == 255;
-    if (!png && !jpeg) throw const FormatException('请选择有效的 PNG 或 JPEG 图片');
+    final webp =
+        bytes.length >= 12 &&
+        String.fromCharCodes(bytes.take(4)) == 'RIFF' &&
+        String.fromCharCodes(bytes.sublist(8, 12)) == 'WEBP';
+    final gif =
+        bytes.length >= 6 &&
+        {'GIF87a', 'GIF89a'}.contains(String.fromCharCodes(bytes.take(6)));
+    final bmp = bytes.length >= 2 && bytes[0] == 66 && bytes[1] == 77;
+    if (!png && !jpeg && !webp && !gif && !bmp) {
+      throw const FormatException('请选择有效的 PNG、JPEG、WebP、GIF 或 BMP 图片');
+    }
     final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
     ui.ImageDescriptor? descriptor;
     ui.Codec? codec;
@@ -54,16 +81,16 @@ class AvatarPicker {
         throw const FormatException('头像尺寸不能超过 4096×4096');
       }
       final scale =
-          256 /
+          maxDimension /
           (descriptor.width > descriptor.height
               ? descriptor.width
               : descriptor.height);
       codec = await descriptor.instantiateCodec(
         targetWidth: scale < 1
-            ? (descriptor.width * scale).round().clamp(1, 256)
+            ? (descriptor.width * scale).round().clamp(1, maxDimension)
             : descriptor.width,
         targetHeight: scale < 1
-            ? (descriptor.height * scale).round().clamp(1, 256)
+            ? (descriptor.height * scale).round().clamp(1, maxDimension)
             : descriptor.height,
       );
       image = (await codec.getNextFrame()).image;

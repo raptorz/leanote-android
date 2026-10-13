@@ -15,8 +15,8 @@
 ## 当前现场（2026-10-13）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
-- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 609 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
+- 最近提交：`d65eba0` 上传前 USN 回退预检；`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
+- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 614 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
 - 当前任务：持久下载、离线图片/附件暂存与 Android 资源分享已实现并验证，离线新建笔记本与不确定结果恢复已实现，继续同步一致性及其余功能缺口。iOS 与发布按最新要求暂缓，不作为当前功能迁移的执行前置条件。
 
@@ -46,7 +46,7 @@
 | M16 附件上传下载、打开、分享 | desktop-app/service/file_service.go、webapi/proxy.go | Api2.UploadAttachment、ApiFile.GetAttach | service/NoteFileService | ui/note_files_page.dart、services/attachment_*；API2 | 在线上传、下载、离线保存/分享/打开已实现；附件离线暂存、持久上传状态及结果不确定时手动恢复已实现（schema v11）；原生 intent 验证未完，iOS 暂缓 |
 | M17 资源任务与缓存管理 | desktop-app/service/file_service.go | ApiNote.GetNote + ApiFile | background/NoteSyncService | services/account_file_cache.dart、file_cache_batch.dart、ui/file_cache_dialog.dart；API2 | 账号资源下载队列已持久化（schema v10），支持重启/暂停续传、逐文件失败恢复、失效快照拦截；64MiB 缓存与任务清理已实现；附件离线上传暂存已实现；图片离线暂存/上传恢复已实现；系统后台执行未完 |
 | M18 缓存偏好持久化 | desktop-app/db 配置、service/file_service.go | 无新增请求 | ui/SettingsActivity | app_database schema v8、workspace_page；本地 | 已提交 f524502；账号隔离、升级、读写失败/重试测试通过 |
-| M19 账号资料、头像、密码 | desktop-app/webapi/background_profile.go、proxy.go | Api2.UploadAvatar、User.UpdateUsername/UpdatePwd、web/emailChange | ui/SettingsActivity | ui/account_page.dart、avatar_upload_dialog.dart；API2 + 允许的公开头像 | 主要功能已实现；头像相机/裁剪/更多格式未完；帐号变更与缓存竞态验收 |
+| M19 账号资料、头像、密码 | desktop-app/webapi/background_profile.go、proxy.go | Api2.UploadAvatar、User.UpdateUsername/UpdatePwd、web/emailChange | ui/SettingsActivity | ui/account_page.dart、avatar_upload_dialog.dart；API2 + 允许的公开头像 | 主要功能、头像裁剪、Android 相机与 PNG/JPEG/WebP/GIF/BMP 导入已实现；iOS 相机暂缓，原生相机方向/取消/进程恢复及帐号变更竞态真机验收待做 |
 | M20 默认编辑器、语言、关于 | desktop-app/webapi/about.go、应用配置 | 默认编辑器与语言本地；协议版本 API2 | ui/SettingsActivity、AboutActivity | default_editor_dialog.dart、about_dialog.dart；API2 | 编辑器/版本已实现，界面国际化与语言设置未实现；中英系统及切换测试待做 |
 | M21 多账号快速切换 | desktop-app/app.go、db 配置 | Api2.TokenLogin、ApiUser.Info | service/AccountService、ui/MainActivity | app.dart、data/session/session_store.dart | 本轮实现切换/添加账号、登录页恢复已登录账号；保留离线修改与多账号凭据，切换前等待资源任务、重建工作区；静态检查和全量 488 项测试通过；原生安全存储/生命周期验收仍待进行 |
 | M22 导入导出、对外分享 | desktop-app/webapi/local.go | 本地操作无需新接口 | ui/edit/NoteEditActivity | services/note_importer.dart、note_exporter.dart、note_sharer.dart | 原文导入导出及系统分享已实现；完整含资源导出仍待对照；Android/iOS 文件与分享面板验收 |
@@ -234,7 +234,7 @@ M06 本批最终验证：静态检查无问题；完整测试 **501 项全部通
 - 服务端创建无幂等键（B05）：请求前持久标记 uncertain，响应丢失或本地确认失败不自动重发，冻结该笔记本改名/移动，原有子级与笔记完整保留。笔记本菜单提供“创建状态与恢复”，先读本地状态；用户主动查询服务端匹配项后可确认关联，或核实后显式恢复待创建状态。
 - 图片/附件上传先同步目标笔记本的必要父级，再上传目标正文；不会创建无关的待同步笔记本。
 - 数据库/同步测试覆盖重开、父子顺序、全量 ID 映射、旧页面编辑、响应丢失、事务回滚、账号隔离、父级未同步、请求期间编辑、异常响应和 v12 升级；UI 测试覆盖离线新建、重复提交、恢复确认和不自动联网。
-- 静态检查无问题，完整 Flutter 测试 609 项通过，Android debug APK 构建通过（10 秒）。服务端未修改，创建幂等键仍是后续可改善的接口能力。
+- 静态检查无问题，完整 Flutter 测试 614 项通过，Android debug APK 构建通过（10 秒）。服务端未修改，创建幂等键仍是后续可改善的接口能力。
 
 ## 2026-10-13 新笔记创建重试一致性
 
@@ -269,3 +269,10 @@ M06 本批最终验证：静态检查无问题；完整测试 **501 项全部通
 - 已知版本取下载游标、笔记、笔记本和标签的最大 USN，覆盖“上传已确认但下载游标未推进”的情况；不会用其他账号或共享所有者的版本进行比较。干净账号的仅上传/退出流程仍不发网络请求。
 - 完整 Flutter 测试 609 项通过，静态检查与 Android debug APK 构建通过。
 - 服务端后续需求：仅凭 USN 无法识别“恢复旧备份后版本号又增长到原值以上”，也无法原子阻止预检后发生的服务器恢复。需要服务端实例/同步世代标识及写入条件校验；本次不修改服务端。
+
+## 2026-10-13 头像裁剪和 Android 拍照
+
+- 选图后可拖动、缩放及居中重置，确认后生成 256×256 PNG 再进入身份验证与上传；取消裁剪不会发送请求。支持 PNG/JPEG/WebP/GIF/BMP，动态图片取第一帧，重新编码移除原始元数据。
+- Android 相机使用系统拍照应用和限定私有目录的 FileProvider，不申请图库或相机权限。捕获文件最多 16 MiB/8192 边长，原生采样到约 1024 像素并处理 EXIF 方向，再进入同一裁剪流程；本地选图沿用 2 MiB/4096 边长限制。
+- 每次 Activity 使用独立临时文件，活动拍摄文件不会被旧 Activity 清理；完成/取消后撤销 URI 授权并删除，进程重启清理失去回调的残留，用户可重新拍摄，不会自动上传旧照片。
+- 完整 Flutter 测试 614 项通过，静态检查与 Android debug APK 构建通过。真机相机应用兼容、方向、进程被杀后的返回仍待验证；iOS 原生拍照按要求暂缓。
