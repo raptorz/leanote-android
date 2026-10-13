@@ -1,6 +1,8 @@
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html;
 
+import 'rich_text_style.dart';
+
 bool isSafeEditorLink(String value) {
   if (value.isEmpty ||
       value.trim() != value ||
@@ -21,6 +23,7 @@ bool supportsVisualHtml(String source) {
     'p',
     'div',
     'span',
+    'font',
     'br',
     'hr',
     'b',
@@ -29,6 +32,7 @@ bool supportsVisualHtml(String source) {
     'em',
     'u',
     's',
+    'strike',
     'del',
     'blockquote',
     'pre',
@@ -60,6 +64,47 @@ bool supportsVisualHtml(String source) {
     if (node is dom.Text) return true;
     if (node is! dom.Element || !tags.contains(node.localName)) return false;
     for (final attribute in node.attributes.entries) {
+      if (attribute.key == 'style') {
+        if (RichTextStyle.parse(attribute.value) == null) return false;
+        continue;
+      }
+      if (attribute.key == 'align' &&
+          {
+            'p',
+            'div',
+            'td',
+            'th',
+            'h1',
+            'h2',
+            'h3',
+            'h4',
+            'h5',
+            'h6',
+          }.contains(node.localName)) {
+        if (!{
+          'left',
+          'right',
+          'center',
+          'justify',
+        }.contains(attribute.value.toLowerCase())) {
+          return false;
+        }
+        continue;
+      }
+      if (node.localName == 'font') {
+        final valid = switch (attribute.key) {
+          'color' =>
+            RichTextStyle.parseColor(attribute.value.toLowerCase()) != null,
+          'size' => RegExp(r'^[1-7]$').hasMatch(attribute.value),
+          'face' =>
+            RichTextStyle.parseFontFamily(attribute.value.toLowerCase()) !=
+                null,
+          _ => false,
+        };
+        if (!valid) return false;
+        continue;
+      }
+
       if ({'td', 'th'}.contains(node.localName) &&
           {'rowspan', 'colspan'}.contains(attribute.key)) {
         if (!RegExp(r'^[1-9][0-9]?$').hasMatch(attribute.value)) return false;

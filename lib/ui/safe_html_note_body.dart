@@ -8,6 +8,7 @@ import 'cached_markdown_image.dart';
 import 'markdown_note_body.dart' show copyNoteText;
 import 'note_link_dialog.dart';
 import 'spanning_table.dart';
+import 'rich_text_style.dart';
 import '../services/note_link_opener.dart';
 
 /// Native HTML preview; optional media callbacks enforce account-scoped access.
@@ -86,10 +87,62 @@ class SafeHtmlNoteBody extends StatelessWidget {
     return found.toList();
   }
 
+  RichTextStyle _style(dom.Element element) {
+    final values = <String, String>{};
+    final align = element.attributes['align']?.toLowerCase();
+    if (align != null && RichTextStyle.parse('text-align:$align') != null) {
+      values['text-align'] = align;
+    }
+    if (element.localName == 'font') {
+      final color = element.attributes['color']?.toLowerCase();
+      if (color != null && RichTextStyle.parseColor(color) != null) {
+        values['color'] = color;
+      }
+      final family = element.attributes['face']?.toLowerCase();
+      if (family != null && RichTextStyle.parseFontFamily(family) != null) {
+        values['font-family'] = family;
+      }
+      const sizes = {
+        '1': '10px',
+        '2': '13px',
+        '3': '16px',
+        '4': '18px',
+        '5': '24px',
+        '6': '32px',
+        '7': '48px',
+      };
+      final size = sizes[element.attributes['size']];
+      if (size != null) values['font-size'] = size;
+    }
+    values.addAll(
+      RichTextStyle.parse(element.attributes['style'] ?? '')?.declarations ??
+          {},
+    );
+    return RichTextStyle(values);
+  }
+
+  RichTextStyle _cellStyle(dom.Element? element) {
+    final chain = <dom.Element>[];
+    var current = element;
+    while (current != null && chain.length < 64) {
+      chain.add(current);
+      if (current.localName == 'table') break;
+      current = current.parent;
+    }
+    return RichTextStyle({
+      for (final item in chain.reversed) ..._style(item).declarations,
+    });
+  }
+
+  bool _hasWidgets(InlineSpan span) =>
+      span is WidgetSpan ||
+      (span is TextSpan && (span.children?.any(_hasWidgets) ?? false));
+
   List<InlineSpan> _render(
     List<dom.Node> nodes, {
     int depth = 0,
     bool pre = false,
+    TextStyle inheritedStyle = const TextStyle(),
     List<dom.Element>? images,
     List<dom.Element>? tables,
     double imageWidth = 0,
@@ -190,6 +243,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
         );
       }
       final heading = RegExp(r'^h[1-6]$').hasMatch(tag);
+      final css = _style(node);
       final style = TextStyle(
         fontWeight: heading || tag == 'b' || tag == 'strong' || tag == 'th'
             ? FontWeight.bold
@@ -199,25 +253,40 @@ class SafeHtmlNoteBody extends StatelessWidget {
             : null,
         fontFamily: tag == 'code' || tag == 'pre' ? 'monospace' : null,
         fontSize: heading ? 26 - int.parse(tag.substring(1)) * 2.0 : null,
-        decoration: tag == 's' || tag == 'del'
+        decoration: tag == 's' || tag == 'del' || tag == 'strike'
             ? TextDecoration.lineThrough
             : tag == 'u'
             ? TextDecoration.underline
             : null,
-      );
-      spans.add(
-        TextSpan(
-          style: style,
-          children: _render(
-            node.nodes,
-            depth: depth + 1,
-            pre: pre || tag == 'pre',
-            images: images,
-            tables: tag == 'table' ? null : tables,
-            imageWidth: imageWidth,
-          ),
+      ).merge(css.textStyle);
+      final resolvedStyle = inheritedStyle.merge(style);
+      final rendered = TextSpan(
+        style: style,
+        children: _render(
+          node.nodes,
+          depth: depth + 1,
+          pre: pre || tag == 'pre',
+          inheritedStyle: resolvedStyle,
+          images: images,
+          tables: tag == 'table' ? null : tables,
+          imageWidth: imageWidth,
         ),
       );
+      if (css.alignment != null && _blocks.contains(tag) && imageWidth > 0) {
+        spans.add(
+          WidgetSpan(
+            child: SizedBox(
+              width: imageWidth,
+              child: Text.rich(
+                TextSpan(style: resolvedStyle, children: [rendered]),
+                textAlign: css.alignment,
+              ),
+            ),
+          ),
+        );
+      } else {
+        spans.add(rendered);
+      }
       // Addresses are selectable text only, never executable links.
       if (tag == 'a') {
         final href = node.attributes['href'];
@@ -303,6 +372,9 @@ class SafeHtmlNoteBody extends StatelessWidget {
                     ),
                   ),
                   child: Text.rich(
+                    textAlign: cell.element == null
+                        ? null
+                        : _cellStyle(cell.element).alignment,
                     TextSpan(
                       children: _render(
                         cell.element?.nodes ?? [],
@@ -311,13 +383,18 @@ class SafeHtmlNoteBody extends StatelessWidget {
                         imageWidth: cellWidth * cell.columns - 16,
                       ),
                     ),
-                    style: TextStyle(
-                      fontSize: 16,
-                      height: 1.65,
-                      fontWeight: cell.element?.localName == 'th'
-                          ? FontWeight.bold
-                          : null,
-                    ),
+                    style:
+                        TextStyle(
+                          fontSize: 16,
+                          height: 1.65,
+                          fontWeight: cell.element?.localName == 'th'
+                              ? FontWeight.bold
+                              : null,
+                        ).merge(
+                          cell.element == null
+                              ? null
+                              : _cellStyle(cell.element).textStyle,
+                        ),
                   ),
                 ),
             ],
@@ -369,6 +446,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
                           child: Padding(
                             padding: const EdgeInsets.all(8),
                             child: Text.rich(
+                              textAlign: _cellStyle(row[index]).alignment,
                               TextSpan(
                                 children: _render(
                                   row[index].nodes,
@@ -383,7 +461,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
                                 fontWeight: row[index].localName == 'th'
                                     ? FontWeight.bold
                                     : null,
-                              ),
+                              ).merge(_cellStyle(row[index]).textStyle),
                             ),
                           ),
                         ),
@@ -405,24 +483,23 @@ class SafeHtmlNoteBody extends StatelessWidget {
         final tables = <dom.Element>[];
         final nodes = html.parseFragment(content).nodes;
         final links = _links(nodes);
+        final baseStyle = DefaultTextStyle.of(context).style
+            .copyWith(fontSize: 16, height: 1.65);
         final spans = _render(
           nodes,
+          inheritedStyle: baseStyle,
           images: loadCachedImage == null ? null : images,
           tables: tables,
           imageWidth: constraints.maxWidth,
         );
-        final text = TextSpan(
-          style: DefaultTextStyle.of(context).style
-              .copyWith(fontSize: 16, height: 1.65),
-          children: spans,
-        );
+        final text = TextSpan(style: baseStyle, children: spans);
         return SingleChildScrollView(
           // SelectableText supports only TextSpans. SelectionArea with Text.rich
           // retains native text selection around embedded images and tables.
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              images.isEmpty && tables.isEmpty
+              !_hasWidgets(text)
                   ? SelectableText.rich(text)
                   : SelectionArea(child: Text.rich(text)),
               if (links.isNotEmpty)

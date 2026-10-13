@@ -15,8 +15,8 @@
 ## 当前现场（2026-10-13）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`8e2d063` 离线 Markdown 数学公式与编辑工具；`d221858` 头像裁剪与 Android 拍照；`d65eba0` 上传前 USN 回退预检；`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
-- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 622 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
+- 最近提交：`df711b7` 搜索摘要与最新正文读取；`8e2d063` 离线 Markdown 数学公式与编辑工具；`d221858` 头像裁剪与 Android 拍照；`d65eba0` 上传前 USN 回退预检；`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
+- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 627 项通过（另 1 项性能基准默认跳过），Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
 - 当前任务：持久下载、离线图片/附件暂存与 Android 资源分享已实现并验证，离线新建笔记本与不确定结果恢复已实现，继续同步一致性及其余功能缺口。iOS 与发布按最新要求暂缓，不作为当前功能迁移的执行前置条件。
 
@@ -32,7 +32,7 @@
 | M02 版本、USN、分页同步 | desktop-app/api/version.go、sync/pull.go、push.go | api/ApiUserController、ApiNoteController、ApiNotebookController、ApiTagController | background/NoteSyncService | lib/sync/sync_coordinator.dart；API2 | 部分；新笔记首次请求持久化及稳定版本回读已实现（schema v14），防止超时重试误确认后续编辑；上传前 USN 回退预检已实现；删除冲突、创建差异恢复及资源冲突尚未完整处理；全量/增量/并发修改必须不丢失数据 |
 | M03 笔记离线增改、自动保存 | desktop-app/db/note_repo.go、sync/push.go | /api2/client/note/add、update | ui/edit/NoteEditActivity | data/database/app_database.dart、ui/note_editor_page.dart；API2 | 核心已实现；本地保存/后台切换测试已覆盖，输入法与杀进程验收待做 |
 | M04 Markdown 工具及阅读 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/markdown_editing.dart、markdown_note_body.dart；同步 API2 | 基础工具、GFM 表格/任务列表及离线行内/块级数学公式已实现；增加表格/任务/分隔线/公式工具；复杂扩展语法仍需逐项核对，原文不被预览改写 |
-| M05 富文本与表格 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/visual_html_editor.dart、safe_html_note_body.dart；同步 API2 | 部分；合并/拆分单元格及合并表格行列操作已实现；合并表格原生阅读布局已实现；复杂样式与可视化资源插入未完；WebView 输入法/选区/撤销真机验证 |
+| M05 富文本与表格 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/visual_html_editor.dart、safe_html_note_body.dart；同步 API2 | 部分；合并/拆分单元格及合并表格行列操作已实现；合并表格原生阅读布局已实现；常用颜色/高亮/字号/字体/对齐样式及原生阅读已实现；高级布局样式与可视化资源插入未完；WebView 输入法/选区/撤销真机验证 |
 | M06 笔记本树及离线操作 | desktop-app/db/notebook_repo.go、api/client_api.go | /api2/client/notebook/add、update | service/NotebookService | ui/notebook_dialog.dart、move_notebook_dialog.dart；API2 | 离线新建、重命名/移动、父级优先同步和创建结果不确定时的手动核实恢复已实现（schema v13）；完整远端修改冲突交互仍需补齐 |
 | M07 笔记本删除 | desktop-app/api/client_api.go DeleteNotebook | api/ApiNotebookController.DeleteNotebook → service/NotebookService.DeleteNotebookForce | service/NotebookService | 暂未接入 | 服务端合同阻塞：子级/笔记处理及 USN 删除标记；仅提出需求 |
 | M08 移动、星标、回收站 | desktop-app/db/note_repo.go、sync/push.go | ApiNoteController.UpdateNote/DeleteTrash | service/NoteService | ui/note_reader_page.dart、workspace_page.dart；API2 | 核心已实现；trash_delete_test.dart、pending_sync_test.dart；跨客户端回收站回归待验证 |
@@ -234,7 +234,7 @@ M06 本批最终验证：静态检查无问题；完整测试 **501 项全部通
 - 服务端创建无幂等键（B05）：请求前持久标记 uncertain，响应丢失或本地确认失败不自动重发，冻结该笔记本改名/移动，原有子级与笔记完整保留。笔记本菜单提供“创建状态与恢复”，先读本地状态；用户主动查询服务端匹配项后可确认关联，或核实后显式恢复待创建状态。
 - 图片/附件上传先同步目标笔记本的必要父级，再上传目标正文；不会创建无关的待同步笔记本。
 - 数据库/同步测试覆盖重开、父子顺序、全量 ID 映射、旧页面编辑、响应丢失、事务回滚、账号隔离、父级未同步、请求期间编辑、异常响应和 v12 升级；UI 测试覆盖离线新建、重复提交、恢复确认和不自动联网。
-- 静态检查无问题，完整 Flutter 测试 622 项通过，Android debug APK 构建通过（10 秒）。服务端未修改，创建幂等键仍是后续可改善的接口能力。
+- 静态检查无问题，完整 Flutter 测试 627 项通过（另 1 项性能基准默认跳过），Android debug APK 构建通过（10 秒）。服务端未修改，创建幂等键仍是后续可改善的接口能力。
 
 ## 2026-10-13 新笔记创建重试一致性
 
@@ -290,3 +290,9 @@ M06 本批最终验证：静态检查无问题；完整测试 **501 项全部通
 搜索页使用独立 `NoteSearchResult`，SQL 仅返回 ID、标题、更新时间和格式，不把正文带入列表，也不能误把摘要保存成空正文。保留已有增长前缀分页与字面 `%/_/\` 匹配。点击时按账号/笔记 ID 重新读取最新完整记录，排除已删除/回收站记录；连续点击去重，切换关键词/离开页面后丢弃过期读取，读取失败可再次点击重试。
 
 2026-10-13 在本机临时磁盘 SQLite 中创建 25,000 篇笔记、每篇约 4KiB 正文，通过 `test/performance/search_benchmark_test.dart` 的显式开关复现：`flutter test --no-pub --dart-define=SEARCH_BENCHMARK=true test/performance/search_benchmark_test.dart`。六次采样，普通标题 18–21ms，稀有正文 49–50ms，中文 67–70ms，不存在关键词 48ms，字面特殊字符 47–49ms。1,001 条结果避免传递 4,101,197 个正文字符。临时数据库自动清理，不设依赖硬件的通过阈值。此结果不代表手机耗时或冷启动磁盘结果；保留现有子串语义，未引入会改变中文/子串匹配的分词 FTS。完整 Flutter 测试 622 项通过；性能基准额外 1 项通过。无服务端改动。
+
+## M05 常用富文本样式
+
+增加文字颜色、高亮、字号、删除线、段落对齐和清除格式工具；可视化编辑允许限定的 CSS 与旧 `font` 标签，原生阅读对应支持颜色、字号、常用本地字体、字重、斜体、装饰及块级/单元格对齐。合并单元格同样保留支持的样式。原文未编辑时仍原样返回；未支持的声明不自动删除或改写，编辑器保持源码模式，阅读器忽略其样式并保留文字。外部资源 CSS、脚本表达式、未知布局声明、超大字号、事件属性仍不能进入可视化编辑；CSP 与禁止网络规则不变。
+
+`test/rich_text_style_test.dart` 覆盖支持范围、注入/边界、旧格式兼容、颜色单位和原生对齐布局。全量 Flutter 627 项通过、1 项性能基准按默认开关跳过，静态检查无问题，Android debug APK 构建通过（7.0 秒）。WebView 原生选区/撤销及输入法仍需真机验证。高级 CSS 布局、可视化图片资源插入仍列为未完成，不以样式子集冒充整个 M05 完成。

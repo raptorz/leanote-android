@@ -20,7 +20,7 @@ void main() {
       '<img src="https://host/a">',
       '<p onclick="alert(1)">a</p>',
       '<iframe></iframe>',
-      '<p style="color:red">a</p>',
+      '<p style="background:url(https://host/a)">a</p>',
       '<a href="javascript:alert(1)">a</a>',
     ]) {
       expect(supportsVisualHtml(source), isFalse);

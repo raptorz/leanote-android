@@ -59,10 +59,10 @@ document.addEventListener('click', event => {
 });
 window.readContent = () => changed ? editor.innerHTML : original;
 window.format = (command, value) => {
-  const allowed = ['bold','italic','underline','insertUnorderedList','insertOrderedList','formatBlock','undo','redo','unlink'];
+  const allowed = ['bold','italic','underline','insertUnorderedList','insertOrderedList','formatBlock','undo','redo','unlink','strikeThrough','foreColor','hiliteColor','fontSize','justifyLeft','justifyCenter','justifyRight','justifyFull','removeFormat'];
   if (!allowed.includes(command)) return;
   restoreSelection();
-  document.execCommand('styleWithCSS', false, false);
+  document.execCommand('styleWithCSS', false, ['foreColor','hiliteColor','justifyLeft','justifyCenter','justifyRight','justifyFull'].includes(command));
   document.execCommand(command, false, value);
   publish();
 };
@@ -333,6 +333,30 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
           },
   );
 
+  Widget _styleMenu(
+    String label,
+    IconData icon,
+    String command,
+    Map<String, String> values,
+  ) => PopupMenuButton<String>(
+    tooltip: label,
+    icon: Icon(icon),
+    enabled: _ready && !_leaving && !_dialogOpen,
+    itemBuilder: (_) => [
+      for (final entry in values.entries)
+        PopupMenuItem(value: entry.value, child: Text(entry.key)),
+    ],
+    onSelected: (value) async {
+      try {
+        await _controller.runJavaScript(
+          'window.format(${jsonEncode(command)}, ${jsonEncode(value)})',
+        );
+      } catch (error) {
+        if (mounted) setState(() => _error = '排版失败：$error');
+      }
+    },
+  );
+
   Future<void> _changeTable(TableOperation operation) async {
     if (!_ready || _leaving || _dialogOpen) return;
     setState(() => _dialogOpen = true);
@@ -430,6 +454,39 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
                 _button('加粗', Icons.format_bold, 'bold'),
                 _button('斜体', Icons.format_italic, 'italic'),
                 _button('下划线', Icons.format_underlined, 'underline'),
+                _button('删除线', Icons.format_strikethrough, 'strikeThrough'),
+                _styleMenu('文字颜色', Icons.format_color_text, 'foreColor', const {
+                  '默认黑色': '#000000',
+                  '红色': '#d32f2f',
+                  '橙色': '#e65100',
+                  '绿色': '#2e7d32',
+                  '蓝色': '#1565c0',
+                  '紫色': '#7b1fa2',
+                }),
+                _styleMenu(
+                  '高亮颜色',
+                  Icons.format_color_fill,
+                  'hiliteColor',
+                  const {
+                    '清除高亮': 'transparent',
+                    '黄色': '#fff59d',
+                    '绿色': '#c8e6c9',
+                    '蓝色': '#bbdefb',
+                    '粉色': '#f8bbd0',
+                  },
+                ),
+                _styleMenu('字号', Icons.format_size, 'fontSize', const {
+                  '小': '2',
+                  '标准': '3',
+                  '大': '4',
+                  '特大': '5',
+                  '标题大小': '6',
+                }),
+                _button('左对齐', Icons.format_align_left, 'justifyLeft'),
+                _button('居中', Icons.format_align_center, 'justifyCenter'),
+                _button('右对齐', Icons.format_align_right, 'justifyRight'),
+                _button('两端对齐', Icons.format_align_justify, 'justifyFull'),
+                _button('清除文字格式', Icons.format_clear, 'removeFormat'),
                 _button('标题', Icons.title, 'formatBlock', 'h2'),
                 _button('正文', Icons.notes, 'formatBlock', 'p'),
                 _button('引用', Icons.format_quote, 'formatBlock', 'blockquote'),
