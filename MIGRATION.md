@@ -15,8 +15,8 @@
 ## 当前现场（2026-10-13）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
-- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 584 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
+- 最近提交：`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
+- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 597 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
 - 当前任务：持久下载、离线图片/附件暂存与 Android 资源分享已实现并验证，离线新建笔记本与不确定结果恢复已实现，继续同步一致性及其余功能缺口。iOS 与发布按最新要求暂缓，不作为当前功能迁移的执行前置条件。
 
@@ -51,7 +51,7 @@
 | M21 多账号快速切换 | desktop-app/app.go、db 配置 | Api2.TokenLogin、ApiUser.Info | service/AccountService、ui/MainActivity | app.dart、data/session/session_store.dart | 本轮实现切换/添加账号、登录页恢复已登录账号；保留离线修改与多账号凭据，切换前等待资源任务、重建工作区；静态检查和全量 488 项测试通过；原生安全存储/生命周期验收仍待进行 |
 | M22 导入导出、对外分享 | desktop-app/webapi/local.go | 本地操作无需新接口 | ui/edit/NoteEditActivity | services/note_importer.dart、note_exporter.dart、note_sharer.dart | 原文导入导出及系统分享已实现；完整含资源导出仍待对照；Android/iOS 文件与分享面板验收 |
 | M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity、ios/ShareExtension 与 Shared | Android 单项/多项文本、文本文件、图片与二进制附件接收已实现，含私有原件暂存、账号认领和事务导入；JVM/Flutter 测试和 APK 构建通过，设备生命周期验收待做；iOS 文件/多项及验证暂缓 |
-| M24 Android 小组件 | Desktop 无等价 | 本地快照，无新接口 | appwidget/NoteAppWidget、WidgetService、RedirActivity | 未实现 | 笔记列表/新建入口、账号切换、锁屏隐私、刷新及系统生命周期验收 |
+| M24 Android 小组件 | Desktop 无等价 | 本地快照，无新接口 | appwidget/NoteAppWidget、WidgetService、RedirActivity | services/home_widget.dart、Android NoteWidget；本地快照 | 最近 30 条标题列表、新建/打开入口、默认隐私关闭、账号代次隔离和退出清理已实现；仅 home_screen，不提供锁屏组件；启动器/进程重启/系统生命周期真机验收待做 |
 | M25 Android/iOS 发布与运行 | desktop-app/.github/workflows 为发布参考 | 无 | 旧 Android 构建参考 | android、ios、.github/workflows | 损坏 Gradle 包已修复，Android debug APK 已构建成功；iOS 模拟器/签名/设备验收未完成；不自动发布 |
 | M26 API2 边界与网络错误 | desktop-app/api/client.go | conf/routes、Api2Controller、api/* | 禁止复用旧请求 | lib/core/api/api2_client.dart | 未发现直接 Legacy 业务调用；JSON/表单已禁止自动重定向，真实 HTTP 测试覆盖 GET/JSON/form × 301/302/303/307/308；旧正文路径仅解析 FileId，绝不请求原路径 |
 
@@ -234,7 +234,7 @@ M06 本批最终验证：静态检查无问题；完整测试 **501 项全部通
 - 服务端创建无幂等键（B05）：请求前持久标记 uncertain，响应丢失或本地确认失败不自动重发，冻结该笔记本改名/移动，原有子级与笔记完整保留。笔记本菜单提供“创建状态与恢复”，先读本地状态；用户主动查询服务端匹配项后可确认关联，或核实后显式恢复待创建状态。
 - 图片/附件上传先同步目标笔记本的必要父级，再上传目标正文；不会创建无关的待同步笔记本。
 - 数据库/同步测试覆盖重开、父子顺序、全量 ID 映射、旧页面编辑、响应丢失、事务回滚、账号隔离、父级未同步、请求期间编辑、异常响应和 v12 升级；UI 测试覆盖离线新建、重复提交、恢复确认和不自动联网。
-- 静态检查无问题，完整 Flutter 测试 584 项通过，Android debug APK 构建通过（10 秒）。服务端未修改，创建幂等键仍是后续可改善的接口能力。
+- 静态检查无问题，完整 Flutter 测试 597 项通过，Android debug APK 构建通过（10 秒）。服务端未修改，创建幂等键仍是后续可改善的接口能力。
 
 ## 2026-10-13 新笔记创建重试一致性
 
@@ -248,3 +248,11 @@ M06 本批最终验证：静态检查无问题；完整测试 **501 项全部通
 - 可视化编辑支持有界 rowspan/colspan、向右/向下合并、拆分及合并表格中的行列增删。合并保留两侧内容；删除跨行单元格起始行时，把仍跨越下一行的内容保留下来。
 - 基于逻辑网格校验重叠、缺格和跨表头分区，拒绝不规则修改，不静默丢弃正文。保持现有 20 行/10 列限制、快照比对、撤销和删除确认。
 - 584 项 Flutter 测试通过，静态检查无问题，Android debug APK 构建通过。真实 WebView 输入法/选区与复杂表格阅读布局仍未验收。
+
+## 2026-10-13 Android 桌面小组件
+
+- 原生 RemoteViewsService 提供可滚动的最近 30 条笔记标题列表，点选打开离线正文，点击加号选择笔记本后使用默认编辑器新建。仅注册 home_screen 小组件，没有后台网络请求或正文摘要副本。
+- 标题显示默认关闭，在应用账号菜单“桌面小组件”中显式开启；按账号保存开关。账号切换/退出更新原生账号代次并清空列表，较晚返回的旧账号读取不能重新发布，原生适配器也校验账号代次。
+- 入口先校验当前账号和本地笔记；已有编辑页面未退出时保留操作，不打断保存。持久待处理入口按 ID 确认，重复通知不重复打开/新建。原生标题长度/条数均有上限，不保存令牌、密码或正文。
+- Flutter 测试 597 项通过，静态检查与 Android debug APK 构建通过。真机待测：添加/缩放/删除组件、多组件滚动、冷启动与进程被杀、桌面重启、锁屏/解锁和不同厂商启动器。不能把编译通过视为这些已验收。
+- 平台实现依据：[Android collection widgets](https://developer.android.com/develop/ui/views/appwidgets/collections)。

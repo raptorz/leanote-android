@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import 'dart:async';
+
 import 'repositories/auth_repository.dart';
 import 'ui/login_page.dart';
 import 'ui/workspace_page.dart';
+import 'services/home_widget.dart';
 
 class GemsnoteApp extends StatelessWidget {
   const GemsnoteApp({required this.repository, super.key});
@@ -37,6 +40,7 @@ class _RootGate extends StatefulWidget {
 }
 
 class _RootGateState extends State<_RootGate> {
+  final _homeWidget = HomeWidgetController();
   StoredSession? _session;
   var _ready = false;
   bool _freshLogin = false;
@@ -51,11 +55,29 @@ class _RootGateState extends State<_RootGate> {
   Future<void> _restore() async {
     final session = await widget.repository.restore();
     if (mounted) {
+      _bindWidget(session);
       setState(() {
         _session = session;
         _ready = true;
       });
     }
+  }
+
+  void _bindWidget(StoredSession? session) {
+    unawaited(
+      _homeWidget.activate(
+        session,
+        session == null
+            ? null
+            : () => widget.repository.notes(session.account.cacheKey),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _homeWidget.dispose();
+    super.dispose();
   }
 
   @override
@@ -67,18 +89,22 @@ class _RootGateState extends State<_RootGate> {
       return LoginPage(
         repository: widget.repository,
         onSessionRestored: (session) => setState(() {
+          _bindWidget(session);
           _session = session;
           _freshLogin = false;
         }),
         onSignedIn: (session) => setState(() {
+          _bindWidget(session);
           _session = session;
           _freshLogin = true;
         }),
       );
     }
     return WorkspacePage(
+      homeWidget: _homeWidget,
       key: ValueKey((_session!.account.cacheKey, _sessionGeneration)),
       onSessionChanged: (session) => setState(() {
+        _bindWidget(session);
         _sessionGeneration++;
         _session = session;
         _freshLogin = false;
@@ -86,7 +112,10 @@ class _RootGateState extends State<_RootGate> {
       repository: widget.repository,
       session: _session!,
       refreshAvatarOnStart: _freshLogin,
-      onSignedOut: () => setState(() => _session = null),
+      onSignedOut: () => setState(() {
+        _bindWidget(null);
+        _session = null;
+      }),
     );
   }
 }

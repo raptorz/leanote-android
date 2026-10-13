@@ -35,6 +35,7 @@ class MainActivity : FlutterActivity() {
         val id: String = UUID.randomUUID().toString().replace("-", "").take(24),
         val kind: String = "", val size: Long = 0)
     private var shareChannel: MethodChannel? = null
+    private var widgetChannel: MethodChannel? = null
     private val prefs by lazy { getSharedPreferences("shared_text_inbox", MODE_PRIVATE) }
     private fun resources(): SharedResourceStore = synchronized(MainActivity::class.java) {
         resourceStore ?: SharedResourceStore(File(applicationContext.filesDir, "shared_resources")).also { resourceStore = it }
@@ -46,6 +47,30 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        widgetChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "gemsnote/home_widget")
+        widgetChannel!!.setMethodCallHandler { call, result ->
+            try {
+                val account = call.argument<String>("account") ?: ""
+                val epoch = call.argument<String>("epoch") ?: ""
+                when (call.method) {
+                    "activate" -> result.success(NoteWidgetStore.activate(this, account))
+                    "publish" -> {
+                        NoteWidgetStore.publish(this, account, epoch, call.argument<List<*>>("notes") ?: emptyList<Any>())
+                        result.success(null)
+                    }
+                    "setEnabled" -> {
+                        NoteWidgetStore.setEnabled(this, account, epoch, call.argument<Boolean>("enabled") == true)
+                        result.success(null)
+                    }
+                    "peek" -> result.success(NoteWidgetStore.pending(this))
+                    "acknowledge" -> {
+                        NoteWidgetStore.acknowledge(this, call.argument<String>("id") ?: "")
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            } catch (error: Exception) { result.error("homeWidget", error.message, null) }
+        }
         activeActivity = WeakReference(this)
         shareChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "gemsnote/shared_text")
         try { pruneResources(JSONArray(prefs.getString("queue", "[]"))) } catch (error: Exception) { showShareError(error) }
@@ -120,12 +145,20 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) receiveWidget(intent)
         if (savedInstanceState == null) receiveText(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        receiveWidget(intent)
         receiveText(intent)
+    }
+
+    private fun receiveWidget(incoming: Intent?) {
+        try {
+            if (NoteWidgetStore.receive(this, incoming)) widgetChannel?.invokeMethod("changed", null)
+        } catch (error: Exception) { showShareError(error) }
     }
 
     private fun receiveText(incoming: Intent?) {
@@ -283,6 +316,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        widgetChannel?.setMethodCallHandler(null)
+        widgetChannel = null
         shareChannel?.setMethodCallHandler(null)
         shareChannel = null
         if (activeActivity.get() === this) activeActivity.clear()

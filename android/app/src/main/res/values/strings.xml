@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Gemsnote</string>
+    <string name="widget_create">New note</string>
+    <string name="widget_sign_in">Open Gemsnote to sign in</string>
+    <string name="widget_private">Note titles are hidden. Enable them in the app’s Home widget settings.</string>
+    <string name="widget_empty">No recent notes. Open Gemsnote to refresh.</string>
+    <string name="widget_untitled">Untitled</string>
+    <string name="widget_description">Gemsnote recent notes</string>
 </resources>

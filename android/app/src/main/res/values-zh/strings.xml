@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">珠玑笔记</string>
+    <string name="widget_create">新建笔记</string>
+    <string name="widget_sign_in">打开珠玑笔记登录</string>
+    <string name="widget_private">笔记标题已隐藏，可在应用的桌面小组件设置中开启。</string>
+    <string name="widget_empty">暂无最近笔记，打开珠玑笔记刷新。</string>
+    <string name="widget_untitled">无标题</string>
+    <string name="widget_description">珠玑笔记最近笔记</string>
 </resources>

@@ -15,6 +15,7 @@ import '../domain/models/notebook_tree.dart';
 import '../repositories/auth_repository.dart';
 import '../services/note_exporter.dart';
 import '../services/shared_text_inbox.dart';
+import '../services/home_widget.dart';
 import 'shared_text_dialog.dart';
 import '../services/note_sharer.dart';
 import '../services/account_file_cache.dart';
@@ -47,6 +48,7 @@ class WorkspacePage extends StatefulWidget {
     this.onSessionChanged,
     this.refreshAvatarOnStart = false,
     this.sharedTextInbox,
+    this.homeWidget,
     super.key,
   });
 
@@ -56,6 +58,7 @@ class WorkspacePage extends StatefulWidget {
   final ValueChanged<StoredSession>? onSessionChanged;
   final bool refreshAvatarOnStart;
   final SharedTextInbox? sharedTextInbox;
+  final HomeWidgetController? homeWidget;
 
   @override
   State<WorkspacePage> createState() => _WorkspacePageState();
@@ -63,6 +66,97 @@ class WorkspacePage extends StatefulWidget {
 
 class _WorkspacePageState extends State<WorkspacePage>
     with WidgetsBindingObserver {
+  bool _widgetActionBusy = false;
+
+  Future<List<Note>> _widgetNotes() =>
+      widget.repository.notes(widget.session.account.cacheKey);
+
+  void _homeWidgetChanged() {
+    if (_widgetActionBusy || !mounted || _signedOut || _loggingOut) return;
+    final action = widget.homeWidget?.pending;
+    if (action == null) return;
+    _widgetActionBusy = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!mounted || _signedOut) return;
+        // Let an open editor finish saving before handling a widget action.
+        if (ModalRoute.of(context)?.isCurrent != true) return;
+        await widget.homeWidget!.acknowledge(action);
+        if (action.account != widget.session.account.cacheKey) {
+          throw StateError('小组件对应的账号已切换，请从当前账号重新打开');
+        }
+        if (action.action == 'open') {
+          final notes = await _widgetNotes();
+          final note = notes
+              .where(
+                (n) => n.noteId == action.noteId && !n.isTrash && !n.isDeleted,
+              )
+              .firstOrNull;
+          if (note == null) throw StateError('此笔记已移除或不在当前账号中');
+          if (mounted) await _openReader(note);
+        } else if (action.action == 'create') {
+          final books = await widget.repository.notebooks(
+            widget.session.account.cacheKey,
+          );
+          if (books.isEmpty) throw StateError('请先在应用中新建笔记本');
+          if (!mounted) return;
+          final target = await showDialog<String>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('选择新笔记的笔记本'),
+              content: SizedBox(
+                width: 360,
+                height: 360,
+                child: NotebookTargetPicker(
+                  notebooks: books,
+                  onSelected: (id) => Navigator.pop(context, id),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('取消'),
+                ),
+              ],
+            ),
+          );
+          if (!mounted || target == null) return;
+          final editor = await widget.repository.defaultEditor(widget.session);
+          final note = await widget.repository.createNote(
+            widget.session,
+            notebookId: target,
+            isMarkdown: editor.isMarkdown,
+          );
+          if (mounted) await _editNote(note);
+        } else {
+          if (mounted) await _openAllNotes();
+        }
+      } on Object catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('打开小组件失败：$error')));
+        }
+      } finally {
+        _widgetActionBusy = false;
+        if (widget.homeWidget?.pending?.id != action.id) _homeWidgetChanged();
+      }
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  Future<void> _configureHomeWidget() async {
+    final controller = widget.homeWidget;
+    if (controller == null || !controller.supported) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => _HomeWidgetSettings(
+        controller: controller,
+        load: _widgetNotes,
+        retry: () => controller.activate(widget.session, _widgetNotes),
+      ),
+    );
+  }
+
   late Future<List<Notebook>> _notebooks;
   List<Note> _notes = const [];
   Notebook? _selectedNotebook;
@@ -402,6 +496,8 @@ class _WorkspacePageState extends State<WorkspacePage>
   @override
   void initState() {
     super.initState();
+    widget.homeWidget?.addListener(_homeWidgetChanged);
+    _homeWidgetChanged();
     _shareInbox = widget.sharedTextInbox ?? SharedTextInbox();
     _shareInbox.addListener(_shareChanged);
     unawaited(_shareInbox.start());
@@ -418,6 +514,7 @@ class _WorkspacePageState extends State<WorkspacePage>
 
   @override
   void dispose() {
+    widget.homeWidget?.removeListener(_homeWidgetChanged);
     _fileQueue?.cancel();
     _autoSyncTimer?.cancel();
     _shareInbox.removeListener(_shareChanged);
@@ -430,6 +527,10 @@ class _WorkspacePageState extends State<WorkspacePage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
     if (_foreground) unawaited(_shareInbox.refresh());
+    if (_foreground) unawaited(widget.homeWidget?.peek());
+    unawaited(
+      widget.homeWidget?.refresh(widget.session.account.cacheKey, _widgetNotes),
+    );
     if (!_foreground) _fileQueue?.cancel();
     _scheduleAutoSync();
   }
@@ -517,6 +618,15 @@ class _WorkspacePageState extends State<WorkspacePage>
   }
 
   Future<void> _refreshPending() async {
+    _homeWidgetChanged();
+    if (!_signedOut) {
+      unawaited(
+        widget.homeWidget?.refresh(
+          widget.session.account.cacheKey,
+          _widgetNotes,
+        ),
+      );
+    }
     final generation = ++_pendingRead;
     try {
       final ids = await widget.repository.pendingNoteIds(
@@ -1354,6 +1464,7 @@ class _WorkspacePageState extends State<WorkspacePage>
           PopupMenuButton<String>(
             tooltip: '账号菜单',
             onSelected: (value) {
+              if (value == 'homeWidget') _configureHomeWidget();
               if (value == 'defaultEditor') _chooseDefaultEditor();
               if (value == 'switchAccount') _switchAccount();
               if (value == 'account') {
@@ -1383,6 +1494,8 @@ class _WorkspacePageState extends State<WorkspacePage>
               if (value == 'logout') _logout();
             },
             itemBuilder: (_) => [
+              if (widget.homeWidget?.supported == true)
+                const PopupMenuItem(value: 'homeWidget', child: Text('桌面小组件')),
               const PopupMenuItem(value: 'account', child: Text('账号')),
               if (widget.onSessionChanged != null)
                 PopupMenuItem(
@@ -1753,6 +1866,76 @@ class _EmptyState extends StatelessWidget {
         const Text('日积字句，终得珠玑。', style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 6),
         Text(label),
+      ],
+    ),
+  );
+}
+
+class _HomeWidgetSettings extends StatefulWidget {
+  const _HomeWidgetSettings({
+    required this.controller,
+    required this.load,
+    required this.retry,
+  });
+  final HomeWidgetController controller;
+  final Future<List<Note>> Function() load;
+  final Future<void> Function() retry;
+  @override
+  State<_HomeWidgetSettings> createState() => _HomeWidgetSettingsState();
+}
+
+class _HomeWidgetSettingsState extends State<_HomeWidgetSettings> {
+  bool busy = false;
+  String? error;
+  Future<void> run(Future<void> Function() action) async {
+    if (busy) return;
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      await action();
+    } on Object catch (failure) {
+      if (mounted) setState(() => error = '$failure');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.controller,
+    builder: (context, _) => AlertDialog(
+      title: const Text('桌面小组件'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            '长按 Android 桌面，添加“珠玑笔记最近笔记”。默认隐藏标题；开启后，桌面会显示当前账号最近 30 条笔记标题，不显示正文。编辑、同步及返回应用时刷新。',
+          ),
+          SwitchListTile(
+            title: const Text('在桌面显示笔记标题'),
+            value: widget.controller.enabled,
+            onChanged: busy || !widget.controller.ready
+                ? null
+                : (value) => run(
+                    () => widget.controller.setEnabled(value, widget.load),
+                  ),
+          ),
+          if (error != null || widget.controller.error != null)
+            Text(error ?? widget.controller.error!),
+          if (busy) const LinearProgressIndicator(),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: busy ? null : () => run(widget.retry),
+          child: const Text('刷新'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('关闭'),
+        ),
       ],
     ),
   );
