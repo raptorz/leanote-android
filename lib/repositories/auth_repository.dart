@@ -7,6 +7,8 @@ import '../data/database/app_database.dart';
 import '../data/database/file_download_journal.dart';
 import '../data/database/attachment_outbox.dart';
 import '../data/database/notebook_creation_journal.dart';
+import '../data/database/history_image_cache.dart';
+import '../domain/models/body_image_references.dart';
 import '../services/account_file_cache.dart';
 import '../data/session/session_store.dart';
 import '../domain/models/account.dart';
@@ -110,11 +112,19 @@ class AuthRepository {
             file,
           );
         } on StateError {
-          return _outbox(session).insertedImage(noteId, id);
+          return await _outbox(session).insertedImage(noteId, id) ??
+              await HistoryImageCache(
+                _database.raw,
+                session.account.cacheKey,
+              ).restoredImage(noteId, id);
         }
       }
     }
-    return _outbox(session).insertedImage(noteId, id);
+    return await _outbox(session).insertedImage(noteId, id) ??
+        await HistoryImageCache(
+          _database.raw,
+          session.account.cacheKey,
+        ).restoredImage(noteId, id);
   }
 
   Future<List<NoteFile>> noteFiles(
@@ -681,6 +691,94 @@ class AuthRepository {
     }
     await _database.updateProfile(profile);
     return profile;
+  }
+
+  final _historyDownloads =
+      <(String, String, String, String, String, bool), Future<Uint8List>>{};
+
+  Future<Uint8List?> cachedHistoryImage(
+    StoredSession session,
+    String noteId,
+    String historyId,
+    String content,
+    bool isMarkdown,
+    Uri uri,
+  ) async {
+    final id = cachedImageFileId(uri, session.account.server);
+    if (id == null ||
+        !bodyImageIds(
+          content,
+          isMarkdown: isMarkdown,
+          server: session.account.server,
+        ).contains(id)) {
+      return null;
+    }
+    return HistoryImageCache(
+      _database.raw,
+      session.account.cacheKey,
+    ).read(noteId, historyId, id, content);
+  }
+
+  Future<Uint8List> downloadHistoryImage(
+    StoredSession session,
+    String noteId,
+    String historyId,
+    String content,
+    bool isMarkdown,
+    Uri uri,
+  ) {
+    final id = cachedImageFileId(uri, session.account.server);
+    if (id == null ||
+        !bodyImageIds(
+          content,
+          isMarkdown: isMarkdown,
+          server: session.account.server,
+        ).contains(id)) {
+      return Future.error(StateError('图片不属于此历史版本'));
+    }
+    final key = (
+      session.account.cacheKey,
+      noteId,
+      historyId,
+      id,
+      content,
+      isMarkdown,
+    );
+    return _historyDownloads[key] ??=
+        (() async {
+          final cache = HistoryImageCache(
+            _database.raw,
+            session.account.cacheKey,
+          );
+          final generation = await cache.begin(noteId, historyId, id, content);
+          final bytes = await _api.historyImage(
+            server: session.account.server,
+            token: session.token,
+            noteId: noteId,
+            historyId: historyId,
+            fileId: id,
+            expectedContent: content,
+            isMarkdown: isMarkdown,
+          );
+          final codec = await ui.instantiateImageCodec(bytes, targetWidth: 256);
+          try {
+            final frame = await codec.getNextFrame();
+            frame.image.dispose();
+          } finally {
+            codec.dispose();
+          }
+          await cache.complete(
+            noteId,
+            historyId,
+            id,
+            content,
+            generation,
+            bytes,
+          );
+          return bytes;
+        })().whenComplete(() {
+          _historyDownloads.remove(key);
+        });
   }
 
   Future<void> restoreHistory(

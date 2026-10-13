@@ -9,6 +9,7 @@ import '../../domain/models/account.dart';
 import '../../services/note_image_picker.dart';
 import '../../domain/models/attachment_upload.dart';
 import '../../domain/models/note.dart';
+import '../../domain/models/body_image_references.dart';
 import '../../domain/models/note_file.dart';
 import '../../domain/models/note_history.dart';
 import '../../domain/models/notebook.dart';
@@ -356,13 +357,48 @@ class Api2Client {
         !files.any((item) => item.id == file.id && !item.isAttachment)) {
       throw const ApiException('imageNotInNote');
     }
+    return _downloadImage(server, token, file.id);
+  }
+
+  Future<Uint8List> historyImage({
+    required Uri server,
+    required String token,
+    required String noteId,
+    required String historyId,
+    required String fileId,
+    required String expectedContent,
+    required bool isMarkdown,
+  }) async {
+    // This endpoint verifies ownership of both note and history server-side.
+    final content = await getHistoryContent(
+      server: server,
+      token: token,
+      noteId: noteId,
+      historyId: historyId,
+    );
+    if (content != expectedContent ||
+        !bodyImageIds(
+          content,
+          isMarkdown: isMarkdown,
+          server: server,
+        ).contains(fileId)) {
+      throw const ApiException('imageNotInHistory');
+    }
+    return _downloadImage(server, token, fileId);
+  }
+
+  Future<Uint8List> _downloadImage(
+    Uri server,
+    String token,
+    String fileId,
+  ) async {
     final request = http.Request(
       'GET',
       _uri(
         server,
         '/api2/file/getImage',
         token: token,
-        query: {'fileId': file.id},
+        query: {'fileId': fileId},
       ),
     )..followRedirects = false;
     try {

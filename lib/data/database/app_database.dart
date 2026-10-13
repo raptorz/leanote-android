@@ -10,6 +10,8 @@ import 'file_download_journal.dart';
 import 'attachment_outbox.dart';
 import 'notebook_creation_journal.dart';
 import 'note_creation_journal.dart';
+import 'history_image_cache.dart';
+import 'file_cache_policy.dart';
 
 import '../../domain/models/account.dart';
 import '../../domain/models/attachment_upload.dart';
@@ -28,7 +30,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 14;
+  static const schemaVersion = 15;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -76,6 +78,7 @@ class AppDatabase {
         }
         if (oldVersion < 13) await db.execute(NotebookCreationJournal.schema);
         if (oldVersion < 14) await db.execute(NoteCreationJournal.schema);
+        if (oldVersion < 15) await db.execute(HistoryImageCache.schema);
       },
     );
     return AppDatabase._(database);
@@ -131,8 +134,9 @@ class AppDatabase {
   Future<FileCacheUsage> fileCacheUsage(String accountId) async {
     final rows = await raw.rawQuery(
       'SELECT COUNT(*) AS files, COALESCE(SUM(length(bytes)), 0) AS size '
-      'FROM note_files WHERE account_id = ? AND bytes IS NOT NULL',
-      [accountId],
+      'FROM (SELECT bytes FROM note_files WHERE account_id = ? AND bytes IS NOT NULL '
+      'UNION ALL SELECT bytes FROM history_images WHERE account_id = ? AND bytes IS NOT NULL)',
+      [accountId, accountId],
     );
     return FileCacheUsage(
       files: rows.single['files'] as int,
@@ -151,6 +155,11 @@ class AppDatabase {
       await txn.update(
         'note_files',
         {'bytes': null, 'cached_at': 0, 'generation': _objectId()},
+        where: 'account_id = ?',
+        whereArgs: [accountId],
+      );
+      await txn.delete(
+        'history_images',
         where: 'account_id = ?',
         whereArgs: [accountId],
       );
@@ -236,22 +245,7 @@ class AppDatabase {
       ],
     );
     if (changed != 1) throw StateError('文件列表已变化，请刷新后重试');
-    // Bound binary data across all accounts. Eviction never deletes note text.
-    final rows = await txn.rawQuery(
-      'SELECT rowid, length(bytes) AS size FROM note_files WHERE bytes IS NOT NULL ORDER BY cached_at DESC, rowid DESC',
-    );
-    var total = 0;
-    for (final row in rows) {
-      total += row['size'] as int;
-      if (total > 64 * 1024 * 1024) {
-        await txn.update(
-          'note_files',
-          {'bytes': null},
-          where: 'rowid = ?',
-          whereArgs: [row['rowid']],
-        );
-      }
-    }
+    await enforceFileCacheBudget(txn);
   });
 
   Future<void> replaceSharedSnapshot(
@@ -1376,21 +1370,50 @@ class AppDatabase {
       where: 'account_id = ? AND note_id = ?',
       whereArgs: [accountId, noteId],
     );
-    final bodies = {for (final row in old) row['history_id']: row['content']};
-    await txn.delete(
-      'note_histories',
-      where: 'account_id = ? AND note_id = ?',
-      whereArgs: [accountId, noteId],
-    );
+    final previous = {for (final row in old) row['history_id']: row};
+    final ids = histories.map((history) => history.id).toSet();
+    for (final row in old) {
+      if (!ids.contains(row['history_id'])) {
+        await txn.delete(
+          'note_histories',
+          where: 'account_id=? AND note_id=? AND history_id=?',
+          whereArgs: [accountId, noteId, row['history_id']],
+        );
+      }
+    }
     for (final history in histories) {
-      await txn.insert('note_histories', {
-        'account_id': accountId,
-        'note_id': noteId,
-        'history_id': history.id,
+      final row = previous[history.id];
+      final unchanged =
+          row != null &&
+          row['updated_time'] == history.updatedTime &&
+          row['updated_user_id'] == history.updatedUserId;
+      final values = {
         'updated_time': history.updatedTime,
         'updated_user_id': history.updatedUserId,
-        'content': bodies[history.id],
-      });
+        'content': unchanged ? row['content'] : null,
+      };
+      if (row == null) {
+        await txn.insert('note_histories', {
+          'account_id': accountId,
+          'note_id': noteId,
+          'history_id': history.id,
+          ...values,
+        });
+      } else {
+        if (!unchanged) {
+          await txn.delete(
+            'history_images',
+            where: 'account_id=? AND note_id=? AND history_id=?',
+            whereArgs: [accountId, noteId, history.id],
+          );
+        }
+        await txn.update(
+          'note_histories',
+          values,
+          where: 'account_id=? AND note_id=? AND history_id=?',
+          whereArgs: [accountId, noteId, history.id],
+        );
+      }
     }
   });
 
@@ -1421,6 +1444,19 @@ class AppDatabase {
     String content,
   ) => raw.transaction((txn) async {
     await _requireLiveNote(txn, accountId, noteId);
+    final previous = await txn.query(
+      'note_histories',
+      columns: ['content'],
+      where: 'account_id = ? AND note_id = ? AND history_id = ?',
+      whereArgs: [accountId, noteId, historyId],
+    );
+    if (previous.isNotEmpty && previous.single['content'] != content) {
+      await txn.delete(
+        'history_images',
+        where: 'account_id = ? AND note_id = ? AND history_id = ?',
+        whereArgs: [accountId, noteId, historyId],
+      );
+    }
     // The list may have been refreshed while this body was downloading.
     final count = await txn.update(
       'note_histories',
@@ -1825,5 +1861,6 @@ class AppDatabase {
     AttachmentOutbox.schema,
     NotebookCreationJournal.schema,
     NoteCreationJournal.schema,
+    HistoryImageCache.schema,
   ];
 }

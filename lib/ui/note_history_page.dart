@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../domain/models/note.dart';
+import '../domain/models/note_image_reference.dart';
+import '../domain/models/body_image_references.dart';
 import '../domain/models/note_history.dart';
 import '../repositories/auth_repository.dart';
 import 'note_reader_page.dart';
@@ -43,7 +45,7 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
       builder: (context) => AlertDialog(
         title: const Text('恢复历史正文'),
         content: const Text(
-          '将替换当前本地正文，包括尚未同步的正文修改。标题、标签、笔记本和星标保持不变。恢复后需要同步到服务器。',
+          '将替换当前本地正文，包括尚未同步的正文修改。标题、标签、笔记本和星标保持不变。正文中的图片引用会保留，但不能找回服务端已删除的图片，也不恢复附件列表。恢复后需要同步到服务器。',
         ),
         actions: [
           TextButton(
@@ -91,11 +93,40 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
         cachedOnly: _cachedOnly,
       );
       if (!mounted) return;
+      final imageIds = bodyImageIds(
+        content,
+        isMarkdown: widget.note.isMarkdown,
+        server: widget.session.account.server,
+      );
+      bool isHistoryImage(Uri uri) => imageIds.contains(
+        cachedImageFileId(uri, widget.session.account.server),
+      );
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => NoteReaderPage(
             readOnly: true,
             safeHtmlPreview: true,
+            loadCachedImage: (uri) async => isHistoryImage(uri)
+                ? widget.repository.cachedHistoryImage(
+                    widget.session,
+                    widget.note.noteId,
+                    history.id,
+                    content,
+                    widget.note.isMarkdown,
+                    uri,
+                  )
+                : null,
+            canDownloadImage: (uri) => !_cachedOnly && isHistoryImage(uri),
+            downloadImage: _cachedOnly
+                ? null
+                : (uri) => widget.repository.downloadHistoryImage(
+                    widget.session,
+                    widget.note.noteId,
+                    history.id,
+                    content,
+                    widget.note.isMarkdown,
+                    uri,
+                  ),
             note: widget.note.copyWith(
               content: content,
               updatedTime: history.updatedTime,
@@ -118,7 +149,7 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
       children: [
         SwitchListTile(
           title: const Text('离线缓存'),
-          subtitle: const Text('仅显示上次缓存的列表；已查看的正文可离线阅读和恢复，不包含图片附件。'),
+          subtitle: const Text('已查看的正文与已下载的历史图片可离线阅读。恢复保留图片引用，不恢复附件列表。'),
           value: _cachedOnly,
           onChanged: _loading != null
               ? null

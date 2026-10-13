@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/domain/models/note.dart';
@@ -7,6 +9,7 @@ import 'package:gemsnote/repositories/auth_repository.dart';
 import 'package:gemsnote/ui/note_history_page.dart';
 import 'package:gemsnote/ui/note_reader_page.dart';
 import 'package:gemsnote/ui/safe_html_note_body.dart';
+import 'package:gemsnote/ui/cached_markdown_image.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 class HistoryPreviewRepository implements AuthRepository {
@@ -37,6 +40,45 @@ class HistoryPreviewRepository implements AuthRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class ImageHistoryRepository extends HistoryPreviewRepository {
+  var downloads = 0;
+  var reads = 0;
+  @override
+  Future<String> historyContent(
+    StoredSession session,
+    String noteId,
+    String historyId, {
+    bool cachedOnly = false,
+  }) async => '<img src="/api/file/getImage?fileId=0123456789abcdef01234567">';
+  @override
+  Future<Uint8List?> cachedHistoryImage(
+    StoredSession session,
+    String noteId,
+    String historyId,
+    String content,
+    bool isMarkdown,
+    Uri uri,
+  ) async {
+    reads++;
+    expect(historyId, 'stable-id');
+    return null;
+  }
+
+  @override
+  Future<Uint8List> downloadHistoryImage(
+    StoredSession session,
+    String noteId,
+    String historyId,
+    String content,
+    bool isMarkdown,
+    Uri uri,
+  ) async {
+    downloads++;
+    expect(historyId, 'stable-id');
+    return Uint8List.fromList([1]);
+  }
 }
 
 void main() {
@@ -87,6 +129,52 @@ void main() {
         findsOneWidget,
       );
     });
+  }
+  for (final offline in [false, true]) {
+    testWidgets(
+      'historical images require explicit download and honor offline mode: $offline',
+      (tester) async {
+        final repo = ImageHistoryRepository();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: NoteHistoryPage(
+              repository: repo,
+              session: StoredSession(
+                account: Account(
+                  userId: 'u',
+                  server: Uri.parse('https://example.test/'),
+                  username: '',
+                  email: '',
+                  logo: '',
+                ),
+                token: 't',
+              ),
+              note: Note.fromJson({'NoteId': 'n', 'IsMarkdown': false}),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        if (offline) {
+          await tester.tap(find.text('离线缓存'));
+          await tester.pumpAndSettle();
+        }
+        await tester.tap(find.text('2026-09-30'));
+        await tester.pumpAndSettle();
+        expect(repo.reads, 1);
+        expect(repo.downloads, 0);
+        final image = tester.widget<CachedMarkdownImage>(
+          find.byType(CachedMarkdownImage),
+        );
+        expect(image.download == null, offline);
+        if (!offline) {
+          await tester.tap(find.text('下载图片'));
+          await tester.pumpAndSettle();
+          expect(repo.downloads, 1);
+        } else {
+          expect(find.text('下载图片'), findsNothing);
+        }
+      },
+    );
   }
   testWidgets('history preview has no editing or mutation actions', (
     tester,
