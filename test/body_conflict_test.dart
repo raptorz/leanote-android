@@ -11,6 +11,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'support/created_note.dart';
+
 void main() {
   const id = '507f1f77bcf86cd799439011';
   final account = Account(
@@ -152,6 +154,7 @@ void main() {
           local.copyWith(isMarkdown: !rich, content: localBody),
         );
       }
+      Map<String, Object?>? created;
       final api = Api2Client(
         httpClient: MockClient((request) async {
           if (request.method == 'POST') {
@@ -163,8 +166,17 @@ void main() {
             expect(fields['Content'], localBody);
             expect(fields['IsMarkdown'], '${!rich}');
             expect(fields['Title'], 'local（本地冲突副本）');
+            created ??= createdNote(fields, usn: 7);
             if (failCopy) throw const FormatException('connection lost');
             return http.Response(jsonEncode({'NoteId': copyId, 'Usn': 7}), 200);
+          }
+          if (created != null &&
+              request.url.queryParameters['noteId'] == created!['NoteId']) {
+            return http.Response(
+              jsonEncode(created),
+              200,
+              headers: {'content-type': 'application/json; charset=utf-8'},
+            );
           }
           if (request.url.path.endsWith('getNote')) {
             return http.Response(

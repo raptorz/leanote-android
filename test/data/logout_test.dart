@@ -10,6 +10,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import '../support/created_note.dart';
+
 import 'cached_login_test.dart' show MemorySessions;
 
 void main() {
@@ -44,12 +46,17 @@ void main() {
     await sessions.write(session.account.cacheKey, session.token);
     requests.clear();
     fail = false;
+    Map<String, Object?>? created;
     final api = Api2Client(
       httpClient: MockClient((request) async {
         requests.add(request.url.path);
         if (fail) return http.Response('{"Ok":false,"Msg":"offline"}', 503);
+        if (request.method == 'GET') {
+          return http.Response(jsonEncode(created), 200);
+        }
         expect(request.url.path, '/api2/client/note/add');
         final fields = Uri.splitQueryString(request.body);
+        created = createdNote(fields);
         return http.Response(
           jsonEncode({'NoteId': fields['ClientNoteId'], 'Usn': 6}),
           200,
@@ -78,7 +85,12 @@ void main() {
         isMarkdown: true,
       );
       await repo.prepareLogout(session);
-      expect(requests, ['/api2/client/note/add']);
+      expect(requests, [
+        '/api2/client/note/add',
+        '/api2/note/getNote',
+        '/api2/note/getNoteContent',
+        '/api2/note/getNote',
+      ]);
       expect(await db.pendingNoteIds(session.account.cacheKey), isEmpty);
       expect(await db.lastSyncUsn(session.account.cacheKey), 5);
       await repo.logout(session);

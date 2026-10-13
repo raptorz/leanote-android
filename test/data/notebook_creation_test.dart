@@ -18,6 +18,7 @@ class CreationApi extends Api2Client {
   bool loseResponse = false;
   final books = <Notebook>[];
   final notes = <Note>[];
+  final storedNotes = <String, Note>{};
   Future<void> Function()? duringCreate;
   @override
   Future<Notebook> saveNotebook({
@@ -55,8 +56,15 @@ class CreationApi extends Api2Client {
   }) async {
     expect(books.any((b) => b.notebookId == note.notebookId), isTrue);
     notes.add(note);
-    return note.copyWith(usn: ++usn);
+    return storedNotes[note.noteId] = note.copyWith(usn: ++usn);
   }
+
+  @override
+  Future<({Note note, bool filesConfirmedEmpty})> getConflictSnapshot({
+    required Uri server,
+    required String token,
+    required String noteId,
+  }) async => (note: storedNotes[noteId]!, filesConfirmedEmpty: true);
 
   @override
   Future<List<Notebook>> getNotebooks({

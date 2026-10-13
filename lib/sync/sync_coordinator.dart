@@ -2,6 +2,7 @@ import '../core/api/api2_client.dart';
 import '../core/api/api_exception.dart';
 import '../data/database/app_database.dart';
 import '../data/database/notebook_creation_journal.dart';
+import '../data/database/note_creation_journal.dart';
 import '../domain/models/account.dart';
 import '../domain/models/note.dart';
 import '../domain/models/notebook.dart';
@@ -77,18 +78,7 @@ class SyncCoordinator {
                   dirty.userId != account.userId) {
                 throw StateError('不能向已删除或回收站笔记上传附件');
               }
-              final remote = dirty.usn == 0
-                  ? await _api.addNote(
-                      server: account.server,
-                      token: token,
-                      note: dirty,
-                    )
-                  : await _api.updateNote(
-                      server: account.server,
-                      token: token,
-                      note: dirty,
-                    );
-              await _database.markNoteUploaded(account.cacheKey, dirty, remote);
+              await _uploadNote(account, token, dirty);
               if ((await _database.pendingNoteIds(account.cacheKey))
                   .contains(noteId)) {
                 throw StateError('上传正文期间笔记又有修改，请保存后重试');
@@ -295,6 +285,65 @@ class SyncCoordinator {
     }
   }
 
+  Future<void> _uploadNote(Account account, String token, Note local) async {
+    if (local.usn > 0) {
+      final remote = await _api.updateNote(
+        server: account.server,
+        token: token,
+        note: local,
+      );
+      await _database.markNoteUploaded(account.cacheKey, local, remote);
+      return;
+    }
+    final attempt = await NoteCreationJournal(
+      _database.raw,
+      account.cacheKey,
+    ).prepare(local);
+    var remote = await _api.addNote(
+      server: account.server,
+      token: token,
+      note: attempt.note,
+    );
+    if (remote.noteId != local.noteId || remote.usn <= 0) {
+      throw StateError('invalidUploadResponse');
+    }
+    // The add response echoes request fields and omits Content even for replay.
+    // Verify the stored body at a stable USN before acknowledging any creation,
+    // including pending notes originating from versions without this journal.
+    final snapshot = await _api.getConflictSnapshot(
+      server: account.server,
+      token: token,
+      noteId: local.noteId,
+    );
+    if (!NoteCreationJournal.matches(attempt.note, snapshot.note)) {
+      throw StateError('新笔记创建结果与原请求不一致，本地修改已保留，请核对服务端内容');
+    }
+    remote = snapshot.note;
+    await _database.markNoteUploaded(account.cacheKey, attempt.note, remote);
+    final pending = (await _database.dirtyNotes(account.cacheKey))
+        .where((note) => note.noteId == local.noteId)
+        .firstOrNull;
+    if (pending != null && !pending.isDeleted) {
+      // Preserve later edits across an idempotent replay. Now that the base USN
+      // is known, upload them with ordinary optimistic concurrency checks.
+      await _uploadNotebooks(
+        account,
+        token,
+        onlyNotebookId: pending.notebookId,
+      );
+      final latest = (await _database.dirtyNotes(account.cacheKey))
+          .where((note) => note.noteId == local.noteId)
+          .firstOrNull;
+      if (latest == null || latest.isDeleted) return;
+      final updated = await _api.updateNote(
+        server: account.server,
+        token: token,
+        note: latest,
+      );
+      await _database.markNoteUploaded(account.cacheKey, latest, updated);
+    }
+  }
+
   Future<void> _uploadChanges(
     Account account,
     String token,
@@ -316,18 +365,7 @@ class SyncCoordinator {
         continue;
       }
       try {
-        final remote = local.usn == 0
-            ? await _api.addNote(
-                server: account.server,
-                token: token,
-                note: local,
-              )
-            : await _api.updateNote(
-                server: account.server,
-                token: token,
-                note: local,
-              );
-        await _database.markNoteUploaded(account.cacheKey, local, remote);
+        await _uploadNote(account, token, local);
       } on ApiException catch (error) {
         if (error.code != 'conflict' ||
             error.statusCode != null ||
@@ -348,12 +386,7 @@ class SyncCoordinator {
         if (copy != null) {
           // Persist the copy first. Failed/lost uploads leave this same ID dirty
           // for the next attempt, rather than creating another conflict copy.
-          final uploaded = await _api.addNote(
-            server: account.server,
-            token: token,
-            note: copy,
-          );
-          await _database.markNoteUploaded(account.cacheKey, copy, uploaded);
+          await _uploadNote(account, token, copy);
         }
       }
       onProgress?.call(SyncProgress(SyncStage.uploading, index + 1));

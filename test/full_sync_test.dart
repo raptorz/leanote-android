@@ -11,6 +11,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'support/created_note.dart';
+
 void main() {
   late AppDatabase db;
   late Note draft;
@@ -63,6 +65,7 @@ void main() {
     test('full merge uploads first and protects data: $mode', () async {
       final paths = <String>[];
       final progress = <SyncProgress>[];
+      Map<String, Object?>? created;
       final sync = SyncCoordinator(
         Api2Client(
           httpClient: MockClient((request) async {
@@ -75,10 +78,14 @@ void main() {
               }
               final body = Uri.splitQueryString(request.body);
               expect(body['ClientNoteId'], draft.noteId);
+              created = createdNote(body, usn: 11);
               return http.Response(
                 jsonEncode({'NoteId': draft.noteId, 'Usn': 11}),
                 200,
               );
+            }
+            if (path.endsWith('getNote') || path.endsWith('getNoteContent')) {
+              return http.Response(jsonEncode(created), 200);
             }
             expect(paths.first, '/api2/client/note/add');
             if (path.endsWith('getSyncState')) {
@@ -187,16 +194,25 @@ void main() {
     () async {
       final gate = Completer<void>();
       var uploads = 0;
+      Map<String, Object?>? created;
       final sync = SyncCoordinator(
         Api2Client(
           httpClient: MockClient((request) async {
             if (request.method == 'POST') {
               uploads++;
               await gate.future;
+              created = createdNote(
+                Uri.splitQueryString(request.body),
+                usn: 11,
+              );
               return http.Response(
                 jsonEncode({'NoteId': draft.noteId, 'Usn': 11}),
                 200,
               );
+            }
+            if (request.url.path.endsWith('getNote') ||
+                request.url.path.endsWith('getNoteContent')) {
+              return http.Response(jsonEncode(created), 200);
             }
             if (request.url.path.endsWith('getSyncState')) {
               return http.Response('{"LastSyncUsn":20}', 200);

@@ -9,6 +9,7 @@ import 'package:sqflite/sqflite.dart';
 import 'file_download_journal.dart';
 import 'attachment_outbox.dart';
 import 'notebook_creation_journal.dart';
+import 'note_creation_journal.dart';
 
 import '../../domain/models/account.dart';
 import '../../domain/models/attachment_upload.dart';
@@ -26,7 +27,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 13;
+  static const schemaVersion = 14;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -73,6 +74,7 @@ class AppDatabase {
           );
         }
         if (oldVersion < 13) await db.execute(NotebookCreationJournal.schema);
+        if (oldVersion < 14) await db.execute(NoteCreationJournal.schema);
       },
     );
     return AppDatabase._(database);
@@ -1554,6 +1556,13 @@ class AppDatabase {
         where: 'account_id = ? AND server_id = ?',
         whereArgs: [accountId, local.noteId],
       );
+      if (local.usn == 0) {
+        await txn.delete(
+          'note_create_attempts',
+          where: 'account_id = ? AND note_id = ?',
+          whereArgs: [accountId, local.noteId],
+        );
+      }
     });
   }
 
@@ -1757,5 +1766,6 @@ class AppDatabase {
     ...FileDownloadJournal.schema,
     AttachmentOutbox.schema,
     NotebookCreationJournal.schema,
+    NoteCreationJournal.schema,
   ];
 }
