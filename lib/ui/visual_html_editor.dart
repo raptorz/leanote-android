@@ -448,6 +448,18 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
                   onSelected: _changeTable,
                   itemBuilder: (_) => const [
                     PopupMenuItem(
+                      value: TableOperation.mergeRight,
+                      child: Text('与右侧单元格合并'),
+                    ),
+                    PopupMenuItem(
+                      value: TableOperation.mergeDown,
+                      child: Text('与下方单元格合并'),
+                    ),
+                    PopupMenuItem(
+                      value: TableOperation.splitCell,
+                      child: Text('拆分当前单元格'),
+                    ),
+                    PopupMenuItem(
                       value: TableOperation.addRow,
                       child: Text('下方插入行'),
                     ),

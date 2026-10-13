@@ -74,7 +74,7 @@ void main() {
     'reject unsupported or stale snapshots without returning modified content',
     () {
       for (final invalid in [
-        '<table><tr><td colspan="2">x</td></tr></table>',
+        '<table><tr><td colspan="11">x</td></tr></table>',
         '<table><tr><td>A</td></tr><tr><td>B</td><td>C</td></tr></table>',
         '<table><tr><td><table><tr><td>x</td></tr></table></td></tr></table>',
         '<p>not a table</p>',

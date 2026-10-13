@@ -60,6 +60,13 @@ bool supportsVisualHtml(String source) {
     if (node is dom.Text) return true;
     if (node is! dom.Element || !tags.contains(node.localName)) return false;
     for (final attribute in node.attributes.entries) {
+      if ({'td', 'th'}.contains(node.localName) &&
+          {'rowspan', 'colspan'}.contains(attribute.key)) {
+        if (!RegExp(r'^[1-9][0-9]?$').hasMatch(attribute.value)) return false;
+        final span = int.parse(attribute.value);
+        if (span > (attribute.key == 'rowspan' ? 20 : 10)) return false;
+        continue;
+      }
       if (node.localName != 'a' ||
           attribute.key != 'href' ||
           !isSafeEditorLink(attribute.value)) {

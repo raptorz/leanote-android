@@ -28,7 +28,7 @@ void main() {
       expect(() => buildEditorTable(size.$1, size.$2), throwsArgumentError);
     }
   });
-  test('basic tables accepted without broadening copy policy or allowing attributes', () {
+  test('basic tables accepted without broadening copy policy or allowing unsafe attributes', () {
     const source =
         '<table><caption>标题</caption><thead><tr><th>列</th></tr></thead><tbody><tr><td>正文</td></tr></tbody></table>';
     expect(supportsVisualHtml(source), isTrue);
@@ -36,7 +36,7 @@ void main() {
     for (final source in [
       '<table style="background:url(https://host)"><tr><td>x</td></tr></table>',
       '<table><tr><td onclick="alert(1)">x</td></tr></table>',
-      '<table><tr><td colspan="2">x</td></tr></table>',
+      '<table><tr><td colspan="11">x</td></tr></table>',
     ]) {
       expect(supportsVisualHtml(source), isFalse);
     }
