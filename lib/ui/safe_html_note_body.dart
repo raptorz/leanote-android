@@ -7,6 +7,7 @@ import 'package:html/parser.dart' as html;
 import 'cached_markdown_image.dart';
 import 'markdown_note_body.dart' show copyNoteText;
 import 'note_link_dialog.dart';
+import 'spanning_table.dart';
 import '../services/note_link_opener.dart';
 
 /// Native HTML preview; optional media callbacks enforce account-scoped access.
@@ -113,6 +114,27 @@ class SafeHtmlNoteBody extends StatelessWidget {
         continue;
       }
       if (tag == 'table' && tables != null) {
+        final grid = HtmlTableGrid.parse(node);
+        if (grid != null && grid.hasSpans) {
+          tables.add(node);
+          spans.add(const TextSpan(text: '\n'));
+          spans.add(
+            WidgetSpan(
+              child: SizedBox(
+                width: imageWidth,
+                child: _spanningTable(
+                  node,
+                  grid,
+                  imageWidth,
+                  images,
+                  depth + 1,
+                ),
+              ),
+            ),
+          );
+          spans.add(const TextSpan(text: '\n'));
+          continue;
+        }
         final rows = _tableRows(node);
         if (rows != null) {
           tables.add(node);
@@ -241,6 +263,68 @@ class SafeHtmlNoteBody extends StatelessWidget {
       if (rows.length > 100 || cellCount > 1000) return null;
     }
     return rows.isEmpty ? null : rows;
+  }
+
+  Widget _spanningTable(
+    dom.Element table,
+    HtmlTableGrid grid,
+    double width,
+    List<dom.Element>? images,
+    int depth,
+  ) {
+    final cellWidth = (width / grid.columns).clamp(140.0, 320.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final caption in table.children.where(
+          (node) => node.localName == 'caption',
+        ))
+          Text.rich(
+            TextSpan(children: _render(caption.nodes, depth: depth)),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SpanningTable(
+            grid: grid,
+            columnWidth: cellWidth,
+            children: [
+              for (final cell in grid.cells)
+                Container(
+                  alignment: Alignment.topLeft,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: cell.element?.localName == 'th'
+                        ? const Color(0xffe5eee8)
+                        : Colors.transparent,
+                    border: Border.all(
+                      color: const Color(0xff527b68),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Text.rich(
+                    TextSpan(
+                      children: _render(
+                        cell.element?.nodes ?? [],
+                        depth: depth + 1,
+                        images: images,
+                        imageWidth: cellWidth * cell.columns - 16,
+                      ),
+                    ),
+                    style: TextStyle(
+                      fontSize: 16,
+                      height: 1.65,
+                      fontWeight: cell.element?.localName == 'th'
+                          ? FontWeight.bold
+                          : null,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _table(

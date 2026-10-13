@@ -42,7 +42,7 @@ void main() {
     tester,
   ) async {
     for (final source in [
-      '<table><tr><td colspan="2">保留文字</td></tr></table>',
+      '<table><tr><td colspan="21">保留文字</td></tr></table>',
       '<table><tr><td><table><tr><td>保留文字</td></tr></table></td></tr></table>',
       '<table>${List.filled(101, '<tr><td>保留文字</td></tr>').join()}</table>',
     ]) {
