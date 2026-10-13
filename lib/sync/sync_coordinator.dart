@@ -1,6 +1,7 @@
 import '../core/api/api2_client.dart';
 import '../core/api/api_exception.dart';
 import '../data/database/app_database.dart';
+import '../data/database/notebook_creation_journal.dart';
 import '../domain/models/account.dart';
 import '../domain/models/note.dart';
 import '../domain/models/notebook.dart';
@@ -52,6 +53,19 @@ class SyncCoordinator {
     return _running =
         Future<void>(() async {
           if (account != null && token != null && noteId != null) {
+            final target = (await _database.notes(account.cacheKey))
+                .where((note) => note.noteId == noteId)
+                .firstOrNull;
+            if (target != null &&
+                !target.isTrash &&
+                !target.isDeleted &&
+                target.userId == account.userId) {
+              await _uploadNotebooks(
+                account,
+                token,
+                onlyNotebookId: target.notebookId,
+              );
+            }
             // Only acknowledge this note. Do not resolve conflicts into copies or
             // upload unrelated notes as a side effect of attaching one file.
             final dirty = (await _database.dirtyNotes(account.cacheKey))
@@ -195,11 +209,11 @@ class SyncCoordinator {
     );
   }
 
-  Future<void> _uploadChanges(
+  Future<void> _uploadNotebooks(
     Account account,
-    String token,
-    SyncProgressCallback? onProgress,
-  ) async {
+    String token, {
+    String? onlyNotebookId,
+  }) async {
     final allBooks = await _database.notebooks(account.cacheKey);
     final pendingBooks = allBooks.where((book) => book.isDirty).toList();
     final byId = {for (final book in allBooks) book.notebookId: book};
@@ -220,10 +234,28 @@ class SyncCoordinator {
 
     // Upload final parents first, including through unchanged ancestors. This
     // avoids transient cycles when reversing an existing parent/child relation.
-    for (final book in pendingBooks) {
-      visit(book.notebookId);
+    if (onlyNotebookId != null && byId.containsKey(onlyNotebookId)) {
+      visit(onlyNotebookId);
+    } else if (onlyNotebookId == null) {
+      for (final book in pendingBooks) {
+        visit(book.notebookId);
+      }
     }
-    for (final local in notebooks) {
+    final creations = NotebookCreationJournal(_database.raw, account.cacheKey);
+    for (final queued in notebooks) {
+      final local = (await _database.notebooks(account.cacheKey))
+          .firstWhere((book) => book.notebookId == queued.notebookId);
+      if (local.usn == 0) {
+        final request = await creations.begin(local.notebookId);
+        final remote = await _api.saveNotebook(
+          server: account.server,
+          token: token,
+          title: request.title,
+          parentNotebookId: request.parentNotebookId,
+        );
+        await creations.confirm(request, remote);
+        continue;
+      }
       Notebook remote;
       try {
         remote = await _api.saveNotebook(
@@ -257,9 +289,18 @@ class SyncCoordinator {
       }
       await _database.markNotebookUploaded(account.cacheKey, local, remote);
     }
-    if ((await _database.dirtyNotebooks(account.cacheKey)).isNotEmpty) {
+    if (onlyNotebookId == null &&
+        (await _database.dirtyNotebooks(account.cacheKey)).isNotEmpty) {
       throw StateError('localChangesDuringSync');
     }
+  }
+
+  Future<void> _uploadChanges(
+    Account account,
+    String token,
+    SyncProgressCallback? onProgress,
+  ) async {
+    await _uploadNotebooks(account, token);
     final dirty = await _database.dirtyNotes(account.cacheKey);
     onProgress?.call(SyncProgress(SyncStage.uploading, 0));
     for (var index = 0; index < dirty.length; index++) {

@@ -6,6 +6,7 @@ import '../core/api/api_exception.dart';
 import '../data/database/app_database.dart';
 import '../data/database/file_download_journal.dart';
 import '../data/database/attachment_outbox.dart';
+import '../data/database/notebook_creation_journal.dart';
 import '../services/account_file_cache.dart';
 import '../data/session/session_store.dart';
 import '../domain/models/account.dart';
@@ -832,6 +833,86 @@ class AuthRepository {
     notebookId,
     title: title,
   );
+
+  Future<Notebook> createOfflineNotebook(
+    StoredSession session,
+    String title,
+    String parentId,
+  ) => NotebookCreationJournal(
+    _database.raw,
+    session.account.cacheKey,
+  ).create(title, parentId);
+  Future<String> resolveNotebookId(StoredSession session, String id) =>
+      NotebookCreationJournal(
+        _database.raw,
+        session.account.cacheKey,
+      ).resolve(id);
+  Future<String?> notebookCreationState(StoredSession session, String id) =>
+      NotebookCreationJournal(
+        _database.raw,
+        session.account.cacheKey,
+      ).state(id);
+
+  Future<List<Notebook>> notebookCreationCandidates(
+    StoredSession session,
+    String id,
+  ) async {
+    final local = (await notebooks(session.account.cacheKey))
+        .firstWhere((book) => book.notebookId == id);
+    if (await notebookCreationState(session, id) != 'uncertain') {
+      throw StateError('该笔记本没有待核实的创建请求');
+    }
+    final result = <Notebook>[];
+    await _sync.runMetadataUpdate(() async {
+      var cursor = 0;
+      while (true) {
+        final page = await _api.getNotebooks(
+          server: session.account.server,
+          token: session.token,
+          afterUsn: cursor,
+        );
+        result.addAll(
+          page.where(
+            (book) =>
+                !book.isDeleted &&
+                book.title == local.title &&
+                book.parentNotebookId == local.parentNotebookId &&
+                book.sequence == local.sequence,
+          ),
+        );
+        if (page.length < 100) break;
+        final next = page.fold<int>(
+          cursor,
+          (usn, book) => book.usn > usn ? book.usn : usn,
+        );
+        if (next <= cursor) throw StateError('notebookSyncCursorStalled');
+        cursor = next;
+      }
+    });
+    return result;
+  }
+
+  Future<void> confirmNotebookCreation(
+    StoredSession session,
+    String id,
+    Notebook remote,
+  ) async {
+    if (_sync.isBusy) throw StateError('请等待当前同步完成');
+    final local = (await notebooks(session.account.cacheKey))
+        .firstWhere((book) => book.notebookId == id);
+    await NotebookCreationJournal(
+      _database.raw,
+      session.account.cacheKey,
+    ).confirm(local, remote);
+  }
+
+  Future<void> retryNotebookCreation(StoredSession session, String id) async {
+    if (_sync.isBusy) throw StateError('请等待当前同步完成');
+    await NotebookCreationJournal(
+      _database.raw,
+      session.account.cacheKey,
+    ).retry(id);
+  }
 
   Future<void> queueNotebookMove(
     StoredSession session,

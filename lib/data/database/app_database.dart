@@ -8,6 +8,7 @@ import 'package:sqflite/sqflite.dart';
 
 import 'file_download_journal.dart';
 import 'attachment_outbox.dart';
+import 'notebook_creation_journal.dart';
 
 import '../../domain/models/account.dart';
 import '../../domain/models/attachment_upload.dart';
@@ -25,7 +26,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 12;
+  static const schemaVersion = 13;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -71,6 +72,7 @@ class AppDatabase {
             "ALTER TABLE attachment_outbox ADD COLUMN kind TEXT NOT NULL DEFAULT 'attachment'",
           );
         }
+        if (oldVersion < 13) await db.execute(NotebookCreationJournal.schema);
       },
     );
     return AppDatabase._(database);
@@ -808,6 +810,8 @@ class AppDatabase {
     String? title,
     String? parentId,
   }) => raw.transaction((txn) async {
+    final creations = NotebookCreationJournal(raw, accountId);
+    notebookId = await creations.resolve(notebookId, transaction: txn);
     final rows = await txn.query(
       'notebooks',
       where: 'account_id = ?',
@@ -816,10 +820,15 @@ class AppDatabase {
     final books = rows.map(_notebookFromRow).toList();
     final source = books.where((n) => n.notebookId == notebookId).firstOrNull;
     if (source == null) throw StateError('notebookMissing');
-    if (source.usn <= 0) throw StateError('notebookNotSynced');
+    if (source.usn <= 0 &&
+        await creations.state(notebookId, transaction: txn) != 'pending') {
+      throw StateError('请先核实笔记本创建结果，再修改名称或位置');
+    }
     final nextTitle = title?.trim() ?? source.title;
     if (nextTitle.isEmpty) throw const FormatException('请输入笔记本名称');
-    final nextParent = parentId ?? source.parentNotebookId;
+    final nextParent = parentId == null
+        ? source.parentNotebookId
+        : await creations.resolve(parentId, transaction: txn);
     if (nextParent != source.parentNotebookId &&
         !canMoveNotebook(books, notebookId, nextParent)) {
       throw const FormatException('目标笔记本无效，不能移到自身、子级或循环层级下');
@@ -976,7 +985,9 @@ class AppDatabase {
     final arguments = <Object?>[accountId];
     if (notebookId != null) {
       clauses.add('notebook_server_id = ?');
-      arguments.add(notebookId);
+      arguments.add(
+        await NotebookCreationJournal(raw, accountId).resolve(notebookId),
+      );
     }
     if (starredOnly) clauses.add('is_starred = 1');
     final rows = await raw.query(
@@ -1016,7 +1027,11 @@ class AppDatabase {
     required bool isMarkdown,
     String title = '',
     String content = '',
-  }) async {
+  }) => raw.transaction((txn) async {
+    notebookId = await NotebookCreationJournal(
+      raw,
+      account.cacheKey,
+    ).resolve(notebookId, transaction: txn);
     final now = DateTime.now().toUtc().toIso8601String();
     final note = Note(
       noteId: _objectId(),
@@ -1033,9 +1048,15 @@ class AppDatabase {
       createdTime: now,
       updatedTime: now,
     );
-    await _writeNote(account.cacheKey, note, isDirty: true, isNew: true);
+    await _writeNote(
+      account.cacheKey,
+      note,
+      isDirty: true,
+      isNew: true,
+      executor: txn,
+    );
     return note;
-  }
+  });
 
   /// A share's stable ID makes retry after a failed native acknowledgement
   /// idempotent. Never replace an already imported (possibly edited) note.
@@ -1048,6 +1069,10 @@ class AppDatabase {
     AttachmentUpload? resource,
     bool resourceIsImage = false,
   }) => raw.transaction((txn) async {
+    notebookId = await NotebookCreationJournal(
+      raw,
+      account.cacheKey,
+    ).resolve(notebookId, transaction: txn);
     if (!RegExp(r'^[0-9a-f]{24}$').hasMatch(shareId)) {
       throw const FormatException('invalidShareId');
     }
@@ -1216,25 +1241,30 @@ class AppDatabase {
     );
   });
 
-  Future<void> saveLocalNote(String accountId, Note note) async {
-    final changed = await raw.update(
-      'notes',
-      {
-        'notebook_server_id': note.notebookId,
-        'title': note.title,
-        'content': note.content,
-        'tags_json': jsonEncode(note.tags),
-        'is_markdown': note.isMarkdown ? 1 : 0,
-        'is_starred': note.isStarred ? 1 : 0,
-        'is_trash': note.isTrash ? 1 : 0,
-        'updated_time': note.updatedTime,
-        'is_dirty': 1,
-      },
-      where: 'account_id = ? AND server_id = ? AND local_is_deleted = 0',
-      whereArgs: [accountId, note.noteId],
-    );
-    if (changed != 1) throw StateError('localNoteMissing');
-  }
+  Future<void> saveLocalNote(String accountId, Note note) =>
+      raw.transaction((txn) async {
+        final notebookId = await NotebookCreationJournal(
+          raw,
+          accountId,
+        ).resolve(note.notebookId, transaction: txn);
+        final changed = await txn.update(
+          'notes',
+          {
+            'notebook_server_id': notebookId,
+            'title': note.title,
+            'content': note.content,
+            'tags_json': jsonEncode(note.tags),
+            'is_markdown': note.isMarkdown ? 1 : 0,
+            'is_starred': note.isStarred ? 1 : 0,
+            'is_trash': note.isTrash ? 1 : 0,
+            'updated_time': note.updatedTime,
+            'is_dirty': 1,
+          },
+          where: 'account_id = ? AND server_id = ? AND local_is_deleted = 0',
+          whereArgs: [accountId, note.noteId],
+        );
+        if (changed != 1) throw StateError('localNoteMissing');
+      });
 
   Future<void> deleteLocalTrash(String accountId, String noteId) async {
     final changed = await raw.update(
@@ -1532,7 +1562,8 @@ class AppDatabase {
     Note note, {
     required bool isDirty,
     required bool isNew,
-  }) => raw.insert('notes', {
+    DatabaseExecutor? executor,
+  }) => (executor ?? raw).insert('notes', {
     'account_id': accountId,
     'server_id': note.noteId,
     'notebook_server_id': note.notebookId,
@@ -1725,5 +1756,6 @@ class AppDatabase {
     _cachePreferencesSchema,
     ...FileDownloadJournal.schema,
     AttachmentOutbox.schema,
+    NotebookCreationJournal.schema,
   ];
 }

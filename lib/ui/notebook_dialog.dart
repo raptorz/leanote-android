@@ -50,10 +50,10 @@ class _NotebookDialogState extends State<NotebookDialog> {
           _title.text,
         );
       } else {
-        await widget.repository.saveNotebook(
+        await widget.repository.createOfflineNotebook(
           widget.session,
-          title: _title.text,
-          parentNotebookId: widget.parentNotebookId,
+          _title.text,
+          widget.parentNotebookId,
         );
       }
       if (mounted) Navigator.of(context).pop(true);
@@ -89,7 +89,7 @@ class _NotebookDialogState extends State<NotebookDialog> {
             decoration: InputDecoration(labelText: '笔记本名称', errorText: _error),
           ),
           const SizedBox(height: 12),
-          Text(widget.existing == null ? '此操作需要连接服务器。' : '先保存到本机，下次同步时上传。'),
+          const Text('先保存到本机，下次同步时上传。'),
           if (_busy) const LinearProgressIndicator(),
         ],
       ),

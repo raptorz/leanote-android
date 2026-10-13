@@ -27,6 +27,7 @@ import 'note_tags_dialog.dart';
 import 'note_history_page.dart';
 import 'note_search_page.dart';
 import 'notebook_dialog.dart';
+import 'notebook_creation_dialog.dart';
 import 'move_notebook_dialog.dart';
 import 'account_page.dart';
 import 'account_switcher_page.dart';
@@ -1058,14 +1059,21 @@ class _WorkspacePageState extends State<WorkspacePage>
           final books = await widget.repository.notebooks(
             widget.session.account.cacheKey,
           );
+          final targetId =
+              books.any((item) => item.notebookId == book.notebookId)
+              ? book.notebookId
+              : await widget.repository.resolveNotebookId(
+                  widget.session,
+                  book.notebookId,
+                );
           if (!books.any(
-            (item) => item.notebookId == book.notebookId && !item.isDeleted,
+            (item) => item.notebookId == targetId && !item.isDeleted,
           )) {
             throw StateError('目标笔记本已不存在，请返回重新选择');
           }
           return widget.repository.createNote(
             widget.session,
-            notebookId: book.notebookId,
+            notebookId: targetId,
             isMarkdown: source.isMarkdown,
             title: source.title,
             content: source.content,
@@ -1259,6 +1267,27 @@ class _WorkspacePageState extends State<WorkspacePage>
       }
     });
     await _refreshPending();
+  }
+
+  Future<void> _recoverNotebook(Notebook notebook) async {
+    if (_accountOpen || _syncing || _loggingOut || _signedOut) return;
+    _accountOpen = true;
+    try {
+      await _stopFileCache();
+      if (!mounted) return;
+      await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => NotebookCreationDialog(
+          repository: widget.repository,
+          session: widget.session,
+          notebook: notebook,
+        ),
+      );
+      if (mounted) await _reloadNotes();
+    } finally {
+      _accountOpen = false;
+    }
   }
 
   Future<void> _editNotebook({Notebook? existing, String parentId = ''}) async {
@@ -1487,11 +1516,25 @@ class _WorkspacePageState extends State<WorkspacePage>
                           _editNotebook(parentId: notebook.notebookId);
                         }
                         if (action == 'move') _moveNotebook(notebook);
+                        if (action == 'recoverCreation') {
+                          _recoverNotebook(notebook);
+                        }
                       },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'rename', child: Text('重命名')),
-                        PopupMenuItem(value: 'child', child: Text('新增子笔记本')),
-                        PopupMenuItem(value: 'move', child: Text('移动')),
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                          value: 'rename',
+                          child: Text('重命名'),
+                        ),
+                        const PopupMenuItem(
+                          value: 'child',
+                          child: Text('新增子笔记本'),
+                        ),
+                        const PopupMenuItem(value: 'move', child: Text('移动')),
+                        if (notebook.usn == 0)
+                          const PopupMenuItem(
+                            value: 'recoverCreation',
+                            child: Text('创建状态与恢复'),
+                          ),
                       ],
                     ),
                   ],
