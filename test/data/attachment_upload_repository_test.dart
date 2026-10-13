@@ -24,6 +24,9 @@ final original = Note.fromJson({
 });
 
 class UploadApi extends Api2Client {
+  @override
+  Future<int> getSyncUsn({required Uri server, required String token}) async =>
+      100;
   int uploads = 0;
   bool failRefresh = false;
   bool failNoteSave = false;

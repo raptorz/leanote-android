@@ -157,6 +157,9 @@ void main() {
       Map<String, Object?>? created;
       final api = Api2Client(
         httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('getSyncState')) {
+            return http.Response('{"LastSyncUsn":100}', 200);
+          }
           if (request.method == 'POST') {
             expect(request.url.path, '/api2/client/note/add');
             final fields = Uri.splitQueryString(request.body);

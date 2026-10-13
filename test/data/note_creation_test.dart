@@ -10,6 +10,9 @@ import 'package:gemsnote/sync/sync_coordinator.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class CreatingApi extends Api2Client {
+  @override
+  Future<int> getSyncUsn({required Uri server, required String token}) async =>
+      100;
   final stored = <String, Note>{};
   final requests = <Note>[];
   final updates = <Note>[];

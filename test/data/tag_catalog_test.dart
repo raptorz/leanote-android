@@ -83,6 +83,9 @@ void main() {
     );
     final api = Api2Client(
       httpClient: MockClient((request) async {
+        if (request.url.path.endsWith('getSyncState')) {
+          return http.Response('{"LastSyncUsn":100}', 200);
+        }
         expect(request.url.path, '/api2/tag/addTag');
         expect(request.url.queryParameters['token'], 'token');
         expect(request.method, 'POST');
@@ -181,7 +184,10 @@ void main() {
       final response = Completer<http.Response>();
       var requests = 0;
       final api = Api2Client(
-        httpClient: MockClient((_) {
+        httpClient: MockClient((request) {
+          if (request.url.path.endsWith('getSyncState')) {
+            return Future.value(http.Response('{"LastSyncUsn":100}', 200));
+          }
           requests++;
           started.complete();
           return response.future;

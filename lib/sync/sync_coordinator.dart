@@ -34,13 +34,23 @@ class SyncCoordinator {
   bool get metadataUpdating => _metadataUpdating;
 
   /// Keep catalog writes separate from snapshot downloads and cursor changes.
-  Future<void> runMetadataUpdate(Future<void> Function() action) {
+  Future<void> runMetadataUpdate(
+    Future<void> Function() action, {
+    Account? account,
+    String? token,
+  }) {
     if (_running != null) return Future.error(StateError('syncInProgress'));
     _metadataUpdating = true;
-    return _running = Future<void>(action).whenComplete(() {
-      _running = null;
-      _metadataUpdating = false;
-    });
+    return _running =
+        Future<void>(() async {
+          if (account != null && token != null) {
+            await _guardServerState(account, token);
+          }
+          await action();
+        }).whenComplete(() {
+          _running = null;
+          _metadataUpdating = false;
+        });
   }
 
   Future<void> runAttachmentUpload(
@@ -54,6 +64,7 @@ class SyncCoordinator {
     return _running =
         Future<void>(() async {
           if (account != null && token != null && noteId != null) {
+            await _guardServerState(account, token);
             final target = (await _database.notes(account.cacheKey))
                 .where((note) => note.noteId == noteId)
                 .firstOrNull;
@@ -349,6 +360,10 @@ class SyncCoordinator {
     String token,
     SyncProgressCallback? onProgress,
   ) async {
+    if ((await _database.dirtyNotebooks(account.cacheKey)).isNotEmpty ||
+        (await _database.pendingNoteIds(account.cacheKey)).isNotEmpty) {
+      await _guardServerState(account, token);
+    }
     await _uploadNotebooks(account, token);
     final dirty = await _database.dirtyNotes(account.cacheKey);
     onProgress?.call(SyncProgress(SyncStage.uploading, 0));
@@ -391,6 +406,12 @@ class SyncCoordinator {
       }
       onProgress?.call(SyncProgress(SyncStage.uploading, index + 1));
     }
+  }
+
+  Future<void> _guardServerState(Account account, String token) async {
+    final known = await _database.knownSyncUsn(account.cacheKey);
+    final remote = await _api.getSyncUsn(server: account.server, token: token);
+    if (remote < known) throw StateError('serverSyncStateReset');
   }
 
   /// Destructive replacement is invoked only after explicit user confirmation.

@@ -470,6 +470,20 @@ class AppDatabase {
     return rows.isEmpty ? 0 : rows.single['last_sync_usn']! as int;
   }
 
+  /// Individual upload acknowledgements can be ahead of the download cursor.
+  Future<int> knownSyncUsn(String accountId) async {
+    final rows = await raw.rawQuery(
+      '''SELECT COALESCE(MAX(usn), 0) AS known FROM (
+      SELECT last_sync_usn AS usn FROM accounts WHERE account_id = ?
+      UNION ALL SELECT usn FROM notes WHERE account_id = ?
+      UNION ALL SELECT usn FROM notebooks WHERE account_id = ?
+      UNION ALL SELECT usn FROM tags WHERE account_id = ?
+    )''',
+      List.filled(4, accountId),
+    );
+    return rows.single['known'] as int;
+  }
+
   Future<bool> hasAccountCache(String accountId) async => (await raw.query(
     'accounts',
     columns: ['account_id'],

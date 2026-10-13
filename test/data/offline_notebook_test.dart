@@ -185,6 +185,9 @@ void main() {
       var calls = 0;
       final api = Api2Client(
         httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('getSyncState')) {
+            return http.Response('{"LastSyncUsn":100}', 200);
+          }
           calls++;
           if (request.url.path == '/api2/client/notebook/update') {
             expect(request.bodyFields['usn'], '5');
@@ -249,6 +252,9 @@ void main() {
       final order = <String>[];
       final api = Api2Client(
         httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('getSyncState')) {
+            return http.Response('{"LastSyncUsn":100}', 200);
+          }
           expect(request.url.path, '/api2/client/notebook/update');
           final fields = request.bodyFields;
           order.add(fields['notebookId']!);

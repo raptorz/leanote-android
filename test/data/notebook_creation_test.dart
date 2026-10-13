@@ -14,6 +14,9 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'cached_login_test.dart' show MemorySessions;
 
 class CreationApi extends Api2Client {
+  @override
+  Future<int> getSyncUsn({required Uri server, required String token}) async =>
+      100;
   int creates = 0, usn = 5;
   bool loseResponse = false;
   final books = <Notebook>[];

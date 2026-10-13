@@ -50,6 +50,9 @@ void main() {
     final api = Api2Client(
       httpClient: MockClient((request) async {
         requests.add(request.url.path);
+        if (request.url.path.endsWith('getSyncState')) {
+          return http.Response('{"LastSyncUsn":100}', 200);
+        }
         if (fail) return http.Response('{"Ok":false,"Msg":"offline"}', 503);
         if (request.method == 'GET') {
           return http.Response(jsonEncode(created), 200);
@@ -86,6 +89,7 @@ void main() {
       );
       await repo.prepareLogout(session);
       expect(requests, [
+        '/api2/user/getSyncState',
         '/api2/client/note/add',
         '/api2/note/getNote',
         '/api2/note/getNoteContent',
@@ -118,7 +122,7 @@ void main() {
       await repo.logout(session, discardSessionWithPendingChanges: true);
       expect(await repo.restore(), isNull);
       expect(await db.pendingNoteIds(session.account.cacheKey), {draft.noteId});
-      expect(requests, ['/api2/client/note/add']);
+      expect(requests, ['/api2/user/getSyncState', '/api2/client/note/add']);
       // The same account ID recovers its draft even if its username changes.
       await db.activateCachedAccount(
         Account(

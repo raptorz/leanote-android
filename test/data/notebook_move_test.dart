@@ -74,6 +74,9 @@ void main() {
       var calls = 0;
       final api = Api2Client(
         httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('getSyncState')) {
+            return http.Response('{"LastSyncUsn":100}', 200);
+          }
           calls++;
           expect(request.url.path, '/api2/client/notebook/update');
           expect(request.method, 'POST');

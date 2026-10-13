@@ -937,14 +937,20 @@ class AuthRepository {
             .any((n) => n.notebookId == existing.notebookId)) {
       throw StateError('notebookHasPendingChanges');
     }
-    final notebook = await _api.saveNotebook(
-      server: session.account.server,
+    await _sync.runMetadataUpdate(
+      () async {
+        final notebook = await _api.saveNotebook(
+          server: session.account.server,
+          token: session.token,
+          title: trimmed,
+          existing: existing,
+          parentNotebookId: parentNotebookId,
+        );
+        await _database.cacheNotebook(session.account.cacheKey, notebook);
+      },
+      account: session.account,
       token: session.token,
-      title: trimmed,
-      existing: existing,
-      parentNotebookId: parentNotebookId,
     );
-    await _database.cacheNotebook(session.account.cacheKey, notebook);
   }
 
   Future<void> moveNotebook(
@@ -959,17 +965,23 @@ class AuthRepository {
     final source = current.firstWhere((n) => n.notebookId == notebookId);
     if (source.parentNotebookId == parentId) return;
     if (source.isDirty) throw StateError('notebookHasPendingChanges');
-    final moved = await _api.saveNotebook(
-      server: session.account.server,
+    await _sync.runMetadataUpdate(
+      () async {
+        final moved = await _api.saveNotebook(
+          server: session.account.server,
+          token: session.token,
+          title: source.title,
+          existing: source,
+          parentNotebookId: parentId,
+        );
+        if (moved.parentNotebookId != parentId || moved.isDeleted) {
+          throw const ApiException('invalidResponse');
+        }
+        await _database.cacheNotebook(session.account.cacheKey, moved);
+      },
+      account: session.account,
       token: session.token,
-      title: source.title,
-      existing: source,
-      parentNotebookId: parentId,
     );
-    if (moved.parentNotebookId != parentId || moved.isDeleted) {
-      throw const ApiException('invalidResponse');
-    }
-    await _database.cacheNotebook(session.account.cacheKey, moved);
   }
 
   Future<List<Note>> notes(
@@ -997,15 +1009,19 @@ class AuthRepository {
         RegExp(r'[\x00-\x1f\x7f]').hasMatch(name)) {
       throw const FormatException('标签名称需为 1–200 个字符，且不能包含换行或控制字符');
     }
-    await _sync.runMetadataUpdate(() async {
-      final usn = await _api.createTag(
-        server: session.account.server,
-        token: session.token,
-        userId: session.account.userId,
-        name: name,
-      );
-      await _database.cacheTag(session.account.cacheKey, name, usn);
-    });
+    await _sync.runMetadataUpdate(
+      () async {
+        final usn = await _api.createTag(
+          server: session.account.server,
+          token: session.token,
+          userId: session.account.userId,
+          name: name,
+        );
+        await _database.cacheTag(session.account.cacheKey, name, usn);
+      },
+      account: session.account,
+      token: session.token,
+    );
   }
 
   Future<List<Note>> notesForTag(String accountId, String tag) =>

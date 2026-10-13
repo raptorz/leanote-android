@@ -98,6 +98,9 @@ void main() {
       await db.deleteLocalTrash(account.cacheKey, note.noteId);
       final api = Api2Client(
         httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('getSyncState')) {
+            return http.Response('{"LastSyncUsn":100}', 200);
+          }
           expect(request.method, 'POST');
           expect(request.url.path, '/api2/client/note/deleteTrash');
           expect(request.bodyFields, {'noteId': note.noteId, 'usn': '5'});
@@ -134,6 +137,9 @@ void main() {
       await db.deleteLocalTrash(account.cacheKey, draft.noteId);
       final api = Api2Client(
         httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('getSyncState')) {
+            return http.Response('{"LastSyncUsn":100}', 200);
+          }
           expect(request.method, 'GET');
           expect(request.url.path, '/api2/note/getNote');
           expect(request.url.queryParameters['noteId'], draft.noteId);

@@ -71,6 +71,9 @@ void main() {
       var writes = 0;
       final api = Api2Client(
         httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('getSyncState')) {
+            return http.Response('{"LastSyncUsn":100}', 200);
+          }
           expect(request.url.queryParameters['token'], 'test-token');
           if (request.method == 'POST') {
             writes++;

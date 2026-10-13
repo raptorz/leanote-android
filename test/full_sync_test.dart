@@ -87,7 +87,7 @@ void main() {
             if (path.endsWith('getNote') || path.endsWith('getNoteContent')) {
               return http.Response(jsonEncode(created), 200);
             }
-            expect(paths.first, '/api2/client/note/add');
+            expect(paths.first, '/api2/user/getSyncState');
             if (path.endsWith('getSyncState')) {
               return http.Response(
                 jsonEncode({'LastSyncUsn': mode == 'serverReset' ? 1 : 20}),
@@ -168,7 +168,9 @@ void main() {
         );
         expect(await db.notebooks(account.cacheKey), isEmpty);
         expect(await db.lastSyncUsn(account.cacheKey), 10);
-        if (mode == 'uploadFailure') expect(paths, ['/api2/client/note/add']);
+        if (mode == 'uploadFailure') {
+          expect(paths, ['/api2/user/getSyncState', '/api2/client/note/add']);
+        }
         if (mode == 'uploadFailure' || mode == 'concurrentEdit') {
           expect(
             await db.pendingNoteIds(account.cacheKey),
