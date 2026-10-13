@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../domain/models/shared_note.dart';
+import '../domain/models/shared_file.dart';
+import '../domain/models/note_image_reference.dart';
 import '../repositories/auth_repository.dart';
 import 'note_reader_page.dart';
+import 'shared_files_page.dart';
 
 class SharedNotesPage extends StatefulWidget {
   const SharedNotesPage({
@@ -67,6 +70,13 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
         cachedOnly: _cachedOnly,
       );
       if (!mounted) return;
+      SharedFile? image(Uri uri) {
+        final id = cachedImageFileId(uri, widget.session.account.server);
+        return note.files
+            .where((file) => file.fileId == id && !file.isAttachment)
+            .firstOrNull;
+      }
+
       await Navigator.push(
         context,
         MaterialPageRoute<void>(
@@ -74,6 +84,43 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
             note: content,
             readOnly: true,
             safeHtmlPreview: true,
+            loadCachedImage: (uri) async {
+              final file = image(uri);
+              return file == null
+                  ? null
+                  : widget.repository.cachedSharedFile(
+                      widget.session,
+                      note,
+                      file,
+                    );
+            },
+            canDownloadImage: (uri) =>
+                !_cachedOnly &&
+                image(uri) != null &&
+                image(uri)!.size <= image(uri)!.maxBytes,
+            downloadImage: _cachedOnly
+                ? null
+                : (uri) {
+                    final file = image(uri);
+                    if (file == null) {
+                      return Future.error(StateError('图片不属于共享资源快照'));
+                    }
+                    return widget.repository.downloadSharedFile(
+                      widget.session,
+                      note,
+                      file,
+                    );
+                  },
+            onFiles: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => SharedFilesPage(
+                  repository: widget.repository,
+                  session: widget.session,
+                  note: note,
+                  cachedOnly: _cachedOnly,
+                ),
+              ),
+            ),
           ),
         ),
       );
@@ -111,7 +158,7 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
         ),
         const Padding(
           padding: EdgeInsets.all(12),
-          child: Text('只读浏览；已查看的正文可离线阅读。支持 Markdown 和富文本基本排版，可查看原文；不下载图片附件。'),
+          child: Text('只读浏览；已查看的正文和已下载的图片附件可离线使用。文件操作会核实在线共享权限和版本。'),
         ),
         if (_loading) const LinearProgressIndicator(),
         if (_error != null)

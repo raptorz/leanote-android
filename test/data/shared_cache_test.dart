@@ -99,20 +99,17 @@ void main() {
     );
     expect(await db.cachedSharedNotes(account.cacheKey), isEmpty);
   });
-  test(
-    'failed snapshot write rolls back rather than clearing valid cache',
-    () async {
-      await db.cacheSharedContent(account.cacheKey, shared, 'safe');
-      await expectLater(
-        db.replaceSharedSnapshot(account.cacheKey, [shared, shared]),
-        throwsA(isA<DatabaseException>()),
-      );
-      expect(
-        (await db.cachedSharedContent(account.cacheKey, shared)).content,
-        'safe',
-      );
-    },
-  );
+  test('duplicate snapshot is rejected without clearing valid cache', () async {
+    await db.cacheSharedContent(account.cacheKey, shared, 'safe');
+    await expectLater(
+      db.replaceSharedSnapshot(account.cacheKey, [shared, shared]),
+      throwsStateError,
+    );
+    expect(
+      (await db.cachedSharedContent(account.cacheKey, shared)).content,
+      'safe',
+    );
+  });
   for (final failure in ['noPermission', 'network', 'changed']) {
     test('online body $failure: no silent fallback, correct invalidation', () async {
       await db.cacheSharedContent(account.cacheKey, shared, 'cached');

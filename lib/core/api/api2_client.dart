@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'dart:io' show Cookie;
 
 import 'package:http/http.dart' as http;
+import 'package:crypto/crypto.dart' as crypto;
 
 import '../../domain/models/account.dart';
 import '../../services/note_image_picker.dart';
@@ -14,6 +15,7 @@ import '../../domain/models/note_file.dart';
 import '../../domain/models/note_history.dart';
 import '../../domain/models/notebook.dart';
 import '../../domain/models/shared_note.dart';
+import '../../domain/models/shared_file.dart';
 import 'api_exception.dart';
 
 class LoginResult {
@@ -705,6 +707,7 @@ class Api2Client {
       throw const ApiException('invalidSharedSnapshot');
     }
     final result = <SharedNote>[];
+    final files = <(String, String), SharedFile>{};
     final ids = <String>{};
     var received = 0;
     var cursor = '';
@@ -734,7 +737,18 @@ class Api2Client {
             throw const ApiException('duplicateSharedNote');
           }
           result.add(note);
-        } else if (data['Kind'] != 'notebook' && data['Kind'] != 'file') {
+        } else if (data['Kind'] == 'file') {
+          try {
+            final file = SharedFile.fromJson(_map(data['File']));
+            final key = (file.noteId, file.fileId);
+            if (files.containsKey(key)) {
+              throw const FormatException('duplicateSharedFile');
+            }
+            files[key] = file;
+          } on FormatException {
+            throw const ApiException('invalidSharedSnapshot');
+          }
+        } else if (data['Kind'] != 'notebook') {
           throw const ApiException('invalidSharedSnapshot');
         }
       }
@@ -750,6 +764,19 @@ class Api2Client {
         throw const ApiException('invalidSharedSnapshot');
       }
       cursor = page['NextPageToken'] as String;
+    }
+    if (files.values.any((file) => !ids.contains(file.noteId))) {
+      throw const ApiException('invalidSharedSnapshot');
+    }
+    for (var i = 0; i < result.length; i++) {
+      final note = result[i];
+      result[i] = SharedNote(
+        note: note.note,
+        version: note.version,
+        files: files.values
+            .where((file) => file.noteId == note.note.noteId)
+            .toList(growable: false),
+      );
     }
     result.sort((a, b) {
       final order = a.note.title.toLowerCase().compareTo(
@@ -780,6 +807,98 @@ class Api2Client {
       throw const ApiException('sharedContentChanged');
     }
     return shared.note.copyWith(content: data['Content'] as String);
+  }
+
+  Future<Uint8List> sharedFile({
+    required Uri server,
+    required String token,
+    required SharedNote shared,
+    required SharedFile file,
+  }) async {
+    if (file.noteId != shared.note.noteId ||
+        !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(file.noteId) ||
+        !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(file.fileId) ||
+        !shared.files.any((entry) => entry.sameVersion(file))) {
+      throw const ApiException('fileNotInSharedSnapshot');
+    }
+    if (file.size > file.maxBytes) {
+      throw const ApiException('sharedFileTooLarge');
+    }
+    await sharedContent(server: server, token: token, shared: shared);
+    final request = http.Request(
+      'GET',
+      _uri(
+        server,
+        '/api2/shared/notes/${file.noteId}/files/${file.fileId}',
+        token: token,
+      ),
+    )..followRedirects = false;
+    try {
+      final response = await _http
+          .send(request)
+          .timeout(const Duration(seconds: 15));
+      final digest = response.headers['x-gemsnote-sha256'];
+      final isErrorEnvelope =
+          digest == null &&
+          response.headers['content-type']
+                  ?.split(';')
+                  .first
+                  .trim()
+                  .toLowerCase() ==
+              'application/json';
+      final bound = isErrorEnvelope ? 16384 : file.maxBytes;
+      if ((response.contentLength ?? 0) > bound ||
+          (!isErrorEnvelope &&
+              (response.statusCode != 200 || digest != file.version))) {
+        await response.stream.listen((_) {}).cancel();
+        throw const ApiException('sharedFileChanged');
+      }
+      final bytes = BytesBuilder(copy: false);
+      final chunks = StreamIterator(response.stream);
+      final timer = Stopwatch()..start();
+      try {
+        while (await chunks.moveNext().timeout(
+          const Duration(seconds: 30) - timer.elapsed,
+        )) {
+          if (bytes.length + chunks.current.length > bound) {
+            throw const ApiException('sharedFileTooLarge');
+          }
+          bytes.add(chunks.current);
+        }
+      } finally {
+        await chunks.cancel();
+      }
+      final value = bytes.takeBytes();
+      if (isErrorEnvelope) {
+        final error = _map(jsonDecode(utf8.decode(value)));
+        throw ApiException(
+          error['Msg'] == 'noPermission'
+              ? 'noPermission'
+              : error['Msg'] == 'fileNotFound'
+              ? 'fileNotFound'
+              : 'invalidSharedFileResponse',
+        );
+      }
+      if (value.length != file.size ||
+          crypto.sha256.convert(value).toString() != file.version ||
+          (!file.isAttachment &&
+              !{'image/png', 'image/jpeg', 'image/gif', 'image/webp'}.contains(
+                response.headers['content-type']
+                    ?.split(';')
+                    .first
+                    .trim()
+                    .toLowerCase(),
+              ))) {
+        throw const ApiException('sharedFileChanged');
+      }
+      // Detect a permission/content change that happened during this transfer.
+      await sharedContent(server: server, token: token, shared: shared);
+      return value;
+    } on ApiException {
+      rethrow;
+    } on Exception {
+      throw const ApiException('sharedFileDownloadFailed');
+    }
   }
 
   Future<void> logout({required Uri server, required String token}) async {

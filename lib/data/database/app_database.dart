@@ -11,6 +11,7 @@ import 'attachment_outbox.dart';
 import 'notebook_creation_journal.dart';
 import 'note_creation_journal.dart';
 import 'history_image_cache.dart';
+import 'shared_file_cache.dart';
 import 'file_cache_policy.dart';
 
 import '../../domain/models/account.dart';
@@ -30,7 +31,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 15;
+  static const schemaVersion = 16;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -79,6 +80,7 @@ class AppDatabase {
         if (oldVersion < 13) await db.execute(NotebookCreationJournal.schema);
         if (oldVersion < 14) await db.execute(NoteCreationJournal.schema);
         if (oldVersion < 15) await db.execute(HistoryImageCache.schema);
+        if (oldVersion < 16) await db.execute(SharedFileCache.schema);
       },
     );
     return AppDatabase._(database);
@@ -135,8 +137,9 @@ class AppDatabase {
     final rows = await raw.rawQuery(
       'SELECT COUNT(*) AS files, COALESCE(SUM(length(bytes)), 0) AS size '
       'FROM (SELECT bytes FROM note_files WHERE account_id = ? AND bytes IS NOT NULL '
-      'UNION ALL SELECT bytes FROM history_images WHERE account_id = ? AND bytes IS NOT NULL)',
-      [accountId, accountId],
+      'UNION ALL SELECT bytes FROM history_images WHERE account_id = ? AND bytes IS NOT NULL '
+      'UNION ALL SELECT bytes FROM shared_files WHERE account_id = ? AND bytes IS NOT NULL)',
+      [accountId, accountId, accountId],
     );
     return FileCacheUsage(
       files: rows.single['files'] as int,
@@ -158,6 +161,7 @@ class AppDatabase {
         where: 'account_id = ?',
         whereArgs: [accountId],
       );
+      await SharedFileCache.clear(txn, accountId);
       await txn.delete(
         'history_images',
         where: 'account_id = ?',
@@ -258,14 +262,20 @@ class AppDatabase {
       whereArgs: [accountId],
     );
     final old = {for (final row in previous) row['note_id']: row};
-    await txn.delete(
-      'shared_notes',
-      where: 'account_id = ?',
-      whereArgs: [accountId],
-    );
+    final ids = notes.map((note) => note.note.noteId).toSet();
+    if (ids.length != notes.length) throw StateError('duplicateSharedNotes');
+    for (final row in previous) {
+      if (!ids.contains(row['note_id'])) {
+        await txn.delete(
+          'shared_notes',
+          where: 'account_id=? AND note_id=?',
+          whereArgs: [accountId, row['note_id']],
+        );
+      }
+    }
     for (final shared in notes) {
       final existing = old[shared.note.noteId];
-      await txn.insert('shared_notes', {
+      final values = <String, Object?>{
         'account_id': accountId,
         'note_id': shared.note.noteId,
         'owner_id': shared.note.userId,
@@ -277,7 +287,24 @@ class AppDatabase {
                 existing['owner_id'] == shared.note.userId
             ? existing['content']
             : null,
-      });
+      };
+      if (existing == null) {
+        await txn.insert('shared_notes', values);
+      } else {
+        await txn.update(
+          'shared_notes',
+          values,
+          where: 'account_id=? AND note_id=?',
+          whereArgs: [accountId, shared.note.noteId],
+        );
+      }
+      await SharedFileCache.replace(
+        txn,
+        accountId,
+        shared,
+        preserve:
+            existing != null && existing['owner_id'] == shared.note.userId,
+      );
     }
   });
 
@@ -337,11 +364,20 @@ class AppDatabase {
     return current.note.copyWith(content: rows.single['content'] as String);
   }
 
-  Future<void> removeSharedNote(String accountId, String noteId) async {
+  Future<void> removeSharedNote(
+    String accountId,
+    String noteId, {
+    SharedNote? expected,
+  }) async {
     await raw.delete(
       'shared_notes',
-      where: 'account_id = ? AND note_id = ?',
-      whereArgs: [accountId, noteId],
+      where:
+          'account_id = ? AND note_id = ?${expected == null ? '' : ' AND owner_id = ? AND version = ?'}',
+      whereArgs: [
+        accountId,
+        noteId,
+        if (expected != null) ...[expected.note.userId, expected.version],
+      ],
     );
   }
 
@@ -1862,5 +1898,6 @@ class AppDatabase {
     NotebookCreationJournal.schema,
     NoteCreationJournal.schema,
     HistoryImageCache.schema,
+    SharedFileCache.schema,
   ];
 }

@@ -1,9 +1,15 @@
 import 'note.dart';
+import 'shared_file.dart';
 
 class SharedNote {
-  const SharedNote({required this.note, required this.version});
+  const SharedNote({
+    required this.note,
+    required this.version,
+    this.files = const [],
+  });
   final Note note;
   final String version;
+  final List<SharedFile> files;
 
   Map<String, Object?> toJson() => {
     'NoteId': note.noteId,
@@ -15,6 +21,7 @@ class SharedNote {
     'CreatedTime': note.createdTime,
     'UpdatedTime': note.updatedTime,
     'Version': version,
+    'Files': files.map((file) => file.toJson()).toList(),
   };
 
   factory SharedNote.fromJson(Map<String, Object?> data) {
@@ -32,6 +39,12 @@ class SharedNote {
     return SharedNote(
       note: Note.fromJson({...data, 'UserId': data['OwnerUserId']}),
       version: data['Version'] as String,
+      files: (data['Files'] as List? ?? [])
+          .map(
+            (file) =>
+                SharedFile.fromJson(Map<String, Object?>.from(file as Map)),
+          )
+          .toList(growable: false),
     );
   }
 }

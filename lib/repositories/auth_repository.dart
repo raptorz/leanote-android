@@ -8,6 +8,8 @@ import '../data/database/file_download_journal.dart';
 import '../data/database/attachment_outbox.dart';
 import '../data/database/notebook_creation_journal.dart';
 import '../data/database/history_image_cache.dart';
+import '../data/database/shared_file_cache.dart';
+import '../domain/models/shared_file.dart';
 import '../domain/models/body_image_references.dart';
 import '../services/account_file_cache.dart';
 import '../data/session/session_store.dart';
@@ -512,10 +514,85 @@ class AuthRepository {
         await _database.removeSharedNote(
           session.account.cacheKey,
           note.note.noteId,
+          expected: note,
         );
       }
       rethrow;
     }
+  }
+
+  Future<Uint8List?> cachedSharedFile(
+    StoredSession session,
+    SharedNote note,
+    SharedFile file,
+  ) =>
+      SharedFileCache(_database.raw, session.account.cacheKey).read(note, file);
+
+  final _sharedDownloads =
+      <(String, String, String, String, String, String), Future<Uint8List>>{};
+  Future<Uint8List> downloadSharedFile(
+    StoredSession session,
+    SharedNote note,
+    SharedFile file,
+  ) {
+    final key = (
+      session.account.cacheKey,
+      note.note.userId,
+      note.note.noteId,
+      note.version,
+      file.fileId,
+      file.version,
+    );
+    return _sharedDownloads[key] ??=
+        (() async {
+          final cache = SharedFileCache(
+            _database.raw,
+            session.account.cacheKey,
+          );
+          final generation = await cache.begin(note, file);
+          try {
+            final bytes = await _api.sharedFile(
+              server: session.account.server,
+              token: session.token,
+              shared: note,
+              file: file,
+            );
+            if (!file.isAttachment) {
+              final codec = await ui.instantiateImageCodec(
+                bytes,
+                targetWidth: 256,
+              );
+              try {
+                final frame = await codec.getNextFrame();
+                frame.image.dispose();
+              } finally {
+                codec.dispose();
+              }
+            }
+            await cache.complete(note, file, generation, bytes);
+            return bytes;
+          } on ApiException catch (error) {
+            if ({
+              'noPermission',
+              'notExists',
+              'sharedContentChanged',
+            }.contains(error.code)) {
+              await _database.removeSharedNote(
+                session.account.cacheKey,
+                note.note.noteId,
+                expected: note,
+              );
+            } else if ({
+              'fileNotFound',
+              'sharedFileChanged',
+            }.contains(error.code)) {
+              await cache.invalidate(file);
+            }
+            rethrow;
+          }
+        })().whenComplete(() {
+          _sharedDownloads.remove(key);
+        });
   }
 
   Future<List<Account>> savedAccounts() async {

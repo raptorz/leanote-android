@@ -59,6 +59,7 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
   bool _exporting = false;
   bool _sharing = false;
   bool _copying = false;
+  bool _openingFiles = false;
   final _menuKey = GlobalKey();
 
   Future<void> _share() async {
@@ -129,6 +130,26 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
               icon: const Icon(Icons.copy_outlined),
             ),
           ],
+          if (widget.readOnly && widget.onFiles != null)
+            IconButton(
+              tooltip: '图片与附件',
+              icon: const Icon(Icons.attach_file),
+              onPressed: _openingFiles
+                  ? null
+                  : () async {
+                      setState(() => _openingFiles = true);
+                      try {
+                        await widget.onFiles!();
+                      } finally {
+                        if (mounted) {
+                          setState(() {
+                            _imageRevision++;
+                            _openingFiles = false;
+                          });
+                        }
+                      }
+                    },
+            ),
           if (!widget.readOnly) ...[
             IconButton(
               tooltip: '编辑',

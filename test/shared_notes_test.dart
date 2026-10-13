@@ -25,6 +25,8 @@ void main() {
     'wrongTotal',
     'duplicate',
     'empty',
+    'orphanFile',
+    'badFile',
   ]) {
     test('shared snapshot $mode', () async {
       var pages = 0;
@@ -65,7 +67,18 @@ void main() {
                       if (pages == 1 || mode == 'duplicate')
                         {'Kind': 'note', 'Note': data}
                       else
-                        {'Kind': 'file', 'File': {}},
+                        {
+                          'Kind': 'file',
+                          'File': {
+                            'NoteId': mode == 'orphanFile'
+                                ? '507f1f77bcf86cd799439098'
+                                : id,
+                            'FileId': '507f1f77bcf86cd799439099',
+                            'Kind': 'image',
+                            'Size': 4,
+                            'Version': mode == 'badFile' ? 'bad' : version,
+                          },
+                        },
                     ],
               'Complete': mode == 'empty' || pages == 2,
               'NextPageToken': mode == 'empty' || pages == 2 ? '' : '1',
@@ -80,6 +93,7 @@ void main() {
         expect(notes.length, mode == 'empty' ? 0 : 1);
         if (notes.isNotEmpty) {
           expect(notes.single.note.userId, data['OwnerUserId']);
+          expect(notes.single.files.single.size, 4);
         }
       } else {
         await expectLater(operation, throwsA(isA<ApiException>()));

@@ -15,8 +15,8 @@
 ## 当前现场（2026-10-13）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`fcfa25d` 富文本常用样式编辑和阅读；`df711b7` 搜索摘要与最新正文读取；`8e2d063` 离线 Markdown 数学公式与编辑工具；`d221858` 头像裁剪与 Android 拍照；`d65eba0` 上传前 USN 回退预检；`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
-- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 633 项通过（另 1 项性能基准默认跳过），新增历史图片页面测试 5 项通过（其中 2 项新增），Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
+- 最近提交：`ecc15e5` 历史图片 API2 下载与离线缓存；`fcfa25d` 富文本常用样式编辑和阅读；`df711b7` 搜索摘要与最新正文读取；`8e2d063` 离线 Markdown 数学公式与编辑工具；`d221858` 头像裁剪与 Android 拍照；`d65eba0` 上传前 USN 回退预检；`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
+- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 654 项通过（另 1 项性能基准默认跳过），共享资源专项 18 项通过（含后来新增的配额淘汰测试），Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
 - 当前任务：持久下载、离线图片/附件暂存与 Android 资源分享已实现并验证，离线新建笔记本与不确定结果恢复已实现，继续同步一致性及其余功能缺口。iOS 与发布按最新要求暂缓，不作为当前功能迁移的执行前置条件。
 
@@ -40,7 +40,7 @@
 | M10 搜索、排序、所有笔记 | desktop-app/db/note_repo.go | 本地搜索，内容来自 API2 同步 | ui/SearchActivity | ui/note_search_page.dart、domain/models/note_sort.dart | 本地搜索、分页及排序已实现；结果仅加载独立摘要类型，打开时读取最新正文；2.5 万篇桌面磁盘基准 18–70ms，保留中文/任意子串匹配；手机数据量性能仍待验收 |
 | M11 标签编辑与管理 | desktop-app/api/client_api.go AddTag/DeleteTag | api/ApiTagController、ApiNoteController.UpdateNote | service/TagService | ui/tags_page.dart、note_tags_dialog.dart；API2 | 部分；新增未使用标签目录、在线创建及笔记编辑候选；全局删除/重命名未完成，删除 USN 合同 B06 与清空标签 B02 待服务端后续处理 |
 | M12 历史浏览恢复 | desktop-app/api/client_api.go GetHistories/GetHistoryContent | ApiNoteController.GetHistories/GetHistoryContent | service/NoteService | ui/note_history_page.dart；API2 | 正文及历史图片的下载/独立缓存/离线阅读、恢复后的缓存图片显示已实现（schema v15）；恢复保留正文图片引用，不伪造附件版本；附件/编辑器格式快照缺失见 B07；history_images_test.dart |
-| M13 共享笔记 | desktop-app/sharedsync/sharedsync.go、api/shared_api.go | api/ApiSharedController | 旧版无完整等价 | ui/shared_notes_page.dart、data/database shared cache；API2 | 只读列表/正文已实现；共享资源缓存与权限撤销、共享编辑和权限管理仍待核对/实现 |
+| M13 共享笔记 | desktop-app/sharedsync/sharedsync.go、api/shared_api.go | api/ApiSharedController | 旧版无完整等价 | ui/shared_notes_page.dart、data/database shared cache；API2 | 只读列表/正文、图片/附件的摘要校验下载、离线缓存、预览/保存/打开/分享及权限撤销清理已实现（schema v16）；共享编辑和权限管理仍待核对/实现 |
 | M14 图片缓存、预览、保存 | desktop-app/service/file_service.go | api/ApiFileController.GetImage | ui/PictureViewerActivity、service/NoteFileService | ui/cached_markdown_image.dart、services/image_exporter.dart；API2 | 已有缓存隔离/原始字节保存测试；原生文件窗口待验收 |
 | M15 图片上传与正文插入 | desktop-app/webapi/proxy.go | /api2/file/pasteImage → File.PasteImage | ui/edit/NoteEditActivity | services/note_image_picker.dart、ui/note_image_upload_dialog.dart；API2 | 在线原文插入、离线图片暂存、持久上传状态与中断恢复已实现（schema v12）；图片成功后事务追加到最新正文，支持本地预览；WebView 插入未完 |
 | M16 附件上传下载、打开、分享 | desktop-app/service/file_service.go、webapi/proxy.go | Api2.UploadAttachment、ApiFile.GetAttach | service/NoteFileService | ui/note_files_page.dart、services/attachment_*；API2 | 在线上传、下载、离线保存/分享/打开已实现；附件离线暂存、持久上传状态及结果不确定时手动恢复已实现（schema v11）；原生 intent 验证未完，iOS 暂缓 |
@@ -236,7 +236,7 @@ M06 本批最终验证：静态检查无问题；完整测试 **501 项全部通
 - 服务端创建无幂等键（B05）：请求前持久标记 uncertain，响应丢失或本地确认失败不自动重发，冻结该笔记本改名/移动，原有子级与笔记完整保留。笔记本菜单提供“创建状态与恢复”，先读本地状态；用户主动查询服务端匹配项后可确认关联，或核实后显式恢复待创建状态。
 - 图片/附件上传先同步目标笔记本的必要父级，再上传目标正文；不会创建无关的待同步笔记本。
 - 数据库/同步测试覆盖重开、父子顺序、全量 ID 映射、旧页面编辑、响应丢失、事务回滚、账号隔离、父级未同步、请求期间编辑、异常响应和 v12 升级；UI 测试覆盖离线新建、重复提交、恢复确认和不自动联网。
-- 静态检查无问题，完整 Flutter 测试 633 项通过（另 1 项性能基准默认跳过），新增历史图片页面测试 5 项通过（其中 2 项新增），Android debug APK 构建通过（10 秒）。服务端未修改，创建幂等键仍是后续可改善的接口能力。
+- 静态检查无问题，完整 Flutter 测试 654 项通过（另 1 项性能基准默认跳过），共享资源专项 18 项通过（含后来新增的配额淘汰测试），Android debug APK 构建通过（10 秒）。服务端未修改，创建幂等键仍是后续可改善的接口能力。
 
 ## 2026-10-13 新笔记创建重试一致性
 
@@ -308,3 +308,13 @@ M06 本批最终验证：静态检查无问题；完整测试 **501 项全部通
 全量 Flutter 测试 633 项通过，1 项性能基准默认跳过；随后历史页测试 5 项通过（新增在线主动下载、离线禁止下载两项）。覆盖 API2 归属复核、外部链接/代码排除、缓存配额与清理竞态、恢复保留原文、v14 升级；修复了测试发现的下载 Future 清理回调自引用问题。原生设备表现仍需真机验收。
 
 本批次静态检查无问题，Android debug APK 构建通过（6.9 秒）。
+
+## M13 共享图片与附件
+
+API2 共享快照现在解析并校验 `file` 条目，按 NoteId 关联，拒绝无所属笔记、重复及无效元数据；共享文件列表随账号缓存。数据库升级 v16，新增独立 `shared_files`，共享笔记撤销通过外键清理其文件，保留未变化的版本缓存；同一全账号 64MiB 配额涵盖当前资源、历史图片与共享资源。
+
+下载固定使用 `/api2/shared/notes/{noteId}/files/{fileId}`；前后核实共享正文版本及权限，校验响应 SHA-256、本地计算摘要和快照长度，禁止重定向，限制图片 8MiB/附件 32MiB。JSON 附件凭合法摘要正常处理，服务端 JSON 错误响应不能作为附件缓存。权限拒绝清除共享正文与资源；正文版本变化撤销旧缓存，文件变化使对应资源失效；离线仅显式读取缓存，在线失败不自动回退。缓存清理/新快照/撤销后旧下载不能重新填充缓存，账号数据彼此隔离，下载并发去重。
+
+共享阅读页支持正文图片主动下载与离线显示，新增只读图片附件入口，提供图片预览、文件保存、附件外部打开和系统分享，无个人笔记上传/编辑入口。文件写权限与共享成员管理没有混入只读资源实现，仍在 M13 保留为后续项。离线仍无法获知服务端已经发生的权限变化；客户端不会声称已导出到外部应用的文件可被撤回。
+
+全量 Flutter 654 项通过、1 项性能基准默认跳过，随后共享资源专项 18 项通过（含新增全局配额测试）；静态检查无问题；Android debug APK 构建通过（10.7 秒）。只将现有 crypto 3.0.7 从间接依赖改为直接依赖用于 SHA-256，未升级其它依赖。未修改服务端或 iOS 原生代码，未发布。
