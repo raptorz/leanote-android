@@ -15,7 +15,8 @@ struct SharedTextRecord: Codable, Equatable {
     guard id.utf8.count == 24,
       id.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }),
       title.utf8.count <= 8192, title.count <= 200, accountKey.utf8.count <= 8192,
-      !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+      !text.trimmingCharacters(in: .whitespacesAndNewlines.union(
+        CharacterSet(charactersIn: "\u{FEFF}"))).isEmpty,
       !text.contains("\0"), text.utf8.count <= 256 * 1024
     else { throw SharedTextStore.Failure("分享文本无效或超过 256 KiB") }
   }

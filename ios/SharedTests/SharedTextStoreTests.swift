@@ -48,7 +48,7 @@ struct SharedTextStoreTests {
     try check(store.peek() == nil, "idempotent acknowledgement; only one retry record")
     print("PASS persistence, claim isolation, idempotence")
 
-    for text in ["", " \n", "nul\0", String(repeating: "中", count: 90_000)] {
+    for text in ["", " \n", "\u{FEFF}\u{85}\u{A0}", "nul\0", String(repeating: "中", count: 90_000)] {
       try rejects("invalid content") { try store.enqueue(record(1, text: text)) }
     }
     try rejects("invalid ID") {

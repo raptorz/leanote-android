@@ -15,10 +15,10 @@
 ## 当前现场（2026-10-13）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
-- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 515 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
+- 最近提交：`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
+- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 516 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
-- 当前任务：M23 iOS 文本/网页子集已提交；M11 标签目录/在线创建/零引用候选已完成验证，准备提交。下一步继续 Android 分享接收；双平台文件/图片/多项和其他迁移项仍未完成。iOS 类型检查/构建/签名/设备验收需要完整 Xcode。
+- 当前任务：M23 Android 单项/多项文本与文本文件接收已实现并验证，准备提交；iOS 文本/网页子集和 M11 标签目录已提交。下一步补齐资源类分享、iOS 文件/多项及其余映射项。iOS 类型检查/构建/签名/设备验收需要完整 Xcode，不能阻塞其他可执行工作。
 
 ## 功能对照索引
 
@@ -50,7 +50,7 @@
 | M20 默认编辑器、语言、关于 | desktop-app/webapi/about.go、应用配置 | 默认编辑器与语言本地；协议版本 API2 | ui/SettingsActivity、AboutActivity | default_editor_dialog.dart、about_dialog.dart；API2 | 编辑器/版本已实现，界面国际化与语言设置未实现；中英系统及切换测试待做 |
 | M21 多账号快速切换 | desktop-app/app.go、db 配置 | Api2.TokenLogin、ApiUser.Info | service/AccountService、ui/MainActivity | app.dart、data/session/session_store.dart | 本轮实现切换/添加账号、登录页恢复已登录账号；保留离线修改与多账号凭据，切换前等待资源任务、重建工作区；静态检查和全量 488 项测试通过；原生安全存储/生命周期验收仍待进行 |
 | M22 导入导出、对外分享 | desktop-app/webapi/local.go | 本地操作无需新接口 | ui/edit/NoteEditActivity | services/note_importer.dart、note_exporter.dart、note_sharer.dart | 原文导入导出及系统分享已实现；完整含资源导出仍待对照；Android/iOS 文件与分享面板验收 |
-| M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity、ios/ShareExtension 与 Shared | Android 纯文本已有；iOS 单项文本/网页分享代码与 App Group 队列已接入，存储及 Flutter 测试通过，iOS 构建/签名/真机待验收；双平台文件/图片/多项尚未完成 |
+| M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity、ios/ShareExtension 与 Shared | Android 单项/多项文本及文本文件已实现，JVM/Flutter 测试和 APK 构建通过；iOS 单项文本/网页与 App Group 队列已有，存储测试通过但 iOS 构建/签名/真机待验收；二进制资源、iOS 文件/多项未完成 |
 | M24 Android 小组件 | Desktop 无等价 | 本地快照，无新接口 | appwidget/NoteAppWidget、WidgetService、RedirActivity | 未实现 | 笔记列表/新建入口、账号切换、锁屏隐私、刷新及系统生命周期验收 |
 | M25 Android/iOS 发布与运行 | desktop-app/.github/workflows 为发布参考 | 无 | 旧 Android 构建参考 | android、ios、.github/workflows | 损坏 Gradle 包已修复，Android debug APK 已构建成功；iOS 模拟器/签名/设备验收未完成；不自动发布 |
 | M26 API2 边界与网络错误 | desktop-app/api/client.go | conf/routes、Api2Controller、api/* | 禁止复用旧请求 | lib/core/api/api2_client.dart | 未发现直接 Legacy 业务调用；JSON/表单已禁止自动重定向，真实 HTTP 测试覆盖 GET/JSON/form × 301/302/303/307/308；旧正文路径仅解析 FileId，绝不请求原路径 |
@@ -178,3 +178,16 @@ M06 本批最终验证：静态检查无问题；完整测试 **501 项全部通
 - 静态分析无问题，完整 **515 项测试通过**；Android debug APK 构建通过（10.0 秒，session 51994 已退出 0）。最新日志仍为 `/private/tmp/gemsnote-offline-book-analyze.log`、`/private/tmp/gemsnote-offline-book-full.log`、`/private/tmp/gemsnote-goal-build-repaired.log`。
 - M11 尚未全部完成：全局删除/重命名缺少可靠合同，已记录 B06；清空笔记标签仍受 B02 限制；本次未改服务端。
 - iOS 分享子集已提交 `fddcb90`；标题字节上限与组合字符测试后续提交 `536de61`，原生存储测试再次通过；iOS 设备验证状态未变化。
+
+## M23 Android 文本文件及多项分享（2026-10-13）
+
+- M11 已提交 `1ee2d61`，继续执行本项；未修改服务端、Desktop 或 legacy-android。
+- 参考旧 `NoteEditActivity.getNoteFromShareIntent` 的本地草稿行为，以及 Android 官方 SEND/SEND_MULTIPLE / EXTRA_STREAM 合同；复用已实现的账号确认、稳定分享 ID 和本地 dirty 笔记/API2 同步。
+- Manifest 增加 SEND_MULTIPLE 与 text/markdown，仅声明能读取的文本 MIME；接收单项/多项纯文本和 content URI 文本文件。严格 UTF-8/BOM 解码，拒绝 NUL/空白、非法编码和超出 256 KiB 的单项内容。
+- 每批最多 8 项，文本文件附带的说明文本另作收件项保留。后台最多 2 个 worker，15 秒超时拒绝迟到结果；全部准备成功后读取最新队列并一次保存，不因中间一项失败留下半批新增内容。
+- 只读取系统允许的 content URI，拒绝自身 provider；不索取媒体/存储权限，不持久保留来源 URI 权限。成功前进程终止的未完成读取需重新分享，不虚报已持久保存。
+- 新增 JVM 生产解码器回归脚本 `scripts/test_android_share_decoder.sh`，通过 UTF-8/BOM/跨块、字节边界、无限长度流上界、读取失败、中断及 Unicode 标题测试。
+- Flutter 新测试验证处理首项后显现次项且不自动绑定其账号；完整 **516 项通过**，静态检查无问题。Android 最终 debug APK 构建通过（3.2 秒，session 62529 已退出 0）。
+- aapt 复核合并 Manifest 确认 SEND/SEND_MULTIPLE 和 text/plain、text/markdown；权限仍仅 INTERNET 和应用自身 receiver permission，没有存储/媒体读取权限。
+- 另对齐 iOS 与 Dart 的 BOM/Unicode 空白验证，避免仅含不可见空白的记录入队后无法由 Flutter 读取；Swift 生产存储测试再次全部通过。
+- 当前未有设备运行证据；URI 授权、跨应用/云端 provider、冷热启动和超时生命周期见 `docs/ANDROID_SHARING.md`。Android 图片/二进制附件接收、iOS 文件/多项分享仍待迁移，整个目标未完成。

@@ -119,6 +119,36 @@ void main() {
   );
 
   test(
+    'acknowledging one batch entry exposes the next without claiming it',
+    () async {
+      const nextId = '507f1f77bcf86cd799439013';
+      final queue = <Map<String, String>>[
+        {'id': id, 'text': '# first file', 'accountKey': 'server/user'},
+        {'id': nextId, 'text': '# second file', 'accountKey': ''},
+      ];
+      final calls = <MethodCall>[];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call);
+        if (call.method == 'acknowledge') {
+          queue.removeWhere((item) => item['id'] == call.arguments['id']);
+          return null;
+        }
+        return queue.isEmpty ? null : queue.first;
+      });
+      final inbox = SharedTextInbox(channel: channel, supported: true);
+      addTearDown(inbox.dispose);
+      await inbox.start();
+      await inbox.acknowledge(inbox.pending!);
+      expect(inbox.pending!.id, nextId);
+      expect(inbox.pending!.accountKey, isEmpty);
+      expect(calls.map((call) => call.method), ['peek', 'acknowledge', 'peek']);
+      await inbox.refresh();
+      expect(inbox.pending!.id, nextId);
+      expect(queue, hasLength(1));
+    },
+  );
+
+  test(
     'stale refresh and callbacks after disposal cannot replace newer state',
     () async {
       final old = Completer<Map<String, String>>();
