@@ -112,4 +112,49 @@ void main() {
     expect(again.text, '> hello');
     expect(again.selection.baseOffset, 5);
   });
+  test(
+    'bold and italic toolbar buttons remove their own wrapper on repeat',
+    () {
+      const value = TextEditingValue(
+        text: 'before word after',
+        selection: TextSelection(baseOffset: 7, extentOffset: 11),
+      );
+      final bold = toggleMarkdownWrap(value, '**');
+      expect(bold.text, 'before **word** after');
+      final plain = toggleMarkdownWrap(bold, '**');
+      expect(plain.text, value.text);
+      expect(plain.selection.textInside(plain.text), 'word');
+      final italic = toggleMarkdownWrap(value, '*');
+      expect(italic.text, 'before *word* after');
+      expect(toggleMarkdownWrap(italic, '*').text, value.text);
+    },
+  );
+  test('italic on bold text keeps bold markers intact', () {
+    const value = TextEditingValue(
+      text: '**word**',
+      selection: TextSelection(baseOffset: 2, extentOffset: 6),
+    );
+    final combined = toggleMarkdownWrap(value, '*');
+    expect(combined.text, '***word***');
+    expect(toggleMarkdownWrap(combined, '*').text, value.text);
+    expect(toggleMarkdownWrap(combined, '**').text, '*word*');
+  });
+  test('inline toggle handles a complete selection and an empty caret', () {
+    const complete = TextEditingValue(
+      text: 'say **hi** now',
+      selection: TextSelection(baseOffset: 4, extentOffset: 10),
+    );
+    final unwrapped = toggleMarkdownWrap(complete, '**');
+    expect(unwrapped.text, 'say hi now');
+    expect(unwrapped.selection.textInside(unwrapped.text), 'hi');
+    final empty = toggleMarkdownWrap(
+      const TextEditingValue(
+        text: 'ab',
+        selection: TextSelection.collapsed(offset: 1),
+      ),
+      '**',
+    );
+    expect(empty.text, 'a****b');
+    expect(toggleMarkdownWrap(empty, '**').text, 'ab');
+  });
 }

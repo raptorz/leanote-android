@@ -26,6 +26,63 @@ TextEditingValue wrapMarkdown(TextEditingValue value, String marker) {
   );
 }
 
+/// Remove the existing inline wrapper on a second toolbar tap.
+TextEditingValue toggleMarkdownWrap(TextEditingValue value, String marker) {
+  final selection = _selection(value);
+  final text = value.text;
+  final start = selection.start;
+  final end = selection.end;
+  final size = marker.length;
+
+  // The toolbar keeps the selected body selected after inserting markers.
+  // A user may also select the complete Markdown expression manually.
+  if (!selection.isCollapsed &&
+      end - start >= size * 2 &&
+      text.startsWith(marker, start) &&
+      text.substring(start, end).endsWith(marker) &&
+      (marker != '*' ||
+          (_adjacentStars(text, start, backwards: false).isOdd &&
+              _adjacentStars(text, end, backwards: true).isOdd))) {
+    final body = text.substring(start + size, end - size);
+    return TextEditingValue(
+      text: text.replaceRange(start, end, body),
+      selection: TextSelection(
+        baseOffset: start,
+        extentOffset: start + body.length,
+      ),
+    );
+  }
+
+  if (start >= size &&
+      end + size <= text.length &&
+      text.substring(start - size, start) == marker &&
+      text.substring(end, end + size) == marker &&
+      // A single '*' next to a bold marker is not itself italic formatting.
+      (marker != '*' ||
+          (_adjacentStars(text, start, backwards: true).isOdd &&
+              _adjacentStars(text, end, backwards: false).isOdd))) {
+    final body = text.substring(start, end);
+    return TextEditingValue(
+      text: text.replaceRange(start - size, end + size, body),
+      selection: TextSelection(
+        baseOffset: start - size,
+        extentOffset: end - size,
+      ),
+    );
+  }
+  return wrapMarkdown(value, marker);
+}
+
+int _adjacentStars(String text, int offset, {required bool backwards}) {
+  var count = 0;
+  var index = backwards ? offset - 1 : offset;
+  while (index >= 0 && index < text.length && text[index] == '*') {
+    count++;
+    index += backwards ? -1 : 1;
+  }
+  return count;
+}
+
 TextEditingValue prefixMarkdownLines(TextEditingValue value, String prefix) {
   return _editLines(
     value,

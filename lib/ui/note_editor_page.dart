@@ -482,12 +482,12 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                       _formatButton(
                         tr(context, 'm0190'),
                         Icons.format_bold,
-                        (value) => wrapMarkdown(value, '**'),
+                        (value) => toggleMarkdownWrap(value, '**'),
                       ),
                       _formatButton(
                         tr(context, 'm0191'),
                         Icons.format_italic,
-                        (value) => wrapMarkdown(value, '*'),
+                        (value) => toggleMarkdownWrap(value, '*'),
                       ),
                       _formatButton(
                         tr(context, 'm0192'),
