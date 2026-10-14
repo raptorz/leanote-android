@@ -17,7 +17,6 @@ void main() {
   test('complex and active markup stays in source editor', () {
     for (final source in [
       '<script>alert(1)</script>',
-      '<img src="https://host/a">',
       '<p onclick="alert(1)">a</p>',
       '<iframe></iframe>',
       '<p style="background:url(https://host/a)">a</p>',
@@ -30,7 +29,7 @@ void main() {
   test('document is network isolated and original source is retained', () {
     final document = visualEditorDocument('<p>你好 &lt;/script&gt;</p>');
     expect(document, contains("connect-src 'none'"));
-    expect(document, contains("img-src 'none'"));
+    expect(document, contains("img-src data:"));
     expect(document, contains(r'\u003cp>'));
     expect(document, contains('changed ? editor.innerHTML : original'));
     expect(document, contains("getData('text/plain')"));

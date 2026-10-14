@@ -1,3 +1,4 @@
+import 'visual_editor_images.dart';
 import '../l10n/app_strings.dart';
 
 import 'dart:async';
@@ -213,6 +214,26 @@ class _NoteEditorPageState extends State<NoteEditorPage>
     }
   }
 
+  Future<VisualImageInsertion?> _pickVisualImage() async {
+    final image =
+        await (widget.pickImage ??
+            NoteImagePicker(strings: AppStrings.snapshot(context)).pick)();
+    if (!mounted || image == null) return null;
+    final reference = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => NoteImageUploadDialog(
+        identity: widget.identity,
+        image: image,
+        upload: (identity, password) =>
+            widget.uploadImage!(image, identity, password),
+      ),
+    );
+    return reference == null
+        ? null
+        : VisualImageInsertion(reference, image.bytes);
+  }
+
   Future<void> _insertImage() async {
     if (_busy || widget.uploadImage == null) return;
     final original = _content.value;
@@ -335,6 +356,10 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                         builder: (_) => VisualHtmlEditor(
                           strings: AppStrings.of(context),
                           source: _content.text,
+                          loadCachedImage: widget.loadCachedImage,
+                          insertImage: widget.uploadImage == null
+                              ? null
+                              : _pickVisualImage,
                           flush: _flush,
                           saveError: _saveError,
                           onChanged: (value) {

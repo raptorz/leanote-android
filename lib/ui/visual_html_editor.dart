@@ -1,3 +1,5 @@
+import 'cached_markdown_image.dart';
+import 'visual_editor_images.dart';
 import '../l10n/app_strings.dart';
 
 import 'dart:async';
@@ -17,16 +19,27 @@ export 'visual_html_policy.dart' show supportsVisualHtml;
 String visualEditorDocument(
   String source, {
   AppStrings strings = const AppStrings(Locale('zh')),
+  Map<String, String> cachedImages = const {},
 }) {
   if (!supportsVisualHtml(source)) {
     throw ArgumentError('Unsupported rich text');
+  }
+  if (cachedImages.values.any(
+        (value) =>
+            !RegExp(r'^data:image/png;base64,[A-Za-z0-9+/]+=*$')
+                .hasMatch(value),
+      ) ||
+      cachedImages.values.fold<int>(0, (size, value) => size + value.length) >
+          8 * 1024 * 1024) {
+    throw ArgumentError('Invalid cached image presentation');
   }
   // JSON + escaping '<' prevents a note from closing the inline script.
   final initial = jsonEncode(source).replaceAll('<', r'\u003c');
   return '''<!doctype html><html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src data:; form-action 'none'; base-uri 'none'">
 <style>body{font:17px sans-serif;margin:16px;line-height:1.6;color:#183c32}
+#editor img{max-width:100%;height:auto;min-width:24px;min-height:24px;outline:1px solid #c5d1cb}
 #editor{min-height:80vh;outline:none;overflow-wrap:anywhere}
 blockquote{border-left:3px solid #527b68;margin-left:0;padding-left:12px}
 table{border-collapse:collapse;max-width:100%;table-layout:fixed;width:100%}
@@ -35,6 +48,23 @@ th{background:#e5eee8}caption{font-weight:bold}</style>
 </head><body><div id="editor" contenteditable="true"></div><script>
 const editor = document.getElementById('editor');
 const original = $initial;
+// Presentation lives outside the editable DOM, so snapshots, tables and undo
+// retain original src/alt attributes without embedded bytes or temporary IDs.
+const imageStyles = document.createElement('style');
+document.head.appendChild(imageStyles);
+const cachedImages = new Map();
+window.cacheImage = (source, data) => {
+  if (!/^data:image\\/png;base64,[A-Za-z0-9+/]+=*\$/.test(data)) return;
+  if (data.length > 8 * 1024 * 1024) return;
+  cachedImages.delete(source);
+  cachedImages.set(source, data);
+  while (cachedImages.size > 32 || Array.from(cachedImages.values()).reduce((sum, value) => sum + value.length, 0) > 8 * 1024 * 1024) {
+    cachedImages.delete(cachedImages.keys().next().value);
+  }
+  imageStyles.textContent = Array.from(cachedImages, ([src, png]) =>
+    '#editor img[src="' + CSS.escape(src) + '"]{content:url("' + png + '")}').join('\\n');
+};
+for (const [source, data] of Object.entries(${jsonEncode(cachedImages).replaceAll('<', r'\u003c')})) window.cacheImage(source, data);
 editor.innerHTML = original;
 let changed = false;
 let savedRange = null;
@@ -69,6 +99,21 @@ window.format = (command, value) => {
   restoreSelection();
   document.execCommand('styleWithCSS', false, ['foreColor','hiliteColor','justifyLeft','justifyCenter','justifyRight','justifyFull'].includes(command));
   document.execCommand(command, false, value);
+  publish();
+};
+window.insertImage = reference => {
+  if (!/^\\/api2\\/file\\/getImage\\?fileId=[0-9a-fA-F]{24}\$/.test(reference)) return;
+  restoreSelection();
+  const selection = window.getSelection();
+  if (!selection.rangeCount || !editor.contains(selection.anchorNode)) {
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    selection.removeAllRanges(); selection.addRange(range);
+  } else selection.collapseToEnd();
+  const image = document.createElement('img');
+  image.setAttribute('src', reference); image.setAttribute('alt', '');
+  document.execCommand('insertHTML', false, image.outerHTML);
   publish();
 };
 window.insertLink = value => {
@@ -134,11 +179,15 @@ class VisualHtmlEditor extends StatefulWidget {
     this.strings = const AppStrings(Locale('zh')),
     required this.onChanged,
     required this.flush,
+    this.loadCachedImage,
+    this.insertImage,
     required this.saveError,
     super.key,
   });
 
   final String source;
+  final CachedImageLoader? loadCachedImage;
+  final Future<VisualImageInsertion?> Function()? insertImage;
   final AppStrings strings;
   final ValueChanged<String> onChanged;
   final Future<bool> Function() flush;
@@ -151,6 +200,7 @@ class VisualHtmlEditor extends StatefulWidget {
 class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
   late final WebViewController _controller;
   bool _ready = false;
+  bool _cacheStarted = false;
   bool _leaving = false;
   bool _allowPop = false;
   bool _dialogOpen = false;
@@ -205,10 +255,16 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
               ? NavigationDecision.navigate
               : NavigationDecision.prevent,
           onPageFinished: (_) {
-            if (mounted) setState(() => _ready = true);
+            if (mounted) {
+              setState(() => _ready = true);
+              if (!_cacheStarted) {
+                _cacheStarted = true;
+                unawaited(_loadCachedImages());
+              }
+            }
           },
           onWebResourceError: (error) {
-            if (mounted) {
+            if (mounted && error.isForMainFrame != false) {
               setState(
                 () => _error = trNow(context, 'm0419', [error.description]),
               );
@@ -229,6 +285,24 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
     }
   }
 
+  Future<void> _loadCachedImages() async {
+    try {
+      final images = await cachedVisualImages(
+        widget.source,
+        widget.loadCachedImage,
+        shouldContinue: () => mounted,
+      );
+      for (final entry in images.entries) {
+        if (!mounted) return;
+        await _controller.runJavaScript(
+          'window.cacheImage(${jsonEncode(entry.key)}, ${jsonEncode(entry.value)})',
+        );
+      }
+    } on Object {
+      // Cache preview failure does not affect source editing or persistence.
+    }
+  }
+
   bool _accept(String value) {
     if (!supportsVisualHtml(value)) {
       setState(() => _error = trNow(context, 'm0420'));
@@ -240,7 +314,7 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
   }
 
   Future<void> _close() async {
-    if (_leaving) return;
+    if (_leaving || _dialogOpen) return;
     setState(() => _leaving = true);
     try {
       final saved = await persistVisualEdit(
@@ -282,6 +356,73 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
         }
       }
       if (mounted) setState(() => _leaving = false);
+    }
+  }
+
+  Future<void> _insertImage() async {
+    if (_dialogOpen || !_ready || _leaving || widget.insertImage == null) {
+      return;
+    }
+    setState(() => _dialogOpen = true);
+    try {
+      final pending = Completer<String>();
+      _snapshot = pending;
+      final read = pending.future.timeout(const Duration(seconds: 5));
+      unawaited(
+        _controller
+            .runJavaScript(
+              'editor.contentEditable = "false"; editor.blur(); Snapshot.postMessage(window.readContent())',
+            )
+            .catchError((Object error) {
+              if (!pending.isCompleted) pending.completeError(error);
+            }),
+      );
+      final source = await read;
+      if (!mounted || !_accept(source) || !await widget.flush() || !mounted) {
+        return;
+      }
+      final image = await widget.insertImage!();
+      if (!mounted || image == null) return;
+      if (!RegExp(r'^/api2/file/getImage\?fileId=[0-9a-fA-F]{24}$')
+          .hasMatch(image.reference)) {
+        throw const FormatException('invalidImageReference');
+      }
+      final data = await visualImageData(image.png);
+      if (!mounted) return;
+      if (data != null) {
+        await _controller.runJavaScript(
+          'window.cacheImage(${jsonEncode(image.reference)}, ${jsonEncode(data)})',
+        );
+      }
+      await _controller.runJavaScript(
+        'editor.contentEditable = "true"; window.insertImage(${jsonEncode(image.reference)})',
+      );
+      final inserted = Completer<String>();
+      _snapshot = inserted;
+      final result = inserted.future.timeout(const Duration(seconds: 5));
+      unawaited(
+        _controller
+            .runJavaScript('Snapshot.postMessage(window.readContent())')
+            .catchError((Object error) {
+              if (!inserted.isCompleted) inserted.completeError(error);
+            }),
+      );
+      final content = await result;
+      if (mounted && _accept(content)) await widget.flush();
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = trNow(context, 'm0174', [error]));
+    } finally {
+      _snapshot = null;
+      if (mounted) {
+        try {
+          await _controller.runJavaScript('editor.contentEditable = "true"');
+        } on Object catch (error) {
+          if (mounted) {
+            setState(() => _error = trNow(context, 'm0422', [error]));
+          }
+        }
+        if (mounted) setState(() => _dialogOpen = false);
+      }
     }
   }
 
@@ -473,6 +614,14 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
+                if (widget.insertImage != null)
+                  IconButton(
+                    tooltip: tr(context, 'visualInsertImage'),
+                    icon: const Icon(Icons.add_photo_alternate_outlined),
+                    onPressed: _ready && !_leaving && !_dialogOpen
+                        ? _insertImage
+                        : null,
+                  ),
                 _button(tr(context, 'm0169'), Icons.undo, 'undo'),
                 _button(tr(context, 'm0170'), Icons.redo, 'redo'),
                 _button(tr(context, 'm0190'), Icons.format_bold, 'bold'),

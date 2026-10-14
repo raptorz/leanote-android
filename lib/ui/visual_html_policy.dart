@@ -16,6 +16,14 @@ bool isSafeEditorLink(String value) {
       uri.userInfo.isEmpty;
 }
 
+bool isSafeEditorImage(String value) {
+  if (isSafeEditorLink(value)) return true;
+  // Relative media references are retained, but never requested by WebView.
+  return RegExp(
+    r'^/(?:api2/file/getImage|file/outputImage|api/file/getImage)\?fileId=[0-9a-fA-F]{24}$',
+  ).hasMatch(value);
+}
+
 /// Eligibility, not sanitization: unsupported markup must remain in source mode.
 /// Separate from conflict-copy policy: hyperlinks do not imply safe file copying.
 bool supportsVisualHtml(String source) {
@@ -47,6 +55,7 @@ bool supportsVisualHtml(String source) {
     'h5',
     'h6',
     'a',
+    'img',
     'table',
     'caption',
     'thead',
@@ -63,7 +72,24 @@ bool supportsVisualHtml(String source) {
     if (depth > 64) return false;
     if (node is dom.Text) return true;
     if (node is! dom.Element || !tags.contains(node.localName)) return false;
+    if (node.localName == 'img' &&
+        !isSafeEditorImage(node.attributes['src'] ?? '')) {
+      return false;
+    }
     for (final attribute in node.attributes.entries) {
+      if (node.localName == 'img') {
+        final valid = switch (attribute.key) {
+          'src' => isSafeEditorImage(attribute.value),
+          'alt' || 'title' => !attribute.value.contains('\u0000'),
+          'width' || 'height' =>
+            RegExp(r'^[1-9][0-9]{0,3}$').hasMatch(attribute.value) &&
+                int.parse(attribute.value) <= 4096,
+          _ => false,
+        };
+        if (!valid) return false;
+        continue;
+      }
+
       if (attribute.key == 'style') {
         if (RichTextStyle.parse(attribute.value) == null) return false;
         continue;

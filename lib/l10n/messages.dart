@@ -1360,4 +1360,5 @@ const messages = <String, (String, String)>{
     "所选位置缺失或会形成循环。未修改数据，请先核对父级的待同步修改。",
     "The selected location is missing or would create a cycle. No data changed. Review pending parent changes first.",
   ),
+  "visualInsertImage": ("在选区后插入图片", "Insert image after selection"),
 };
