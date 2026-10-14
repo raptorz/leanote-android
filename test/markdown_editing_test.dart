@@ -61,4 +61,55 @@ void main() {
       expect(prefixMarkdownLines(const TextEditingValue(), '- ').text, '- ');
     },
   );
+  test(
+    'heading and quote toolbar actions toggle without duplicating prefixes',
+    () {
+      final initial = const TextEditingValue(
+        text: 'one\ntwo\nthree',
+        selection: TextSelection(baseOffset: 1, extentOffset: 8),
+      );
+      final headed = toggleMarkdownPrefixLines(initial, '# ');
+      expect(headed.text, '# one\n# two\nthree');
+      expect(toggleMarkdownPrefixLines(headed, '# ').text, initial.text);
+      final quoted = toggleMarkdownPrefixLines(initial, '> ');
+      expect(quoted.text, '> one\n> two\nthree');
+      expect(toggleMarkdownPrefixLines(quoted, '> ').text, initial.text);
+    },
+  );
+  test(
+    'mixed selection receives one marker per line and removes it on repeat',
+    () {
+      const value = TextEditingValue(
+        text: '- one\ntwo\nthree',
+        selection: TextSelection(baseOffset: 0, extentOffset: 9),
+      );
+      final marked = toggleMarkdownPrefixLines(value, '- ');
+      expect(marked.text, '- one\n- two\nthree');
+      expect(toggleMarkdownPrefixLines(marked, '- ').text, 'one\ntwo\nthree');
+    },
+  );
+  test(
+    'numbered list renumbers selected lines and toggles back to plain text',
+    () {
+      const value = TextEditingValue(
+        text: '7. old\nnew\nafter',
+        selection: TextSelection(baseOffset: 0, extentOffset: 11),
+      );
+      final numbered = toggleMarkdownNumberedLines(value);
+      expect(numbered.text, '1. old\n2. new\nafter');
+      expect(toggleMarkdownNumberedLines(numbered).text, 'old\nnew\nafter');
+    },
+  );
+  test('caret stays on same text when a line marker is removed', () {
+    const value = TextEditingValue(
+      text: '> hello',
+      selection: TextSelection.collapsed(offset: 5),
+    );
+    final plain = toggleMarkdownPrefixLines(value, '> ');
+    expect(plain.text, 'hello');
+    expect(plain.selection.baseOffset, 3);
+    final again = toggleMarkdownPrefixLines(plain, '> ');
+    expect(again.text, '> hello');
+    expect(again.selection.baseOffset, 5);
+  });
 }

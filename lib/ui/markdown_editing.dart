@@ -27,15 +27,53 @@ TextEditingValue wrapMarkdown(TextEditingValue value, String marker) {
 }
 
 TextEditingValue prefixMarkdownLines(TextEditingValue value, String prefix) {
-  return _prefixLines(value, (_) => prefix);
+  return _editLines(
+    value,
+    (lines) => [for (final line in lines) '$prefix$line'],
+  );
 }
 
-TextEditingValue numberMarkdownLines(TextEditingValue value) =>
-    _prefixLines(value, (index) => '${index + 1}. ');
+TextEditingValue numberMarkdownLines(TextEditingValue value) => _editLines(
+  value,
+  (lines) => [
+    for (var index = 0; index < lines.length; index++)
+      '${index + 1}. ${lines[index]}',
+  ],
+);
 
-TextEditingValue _prefixLines(
+/// Repeating a toolbar action removes one layer, like the legacy editor.
+TextEditingValue toggleMarkdownPrefixLines(
   TextEditingValue value,
-  String Function(int) prefix,
+  String prefix,
+) => _editLines(value, (lines) {
+  final marker = RegExp('^${RegExp.escape(prefix)}');
+  final allMarked = lines.every(marker.hasMatch);
+  return [
+    for (final line in lines)
+      if (allMarked)
+        line.replaceFirst(marker, '')
+      else if (marker.hasMatch(line))
+        line
+      else
+        '$prefix$line',
+  ];
+});
+
+TextEditingValue toggleMarkdownNumberedLines(TextEditingValue value) =>
+    _editLines(value, (lines) {
+      final marker = RegExp(r'^\d+\. ');
+      if (lines.every(marker.hasMatch)) {
+        return [for (final line in lines) line.replaceFirst(marker, '')];
+      }
+      return [
+        for (var index = 0; index < lines.length; index++)
+          '${index + 1}. ${lines[index].replaceFirst(marker, '')}',
+      ];
+    });
+
+TextEditingValue _editLines(
+  TextEditingValue value,
+  List<String> Function(List<String>) transform,
 ) {
   final selection = _selection(value);
   final start = value.text.substring(0, selection.start).lastIndexOf('\n') + 1;
@@ -49,14 +87,18 @@ TextEditingValue _prefixLines(
   final nextNewline = value.text.indexOf('\n', selectedEnd);
   final end = nextNewline < 0 ? value.text.length : nextNewline;
   final lines = value.text.substring(start, end).split('\n');
-  final replacement = List.generate(
-    lines.length,
-    (index) => '${prefix(index)}${lines[index]}',
-  ).join('\n');
+  final updated = transform(lines);
+  final replacement = updated.join('\n');
+  final firstLineDelta = updated.first.length - lines.first.length;
   return TextEditingValue(
     text: value.text.replaceRange(start, end, replacement),
     selection: selection.isCollapsed
-        ? TextSelection.collapsed(offset: selection.start + prefix(0).length)
+        ? TextSelection.collapsed(
+            offset: (selection.start + firstLineDelta).clamp(
+              start,
+              start + replacement.length,
+            ),
+          )
         : TextSelection(
             baseOffset: start,
             extentOffset: start + replacement.length,

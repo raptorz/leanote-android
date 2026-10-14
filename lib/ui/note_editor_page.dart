@@ -497,22 +497,22 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                       _formatButton(
                         tr(context, 'm0193'),
                         Icons.title,
-                        (value) => prefixMarkdownLines(value, '# '),
+                        (value) => toggleMarkdownPrefixLines(value, '# '),
                       ),
                       _formatButton(
                         tr(context, 'm0194'),
                         Icons.format_list_bulleted,
-                        (value) => prefixMarkdownLines(value, '- '),
+                        (value) => toggleMarkdownPrefixLines(value, '- '),
                       ),
                       _formatButton(
                         tr(context, 'm0195'),
                         Icons.format_list_numbered,
-                        numberMarkdownLines,
+                        toggleMarkdownNumberedLines,
                       ),
                       _formatButton(
                         tr(context, 'm0196'),
                         Icons.format_quote,
-                        (value) => prefixMarkdownLines(value, '> '),
+                        (value) => toggleMarkdownPrefixLines(value, '> '),
                       ),
                       _formatButton(
                         tr(context, 'm0197'),
@@ -527,7 +527,7 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                       _formatButton(
                         tr(context, 'm0199'),
                         Icons.check_box_outlined,
-                        (value) => prefixMarkdownLines(value, '- [ ] '),
+                        (value) => toggleMarkdownPrefixLines(value, '- [ ] '),
                       ),
                       _formatButton(
                         tr(context, 'm0119'),
