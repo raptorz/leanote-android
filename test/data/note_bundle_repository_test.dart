@@ -30,6 +30,7 @@ class BundleApi extends Api2Client {
   final created = <String, Note>{};
   int createCalls = 0;
   int imageUploadCalls = 0;
+  final updatedIds = <String>[];
   Future<void> Function()? duringDownload;
   Future<void> Function()? duringUpload;
   @override
@@ -39,6 +40,7 @@ class BundleApi extends Api2Client {
     required Note note,
   }) async {
     if (conflict) throw const ApiException('conflict');
+    updatedIds.add(note.noteId);
     return note.copyWith(usn: note.usn + 1);
   }
 
@@ -277,7 +279,7 @@ void main() {
     )).single;
     await expectLater(
       sync.uploadPending(account: account, token: 'secret'),
-      throwsStateError,
+      throwsA(isA<PendingVisualImage>()),
     );
     expect(api.imageUploadCalls, 0);
     await repo.uploadStagedImage(
@@ -305,6 +307,9 @@ void main() {
       ),
       image.bytes,
     );
+    await sync.uploadPending(account: account, token: 'secret');
+    expect(api.updatedIds, [source.noteId]);
+    expect(await db.pendingNoteIds(account.cacheKey), isEmpty);
   });
   test('offline visual image requires a confirmed remote note', () async {
     final draft = await db.createLocalNote(
@@ -359,6 +364,47 @@ void main() {
         )).single.state,
         'pending',
       );
+    },
+  );
+  test(
+    'pending visual original defers only its note while other uploads finish',
+    () async {
+      final other = source.copyWith(
+        noteId: '507f1f77bcf86cd799439014',
+        title: 'other',
+        content: 'other body',
+      );
+      await db.mergeChanges(
+        account: account,
+        notebooks: [],
+        notes: [other],
+        tags: [],
+        lastSyncUsn: 7,
+      );
+      final image = await NoteImageUpload.normalize(api.originals[imageId]!);
+      final reference = await repo.stageVisualImage(
+        session,
+        source.noteId,
+        image,
+      );
+      await db.saveEditedText(
+        account.cacheKey,
+        source.noteId,
+        'source',
+        '<img src="$reference">',
+      );
+      await db.saveEditedText(
+        account.cacheKey,
+        other.noteId,
+        'other edit',
+        other.content,
+      );
+      await expectLater(
+        sync.uploadPending(account: account, token: 'secret'),
+        throwsA(isA<PendingVisualImage>()),
+      );
+      expect(api.updatedIds, [other.noteId]);
+      expect(await db.pendingNoteIds(account.cacheKey), {source.noteId});
     },
   );
   test('cross-server import keeps cached images and rebinds confirmed upload in place only once', () async {

@@ -19,6 +19,13 @@ class SyncProgress {
 
 typedef SyncProgressCallback = void Function(SyncProgress progress);
 
+class PendingVisualImage implements Exception {
+  const PendingVisualImage();
+
+  @override
+  String toString() => '笔记含待上传的离线插入图片，请先在附件列表上传图片';
+}
+
 class SyncCoordinator {
   SyncCoordinator(this._api, this._database);
 
@@ -312,7 +319,7 @@ class SyncCoordinator {
       account.cacheKey,
       local.noteId,
     )) {
-      throw StateError('笔记含待上传的离线插入图片，请先在附件列表上传图片');
+      throw const PendingVisualImage();
     }
     if (local.usn > 0) {
       final remote = await _api.updateNote(
@@ -383,6 +390,7 @@ class SyncCoordinator {
     }
     await _uploadNotebooks(account, token);
     final dirty = await _database.dirtyNotes(account.cacheKey);
+    var deferredVisualImage = false;
     onProgress?.call(SyncProgress(SyncStage.uploading, 0));
     for (var index = 0; index < dirty.length; index++) {
       final local = dirty[index];
@@ -421,6 +429,12 @@ class SyncCoordinator {
       }
       try {
         await _uploadNote(account, token, local);
+      } on PendingVisualImage {
+        // Keep this note local until its original image is uploaded, but let
+        // independent notes finish uploading in this pass.
+        deferredVisualImage = true;
+        onProgress?.call(SyncProgress(SyncStage.uploading, index + 1));
+        continue;
       } on ApiException catch (error) {
         if (error.code != 'conflict' ||
             error.statusCode != null ||
@@ -455,6 +469,9 @@ class SyncCoordinator {
         }
       }
       onProgress?.call(SyncProgress(SyncStage.uploading, index + 1));
+    }
+    if (deferredVisualImage) {
+      throw const PendingVisualImage();
     }
   }
 
