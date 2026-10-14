@@ -15,8 +15,8 @@
 ## 当前现场（2026-10-14）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`4738b19` 共享图片与附件；`ecc15e5` 历史图片 API2 下载与离线缓存；`fcfa25d` 富文本常用样式编辑和阅读；`df711b7` 搜索摘要与最新正文读取；`8e2d063` 离线 Markdown 数学公式与编辑工具；`d221858` 头像裁剪与 Android 拍照；`d65eba0` 上传前 USN 回退预检；`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
-- 2026-10-14 最新静态检查无问题，完整 Flutter 测试 664 项通过（另 1 项性能基准默认跳过），语言专项 9 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
+- 最近提交：`73d7b00` 中英文界面与 Android 语言设置；`4738b19` 共享图片与附件；`ecc15e5` 历史图片 API2 下载与离线缓存；`fcfa25d` 富文本常用样式编辑和阅读；`df711b7` 搜索摘要与最新正文读取；`8e2d063` 离线 Markdown 数学公式与编辑工具；`d221858` 头像裁剪与 Android 拍照；`d65eba0` 上传前 USN 回退预检；`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
+- 2026-10-14 最新静态检查无问题，完整 Flutter 测试 682 项通过（另 1 项性能基准默认跳过），笔记本冲突专项 18 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
 - 当前任务：持久下载、离线图片/附件暂存与 Android 资源分享已实现并验证，离线新建笔记本与不确定结果恢复已实现，继续同步一致性及其余功能缺口。iOS 与发布按最新要求暂缓，不作为当前功能迁移的执行前置条件。
 
@@ -33,7 +33,7 @@
 | M03 笔记离线增改、自动保存 | desktop-app/db/note_repo.go、sync/push.go | /api2/client/note/add、update | ui/edit/NoteEditActivity | data/database/app_database.dart、ui/note_editor_page.dart；API2 | 核心已实现；本地保存/后台切换测试已覆盖，输入法与杀进程验收待做 |
 | M04 Markdown 工具及阅读 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/markdown_editing.dart、markdown_note_body.dart；同步 API2 | 基础工具、GFM 表格/任务列表及离线行内/块级数学公式已实现；增加表格/任务/分隔线/公式工具；复杂扩展语法仍需逐项核对，原文不被预览改写 |
 | M05 富文本与表格 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/visual_html_editor.dart、safe_html_note_body.dart；同步 API2 | 部分；合并/拆分单元格及合并表格行列操作已实现；合并表格原生阅读布局已实现；常用颜色/高亮/字号/字体/对齐样式及原生阅读已实现；高级布局样式与可视化资源插入未完；WebView 输入法/选区/撤销真机验证 |
-| M06 笔记本树及离线操作 | desktop-app/db/notebook_repo.go、api/client_api.go | /api2/client/notebook/add、update | service/NotebookService | ui/notebook_dialog.dart、move_notebook_dialog.dart；API2 | 离线新建、重命名/移动、父级优先同步和创建结果不确定时的手动核实恢复已实现（schema v13）；完整远端修改冲突交互仍需补齐 |
+| M06 笔记本树及离线操作 | desktop-app/db/notebook_repo.go、api/client_api.go | /api2/client/notebook/add、update | service/NotebookService | ui/notebook_dialog.dart、move_notebook_dialog.dart；API2 | 离线新建、重命名/移动、父级优先同步和创建结果不确定时的手动核实恢复已实现（schema v13）；已有笔记本远端修改的核对、保留本地/采用远端及父级一致性处理已实现；远端删除仍受 B01 合同限制 |
 | M07 笔记本删除 | desktop-app/api/client_api.go DeleteNotebook | api/ApiNotebookController.DeleteNotebook → service/NotebookService.DeleteNotebookForce | service/NotebookService | 暂未接入 | 服务端合同阻塞：子级/笔记处理及 USN 删除标记；仅提出需求 |
 | M08 移动、星标、回收站 | desktop-app/db/note_repo.go、sync/push.go | ApiNoteController.UpdateNote/DeleteTrash | service/NoteService | ui/note_reader_page.dart、workspace_page.dart；API2 | 核心已实现；trash_delete_test.dart、pending_sync_test.dart；跨客户端回收站回归待验证 |
 | M09 完整复制与冲突副本 | desktop-app/webapi/local.go、sync/push.go | NoteController.CopyNote、ApiNoteController | service/NoteService | domain/models/conflict_copy.dart；API2 | 仅无资源保守子集；附件/图片克隆、复杂 HTML、删除冲突未完；不得丢资源或覆盖原笔记 |
@@ -328,3 +328,11 @@ Android 原生分享/拍照提示和桌面小组件使用同一选择，通过�
 新增 AST 文案迁移辅助工具、双语目录和生成说明；测试校验目录生成一致性、占位符保留、系统语言回退、实时切换/重启、保存失败、异步竞态、导出保留用户文件名、窄屏大字体、原生通道参数及 v16 升级保留草稿。语言弹窗改为滚动布局。新增 flutter_localizations / intl；开发工具 analyzer 的 package_config ^2.0.0 约束要求该间接依赖从 3.0.0 调整为 2.2.0，未升级其它既有插件。
 
 本批完整 Flutter 回归 **664 项通过、1 项性能基准跳过**，语言专项 9 项通过，静态检查无问题，Android debug APK 构建通过（7.5 秒）。尚未进行中英系统、第三方文件面板、相机与桌面小组件的真机验收。
+
+## M06 已有笔记本远端修改恢复（2026-10-14）
+
+待同步且已有远端版本的笔记本菜单增加“核对远端修改”。打开只显示本地状态，用户主动读取后显示远端名称、父级与版本；保留本地或采用远端都需要明确确认。应用选择前重新读取 API2 快照、校验账号/本地版本/远端版本及必要父级；与同步和资源上传共用互斥锁，USN 回退预检仍生效。
+
+保留本地仅更新重试基准并保留 pending，下一次同步仍以该 USN 乐观并发写入，再次冲突不会覆盖远端。采用远端在同一事务内刷新目标及必要的无本地修改父级，支持远端反转父子关系；不替换笔记正文或其它待同步修改，不推进全局游标。新父级写入、目标更新有任何失败均整体回滚。已有待同步父级保持原样，若最终层级缺失或成环则拒绝选择。
+
+远端删除、不可用或异常回退继续保留本地数据并提示核实，不借此实现未明确的笔记本删除语义（B01）。未修改服务端或 iOS。专项覆盖持久重开、版本/账号变化、同步互斥、并发编辑、未知/变化父级、脏父级循环、干净父级反转、原子回滚、确认取消和重复提交，以及恢复后上传/再次冲突。**18 项专项通过，682 项完整回归通过、1 项性能基准跳过；静态检查无问题，Android debug APK 构建通过（7.8 秒）。**

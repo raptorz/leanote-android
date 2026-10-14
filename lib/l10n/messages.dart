@@ -1161,8 +1161,8 @@ const messages = <String, (String, String)>{
     "The note changed while uploading its body. Save and retry.",
   ),
   "m0645": (
-    "笔记本存在远端冲突，本地修改已保留；请核对服务端后处理",
-    "The notebook has a server conflict. Local changes are kept; check the server version before resolving it.",
+    "笔记本存在远端冲突，本地修改已保留；请在笔记本菜单中选择“核对远端修改”",
+    "The notebook has remote changes. Local edits are preserved. Choose “Review remote changes” in the notebook menu.",
   ),
   "m0646": (
     "新笔记创建结果与原请求不一致，本地修改已保留，请核对服务端内容",
@@ -1314,4 +1314,50 @@ const messages = <String, (String, String)>{
   ),
   "nativeStorageError14": ("分享文件不完整", "Shared file is incomplete"),
   "nativeStorageError15": ("分享文件已变化", "Shared file changed"),
+  "notebookReviewTitle": ("核对远端修改", "Review remote changes"),
+  "notebookReviewIntro": (
+    "先读取远端名称和位置，再决定保留哪一方。打开此窗口不会联网或修改数据。",
+    "Read the remote name and location before choosing which to keep. Opening this dialog does not connect or change data.",
+  ),
+  "notebookLocalVersion": ("本地待同步", "Pending local changes"),
+  "notebookRemoteVersion": ("远端当前值", "Current remote values"),
+  "notebookReviewFetch": ("读取远端并核对", "Read remote values"),
+  "notebookReviewLocation": ("位置：{0}", "Location: {0}"),
+  "notebookReviewVersion": ("版本：{0}", "Version: {0}"),
+  "notebookRoot": ("根目录", "Root"),
+  "notebookKeepLocal": ("保留本地修改", "Keep local changes"),
+  "notebookUseRemote": ("采用远端修改", "Use remote changes"),
+  "notebookKeepConfirm": (
+    "将本地名称和位置保留为待同步修改，基于刚核对的远端版本重试。下一次同步才上传，若远端再次变化会重新报告冲突。笔记正文与子级不变。",
+    "Keep the local name and location pending against the reviewed remote version. The next sync will upload them; further remote changes will cause another conflict. Note content and children are preserved.",
+  ),
+  "notebookRemoteConfirm": (
+    "放弃这个笔记本待同步的名称和位置，采用已核对的远端值，并刷新所需且没有本地修改的父级。笔记正文和其它待同步修改保留。",
+    "Discard this notebook’s pending name and location, use the reviewed remote values, and refresh required parents that have no local edits. Note content and other pending changes are preserved.",
+  ),
+  "notebookReviewFailed": ("核对失败：{0}", "Review failed: {0}"),
+  "notebookConflictAccount": (
+    "账号已变化，请关闭后重新打开。",
+    "Account changed. Close and reopen this dialog.",
+  ),
+  "notebookConflictLocalChanged": (
+    "本地笔记本已变化或没有待处理修改，请关闭后重新核对。",
+    "The local notebook changed or has no pending changes. Close and review again.",
+  ),
+  "notebookConflictRemoteUnavailable": (
+    "远端笔记本已删除、不可用或版本回退。本地修改已保留；暂不能采用该远端状态，请先在服务端核实。",
+    "The remote notebook was deleted, is unavailable, or its version went backwards. Local changes are preserved. Verify it on the server before resolving.",
+  ),
+  "notebookConflictInvalidSnapshot": (
+    "远端笔记本数据无效，未修改本地数据。",
+    "Remote notebook data is invalid. Local data was not changed.",
+  ),
+  "notebookConflictRemoteChanged": (
+    "远端笔记本或父级再次变化，请重新读取并核对。",
+    "The remote notebook or its parents changed again. Read and review them again.",
+  ),
+  "notebookConflictHierarchy": (
+    "所选位置缺失或会形成循环。未修改数据，请先核对父级的待同步修改。",
+    "The selected location is missing or would create a cycle. No data changed. Review pending parent changes first.",
+  ),
 };

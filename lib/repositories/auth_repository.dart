@@ -1,3 +1,5 @@
+import '../domain/models/notebook_conflict.dart';
+
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -1001,6 +1003,121 @@ class AuthRepository {
       identity: identity.trim(),
       password: password,
       bytes: bytes,
+    );
+  }
+
+  Future<List<Notebook>> _notebooksForReview(StoredSession session) async {
+    final result = <Notebook>[];
+    final ids = <String>{};
+    var cursor = 0;
+    while (true) {
+      final page = await _api.getNotebooks(
+        server: session.account.server,
+        token: session.token,
+        afterUsn: cursor,
+      );
+      for (final book in page) {
+        if (!RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(book.notebookId) ||
+            book.usn <= cursor ||
+            !ids.add(book.notebookId) ||
+            (book.parentNotebookId.isNotEmpty &&
+                !RegExp(r'^[0-9a-fA-F]{24}$')
+                    .hasMatch(book.parentNotebookId))) {
+          throw StateError('notebookConflictInvalidSnapshot');
+        }
+      }
+      result.addAll(page);
+      if (page.length < 100) return result;
+      final next = page.fold<int>(
+        cursor,
+        (value, book) => book.usn > value ? book.usn : value,
+      );
+      if (next <= cursor) throw StateError('notebookSyncCursorStalled');
+      cursor = next;
+    }
+  }
+
+  Future<NotebookConflictSnapshot> reviewNotebookConflict(
+    StoredSession session,
+    String id,
+  ) async {
+    late NotebookConflictSnapshot snapshot;
+    await _sync.runMetadataUpdate(
+      () async {
+        final local = (await notebooks(session.account.cacheKey))
+            .where((n) => n.notebookId == id)
+            .firstOrNull;
+        if (local == null || local.usn <= 0 || !local.isDirty) {
+          throw StateError('notebookConflictLocalChanged');
+        }
+        final books = await _notebooksForReview(session);
+        final remote = books.where((n) => n.notebookId == id).firstOrNull;
+        if (remote == null || remote.isDeleted || remote.usn < local.usn) {
+          throw StateError('notebookConflictRemoteUnavailable');
+        }
+        snapshot = NotebookConflictSnapshot(
+          accountId: session.account.cacheKey,
+          local: local,
+          remote: remote,
+          remoteBooks: books,
+        );
+      },
+      account: session.account,
+      token: session.token,
+    );
+    return snapshot;
+  }
+
+  Future<void> resolveNotebookConflict(
+    StoredSession session,
+    NotebookConflictSnapshot reviewed, {
+    required bool keepLocal,
+  }) async {
+    if (reviewed.accountId != session.account.cacheKey) {
+      throw StateError('notebookConflictAccount');
+    }
+    await _sync.runMetadataUpdate(
+      () async {
+        final books = await _notebooksForReview(session);
+        final remote = books
+            .where((n) => n.notebookId == reviewed.remote.notebookId)
+            .firstOrNull;
+        if (remote == null || !sameNotebookVersion(remote, reviewed.remote)) {
+          throw StateError('notebookConflictRemoteChanged');
+        }
+        // A newly required parent must still be the one shown during review.
+        final reviewedById = {
+          for (final book in reviewed.remoteBooks) book.notebookId: book,
+        };
+        final freshById = {for (final book in books) book.notebookId: book};
+        var parent = remote.parentNotebookId;
+        final visited = <String>{remote.notebookId};
+        if (!keepLocal) {
+          while (parent.isNotEmpty) {
+            final expected = reviewedById[parent], actual = freshById[parent];
+            if (!visited.add(parent) ||
+                expected == null ||
+                actual == null ||
+                actual.isDeleted ||
+                !sameNotebookVersion(expected, actual)) {
+              throw StateError('notebookConflictRemoteChanged');
+            }
+            parent = actual.parentNotebookId;
+          }
+        }
+        await _database.resolveNotebookConflict(
+          session.account.cacheKey,
+          NotebookConflictSnapshot(
+            accountId: reviewed.accountId,
+            local: reviewed.local,
+            remote: remote,
+            remoteBooks: books,
+          ),
+          keepLocal: keepLocal,
+        );
+      },
+      account: session.account,
+      token: session.token,
     );
   }
 

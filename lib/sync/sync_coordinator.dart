@@ -284,7 +284,7 @@ class SyncCoordinator {
             found.title != local.title ||
             found.parentNotebookId != local.parentNotebookId ||
             found.sequence != local.sequence) {
-          throw StateError('笔记本存在远端冲突，本地修改已保留；请核对服务端后处理');
+          throw StateError('笔记本存在远端冲突，本地修改已保留；请在笔记本菜单中选择“核对远端修改”');
         }
         remote = found;
       }

@@ -1,3 +1,5 @@
+import '../../domain/models/notebook_conflict.dart';
+
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
@@ -913,6 +915,109 @@ class AppDatabase {
       {'title': nextTitle, 'parent_server_id': nextParent, 'is_dirty': 1},
       where: 'account_id = ? AND server_id = ?',
       whereArgs: [accountId, notebookId],
+    );
+  });
+
+  /// Resolve the reviewed notebook and its required clean ancestors. Note bodies,
+  /// dirty ancestors and the global cursor are never replaced.
+  Future<void> resolveNotebookConflict(
+    String accountId,
+    NotebookConflictSnapshot reviewed, {
+    required bool keepLocal,
+  }) => raw.transaction((txn) async {
+    if (reviewed.accountId != accountId) {
+      throw StateError('notebookConflictAccount');
+    }
+    final rows = await txn.query(
+      'notebooks',
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+    );
+    final books = rows.map(_notebookFromRow).toList();
+    final current = books
+        .where((n) => n.notebookId == reviewed.local.notebookId)
+        .firstOrNull;
+    if (current == null ||
+        !current.isDirty ||
+        current.usn <= 0 ||
+        !sameNotebookVersion(current, reviewed.local)) {
+      throw StateError('notebookConflictLocalChanged');
+    }
+    final remote = reviewed.remote;
+    if (remote.notebookId != current.notebookId ||
+        remote.isDeleted ||
+        remote.usn < current.usn) {
+      throw StateError('notebookConflictRemoteUnavailable');
+    }
+    final selected = keepLocal ? current : remote;
+    final byId = {for (final book in books) book.notebookId: book};
+    final remoteById = {
+      for (final book in reviewed.remoteBooks) book.notebookId: book,
+    };
+    final ancestors = <Notebook>[];
+    final visited = <String>{current.notebookId};
+    var parent = selected.parentNotebookId;
+    while (parent.isNotEmpty) {
+      if (!visited.add(parent)) throw StateError('notebookConflictHierarchy');
+      var book = byId[parent];
+      if (!keepLocal && (book == null || !book.isDirty)) {
+        final fresh = remoteById[parent];
+        if (fresh == null ||
+            fresh.isDeleted ||
+            fresh.usn <= 0 ||
+            (book != null &&
+                (fresh.usn < book.usn ||
+                    (fresh.usn == book.usn &&
+                        !sameNotebookVersion(fresh, book))))) {
+          throw StateError('notebookConflictHierarchy');
+        }
+        ancestors.add(fresh);
+        book = fresh;
+      }
+      if (book == null || book.isDeleted || book.usn < 0) {
+        throw StateError('notebookConflictHierarchy');
+      }
+      parent = book.parentNotebookId;
+    }
+    // Refresh only the required ancestors without local changes. Never REPLACE
+    // their rows: resources and notes may refer to them through foreign keys.
+    for (final book in ancestors.reversed) {
+      final values = <String, Object?>{
+        'account_id': accountId,
+        'server_id': book.notebookId,
+        'parent_server_id': book.parentNotebookId,
+        'title': book.title,
+        'sequence': book.sequence,
+        'usn': book.usn,
+        'number_notes': book.numberNotes,
+      };
+      if (byId.containsKey(book.notebookId)) {
+        await txn.update(
+          'notebooks',
+          values,
+          where: 'account_id = ? AND server_id = ?',
+          whereArgs: [accountId, book.notebookId],
+        );
+      } else {
+        await txn.insert('notebooks', values);
+      }
+    }
+    final differs =
+        selected.title != remote.title ||
+        selected.parentNotebookId != remote.parentNotebookId ||
+        selected.sequence != remote.sequence;
+    await txn.update(
+      'notebooks',
+      {
+        'title': selected.title,
+        'parent_server_id': selected.parentNotebookId,
+        'sequence': selected.sequence,
+        'usn': remote.usn,
+        'number_notes': remote.numberNotes,
+        'is_dirty': differs ? 1 : 0,
+      },
+      where: 'account_id = ? AND server_id = ?',
+      whereArgs: [accountId, current.notebookId],
     );
   });
 

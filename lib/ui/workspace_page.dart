@@ -1,3 +1,4 @@
+import 'notebook_conflict_dialog.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/language_controller.dart';
 import 'language_dialog.dart';
@@ -1442,11 +1443,17 @@ class _WorkspacePageState extends State<WorkspacePage>
       await showDialog<bool>(
         context: context,
         barrierDismissible: false,
-        builder: (_) => NotebookCreationDialog(
-          repository: widget.repository,
-          session: widget.session,
-          notebook: notebook,
-        ),
+        builder: (_) => notebook.usn > 0
+            ? NotebookConflictDialog(
+                repository: widget.repository,
+                session: widget.session,
+                notebook: notebook,
+              )
+            : NotebookCreationDialog(
+                repository: widget.repository,
+                session: widget.session,
+                notebook: notebook,
+              ),
       );
       if (mounted) await _reloadNotes();
     } finally {
@@ -1720,7 +1727,8 @@ class _WorkspacePageState extends State<WorkspacePage>
                           _editNotebook(parentId: notebook.notebookId);
                         }
                         if (action == 'move') _moveNotebook(notebook);
-                        if (action == 'recoverCreation') {
+                        if (action == 'recoverCreation' ||
+                            action == 'reviewConflict') {
                           _recoverNotebook(notebook);
                         }
                       },
@@ -1737,6 +1745,11 @@ class _WorkspacePageState extends State<WorkspacePage>
                           value: 'move',
                           child: Text(tr(context, 'm0168')),
                         ),
+                        if (notebook.usn > 0 && notebook.isDirty)
+                          PopupMenuItem(
+                            value: 'reviewConflict',
+                            child: Text(tr(context, 'notebookReviewTitle')),
+                          ),
                         if (notebook.usn == 0)
                           PopupMenuItem(
                             value: 'recoverCreation',
