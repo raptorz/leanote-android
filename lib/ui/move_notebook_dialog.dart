@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../domain/models/notebook.dart';
@@ -49,7 +51,7 @@ class _MoveNotebookDialogState extends State<MoveNotebookDialog> {
       if (mounted) {
         setState(() {
           _busy = false;
-          _error = '移动失败：$error';
+          _error = trNow(context, 'm0164', [error]);
         });
       }
     }
@@ -59,13 +61,13 @@ class _MoveNotebookDialogState extends State<MoveNotebookDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: AlertDialog(
-      title: const Text('移动笔记本'),
+      title: Text(tr(context, 'm0165')),
       content: SizedBox(
         width: 320,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('选择新的父笔记本。此操作先保存到本机，下次同步时上传。'),
+            Text(tr(context, 'm0166')),
             Flexible(
               child: SizedBox(
                 height: 280,
@@ -79,7 +81,7 @@ class _MoveNotebookDialogState extends State<MoveNotebookDialog> {
                             widget.session.account.cacheKey,
                           );
                         }),
-                        child: const Text('读取失败，点击重试'),
+                        child: Text(tr(context, 'm0167')),
                       );
                     }
                     if (!snapshot.hasData) {
@@ -106,7 +108,7 @@ class _MoveNotebookDialogState extends State<MoveNotebookDialog> {
             ),
             if (_error != null)
               Text(
-                _error!,
+                trMessage(context, _error!),
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             if (_busy) const LinearProgressIndicator(),
@@ -116,11 +118,11 @@ class _MoveNotebookDialogState extends State<MoveNotebookDialog> {
       actions: [
         FilledButton(
           onPressed: _busy || _parent == null ? null : _move,
-          child: const Text('移动'),
+          child: Text(tr(context, 'm0168')),
         ),
         TextButton(
           onPressed: _busy ? null : () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(tr(context, 'm0026')),
         ),
       ],
     ),

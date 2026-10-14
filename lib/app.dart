@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+
+import 'l10n/app_strings.dart';
+import 'l10n/language_controller.dart';
 
 import 'dart:async';
 
@@ -6,28 +10,94 @@ import 'repositories/auth_repository.dart';
 import 'ui/login_page.dart';
 import 'ui/workspace_page.dart';
 import 'services/home_widget.dart';
+import 'services/native_language.dart';
 
-class GemsnoteApp extends StatelessWidget {
+class GemsnoteApp extends StatefulWidget {
   const GemsnoteApp({required this.repository, super.key});
-
   final AuthRepository repository;
+  @override
+  State<GemsnoteApp> createState() => _GemsnoteAppState();
+}
+
+class _GemsnoteAppState extends State<GemsnoteApp> {
+  late final LanguageController _language;
+  @override
+  void initState() {
+    super.initState();
+    _language = LanguageController(
+      load: widget.repository.languagePreference,
+      save: widget.repository.setLanguagePreference,
+      applyNative: setNativeLanguage,
+    );
+    unawaited(_language.restore());
+  }
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Gemsnote',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xff173d38),
-          brightness: Brightness.light,
-        ),
-        scaffoldBackgroundColor: const Color(0xfff6f4eb),
-        useMaterial3: true,
-      ),
-      home: _RootGate(repository: repository),
-    );
+  void dispose() {
+    _language.dispose();
+    super.dispose();
   }
+
+  @override
+  Widget build(BuildContext context) => LanguageScope(
+    controller: _language,
+    child: ListenableBuilder(
+      listenable: _language,
+      builder: (context, _) => MaterialApp(
+        title: 'Gemsnote',
+        debugShowCheckedModeBanner: false,
+        locale: _language.locale,
+        supportedLocales: const [Locale('zh'), Locale('en')],
+        localizationsDelegates: const [
+          AppStrings.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        localeListResolutionCallback: (locales, _) =>
+            Locale(locales?.firstOrNull?.languageCode == 'zh' ? 'zh' : 'en'),
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xff173d38),
+            brightness: Brightness.light,
+          ),
+          scaffoldBackgroundColor: const Color(0xfff6f4eb),
+          useMaterial3: true,
+        ),
+        builder: (context, child) => Column(
+          children: [
+            if (_language.loadError != null || _language.nativeError != null)
+              Material(
+                color: Theme.of(context).colorScheme.errorContainer,
+                child: SafeArea(
+                  bottom: false,
+                  child: ListTile(
+                    title: Text(
+                      tr(
+                        context,
+                        _language.loadError != null
+                            ? 'languageLoadFailed'
+                            : 'nativeLanguageFailed',
+                      ),
+                    ),
+                    trailing: TextButton(
+                      onPressed: _language.loadError != null
+                          ? _language.restore
+                          : _language.refreshNative,
+                      child: Text(tr(context, 'languageRetry')),
+                    ),
+                  ),
+                ),
+              ),
+            Expanded(child: child!),
+          ],
+        ),
+        home: _language.ready
+            ? _RootGate(repository: widget.repository)
+            : const Scaffold(body: Center(child: CircularProgressIndicator())),
+      ),
+    ),
+  );
 }
 
 class _RootGate extends StatefulWidget {

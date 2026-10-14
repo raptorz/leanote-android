@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import 'visual_html_policy.dart';
@@ -22,7 +24,7 @@ class _EditorLinkDialogState extends State<EditorLinkDialog> {
   void _submit() {
     final value = _url.text.trim();
     if (!isSafeEditorLink(value)) {
-      setState(() => _error = '请输入有效的 http:// 或 https:// 链接，不支持内嵌账号密码。');
+      setState(() => _error = trNow(context, 'm0110'));
       return;
     }
     Navigator.of(context).pop(value);
@@ -30,7 +32,7 @@ class _EditorLinkDialogState extends State<EditorLinkDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('插入链接'),
+    title: Text(tr(context, 'm0111')),
     content: TextField(
       controller: _url,
       autofocus: true,
@@ -39,7 +41,7 @@ class _EditorLinkDialogState extends State<EditorLinkDialog> {
       textInputAction: TextInputAction.done,
       onSubmitted: (_) => _submit(),
       decoration: InputDecoration(
-        labelText: '链接地址',
+        labelText: tr(context, 'm0112'),
         hintText: 'https://',
         errorText: _error,
         errorMaxLines: 3,
@@ -48,9 +50,9 @@ class _EditorLinkDialogState extends State<EditorLinkDialog> {
     actions: [
       TextButton(
         onPressed: () => Navigator.of(context).pop(),
-        child: const Text('取消'),
+        child: Text(tr(context, 'm0026')),
       ),
-      FilledButton(onPressed: _submit, child: const Text('确定')),
+      FilledButton(onPressed: _submit, child: Text(tr(context, 'm0113'))),
     ],
   );
 }

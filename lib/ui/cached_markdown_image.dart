@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -58,7 +60,7 @@ class _CachedMarkdownImageState extends State<CachedMarkdownImage> {
       }
     } on Object catch (error) {
       if (mounted && generation == _generation) {
-        setState(() => _error = '下载失败：$error');
+        setState(() => _error = trNow(context, 'm0095', [error]));
       }
     } finally {
       if (mounted && generation == _generation) {
@@ -74,18 +76,22 @@ class _CachedMarkdownImageState extends State<CachedMarkdownImage> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          '图片尚未缓存或无法读取${widget.alt == null || widget.alt!.isEmpty ? '' : '：${widget.alt}'}',
+          trNow(context, 'm0096', [
+            widget.alt == null || widget.alt!.isEmpty ? '' : '：${widget.alt}',
+          ]),
         ),
         if (_error != null)
           Text(
-            _error!,
+            trMessage(context, _error!),
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
         if (widget.download != null)
           TextButton.icon(
             onPressed: _downloading ? null : _download,
             icon: const Icon(Icons.download_outlined),
-            label: Text(_downloading ? '正在下载…' : '下载图片'),
+            label: Text(
+              _downloading ? trNow(context, 'm0097') : trNow(context, 'm0098'),
+            ),
           ),
       ],
     ),

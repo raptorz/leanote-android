@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -19,11 +21,12 @@ class _MobileAboutDialogState extends State<MobileAboutDialog> {
       await (widget.loadPackageInfo?.call() ?? PackageInfo.fromPlatform())
           .timeout(const Duration(seconds: 5));
 
-  String _value(String value) => value.trim().isEmpty ? '未知' : value;
+  String _value(String value) =>
+      value.trim().isEmpty ? trNow(context, 'm0001') : value;
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('关于珠玑笔记'),
+    title: Text(tr(context, 'm0002')),
     content: SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -38,44 +41,47 @@ class _MobileAboutDialogState extends State<MobileAboutDialog> {
           ),
           const SizedBox(height: 16),
           const Text('Gemsnote Mobile'),
-          const Text('日积字句，终得珠玑。'),
+          Text(tr(context, 'm0003')),
           const SizedBox(height: 16),
           FutureBuilder<PackageInfo>(
             future: _info,
             builder: (context, snapshot) {
               if (snapshot.connectionState != ConnectionState.done) {
-                return const Text('正在读取应用版本…');
+                return Text(tr(context, 'm0004'));
               }
               if (snapshot.hasError || !snapshot.hasData) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('无法读取应用版本，请重试。'),
+                    Text(tr(context, 'm0005')),
                     TextButton(
                       onPressed: () => setState(() {
                         _info = _load();
                       }),
-                      child: const Text('重试'),
+                      child: Text(tr(context, 'm0006')),
                     ),
                   ],
                 );
               }
               final info = snapshot.data!;
               return SelectableText(
-                '应用版本：${_value(info.version)}\n构建号：${_value(info.buildNumber)}',
+                tr(context, 'm0007', [
+                  _value(info.version),
+                  _value(info.buildNumber),
+                ]),
               );
             },
           ),
-          const Text('API2 协议版本：${Api2Client.clientVersion}'),
+          Text(tr(context, 'm0008', [Api2Client.clientVersion])),
           const SizedBox(height: 16),
-          const Text('基于 Leanote Android 重构，使用 Flutter 构建，支持本地 SQLite 离线缓存。'),
+          Text(tr(context, 'm0009')),
         ],
       ),
     ),
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('关闭'),
+        child: Text(tr(context, 'm0010')),
       ),
     ],
   );

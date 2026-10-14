@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -123,12 +125,12 @@ class _NoteEditorPageState extends State<NoteEditorPage>
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            tooltip: '撤销',
+            tooltip: trNow(context, 'm0169'),
             onPressed: !_busy && value.canUndo ? history.undo : null,
             icon: const Icon(Icons.undo),
           ),
           IconButton(
-            tooltip: '重做',
+            tooltip: trNow(context, 'm0170'),
             onPressed: !_busy && value.canRedo ? history.redo : null,
             icon: const Icon(Icons.redo),
           ),
@@ -158,7 +160,9 @@ class _NoteEditorPageState extends State<NoteEditorPage>
         _savedContent = content;
         if (mounted) setState(() => _saveError.value = null);
       } on Object catch (error) {
-        if (mounted) setState(() => _saveError.value = '保存到本地失败：$error');
+        if (mounted) {
+          setState(() => _saveError.value = trNow(context, 'm0115', [error]));
+        }
         return false;
       }
     }
@@ -199,7 +203,7 @@ class _NoteEditorPageState extends State<NoteEditorPage>
       if (!mounted || url == null) return;
       if (_content.text != original.text) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('正文已变化，请重新选择文字后插入链接。')));
+            .showSnackBar(SnackBar(content: Text(trNow(context, 'm0171'))));
         return;
       }
       _content.value = insertMarkdownLink(original, url);
@@ -214,7 +218,9 @@ class _NoteEditorPageState extends State<NoteEditorPage>
     final original = _content.value;
     setState(() => _insertingImage = true);
     try {
-      final image = await (widget.pickImage ?? NoteImagePicker().pick)();
+      final image =
+          await (widget.pickImage ??
+              NoteImagePicker(strings: AppStrings.snapshot(context)).pick)();
       if (!mounted || image == null) return;
       if (!await _flush() || !mounted) return;
       final reference = await showDialog<String>(
@@ -231,7 +237,7 @@ class _NoteEditorPageState extends State<NoteEditorPage>
       // Only API-created relative references may be written into the body.
       if (!RegExp(r'^/api2/file/getImage\?fileId=[0-9a-fA-F]{24}$')
           .hasMatch(reference)) {
-        throw const FormatException('图片地址无效，未插入正文');
+        throw FormatException(trNow(context, 'm0172'));
       }
       // Insert after the selection, preserving selected text and all HTML.
       // HTML images are appended so a caret inside a tag cannot corrupt it.
@@ -250,14 +256,14 @@ class _NoteEditorPageState extends State<NoteEditorPage>
       );
       final saved = await _flush();
       if (mounted && saved) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('图片已插入并保存到本地，正文待同步。同步后可在阅读页下载预览图片。')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(trNow(context, 'm0173'))));
       }
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('插入图片失败：$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(trNow(context, 'm0174', [error]))),
+        );
       }
     } finally {
       if (mounted) setState(() => _insertingImage = false);
@@ -268,18 +274,20 @@ class _NoteEditorPageState extends State<NoteEditorPage>
     if (_busy || widget.stageImage == null) return;
     setState(() => _insertingImage = true);
     try {
-      final image = await (widget.pickImage ?? NoteImagePicker().pick)();
+      final image =
+          await (widget.pickImage ??
+              NoteImagePicker(strings: AppStrings.snapshot(context)).pick)();
       if (!mounted || image == null || !await _flush() || !mounted) return;
       await widget.stageImage!(image);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('图片已暂存到本机。联网后从账号菜单的“本地待上传资源”上传并插入正文。')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(trNow(context, 'm0175'))));
       }
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('暂存图片失败：$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(trNow(context, 'm0176', [error]))),
+        );
       }
     } finally {
       if (mounted) setState(() => _insertingImage = false);
@@ -304,22 +312,20 @@ class _NoteEditorPageState extends State<NoteEditorPage>
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text(widget.note.isMarkdown ? '编辑 Markdown' : '编辑 HTML 原文'),
+      title: Text(
+        widget.note.isMarkdown ? tr(context, 'm0177') : tr(context, 'm0178'),
+      ),
       actions: [
         if (!widget.note.isMarkdown)
           IconButton(
-            tooltip: '可视化编辑',
+            tooltip: tr(context, 'm0179'),
             icon: const Icon(Icons.format_shapes),
             onPressed: _busy
                 ? null
                 : () async {
                     if (!supportsVisualHtml(_content.text)) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            '此笔记包含图片、不支持的链接或复杂 HTML，请继续编辑原文，避免丢失内容。',
-                          ),
-                        ),
+                        SnackBar(content: Text(tr(context, 'm0180'))),
                       );
                       return;
                     }
@@ -327,6 +333,7 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                     await Navigator.of(context).push<void>(
                       MaterialPageRoute(
                         builder: (_) => VisualHtmlEditor(
+                          strings: AppStrings.of(context),
                           source: _content.text,
                           flush: _flush,
                           saveError: _saveError,
@@ -341,17 +348,17 @@ class _NoteEditorPageState extends State<NoteEditorPage>
           ),
         IconButton(
           tooltip: _preview
-              ? '继续编辑'
+              ? tr(context, 'm0181')
               : widget.note.isMarkdown
-              ? '预览 Markdown'
-              : '预览富文本',
+              ? tr(context, 'm0182')
+              : tr(context, 'm0183'),
           onPressed: _busy ? null : _togglePreview,
           icon: Icon(
             _preview ? Icons.edit_outlined : Icons.visibility_outlined,
           ),
         ),
         IconButton(
-          tooltip: '保存到本地',
+          tooltip: tr(context, 'm0184'),
           onPressed: _busy ? null : _save,
           icon: const Icon(Icons.check),
         ),
@@ -368,9 +375,12 @@ class _NoteEditorPageState extends State<NoteEditorPage>
           children: [
             if (_error != null)
               MaterialBanner(
-                content: Text(_error!),
+                content: Text(trMessage(context, _error!)),
                 actions: [
-                  TextButton(onPressed: _flush, child: const Text('重试')),
+                  TextButton(
+                    onPressed: _flush,
+                    child: Text(tr(context, 'm0006')),
+                  ),
                 ],
               ),
             TextField(
@@ -379,14 +389,14 @@ class _NoteEditorPageState extends State<NoteEditorPage>
               readOnly: _busy,
               controller: _title,
               autofocus: widget.note.title.isEmpty,
-              decoration: const InputDecoration(hintText: '笔记标题'),
+              decoration: InputDecoration(hintText: tr(context, 'm0185')),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 12),
             if (!widget.note.isMarkdown)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(bottom: 8),
-                child: Text('编辑 HTML 原文，预览显示基本排版及已缓存图片，不联网加载资源或执行脚本。原文将完整保存。'),
+                child: Text(tr(context, 'm0186')),
               ),
             if (!_preview)
               SingleChildScrollView(
@@ -396,89 +406,94 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                     _historyButtons(),
                     if (widget.stageImage != null)
                       IconButton(
-                        tooltip: '离线暂存图片',
+                        tooltip: tr(context, 'm0187'),
                         icon: const Icon(Icons.add_photo_alternate),
                         onPressed: _busy ? null : _stageImage,
                       ),
                     if (widget.uploadImage != null)
                       IconButton(
-                        tooltip: widget.note.isMarkdown ? '插入图片' : '在文末插入图片',
+                        tooltip: widget.note.isMarkdown
+                            ? tr(context, 'm0188')
+                            : tr(context, 'm0189'),
                         icon: const Icon(Icons.add_photo_alternate_outlined),
                         onPressed: _busy ? null : _insertImage,
                       ),
                     if (widget.note.isMarkdown) ...[
                       _formatButton(
-                        '加粗',
+                        tr(context, 'm0190'),
                         Icons.format_bold,
                         (value) => wrapMarkdown(value, '**'),
                       ),
                       _formatButton(
-                        '斜体',
+                        tr(context, 'm0191'),
                         Icons.format_italic,
                         (value) => wrapMarkdown(value, '*'),
                       ),
                       _formatButton(
-                        '行内代码',
+                        tr(context, 'm0192'),
                         Icons.code,
                         (value) => wrapMarkdown(value, '`'),
                       ),
                       _formatButton(
-                        '标题',
+                        tr(context, 'm0193'),
                         Icons.title,
                         (value) => prefixMarkdownLines(value, '# '),
                       ),
                       _formatButton(
-                        '无序列表',
+                        tr(context, 'm0194'),
                         Icons.format_list_bulleted,
                         (value) => prefixMarkdownLines(value, '- '),
                       ),
                       _formatButton(
-                        '有序列表',
+                        tr(context, 'm0195'),
                         Icons.format_list_numbered,
                         numberMarkdownLines,
                       ),
                       _formatButton(
-                        '引用',
+                        tr(context, 'm0196'),
                         Icons.format_quote,
                         (value) => prefixMarkdownLines(value, '> '),
                       ),
                       _formatButton(
-                        '删除线',
+                        tr(context, 'm0197'),
                         Icons.format_strikethrough,
                         (value) => wrapMarkdown(value, '~~'),
                       ),
                       _formatButton(
-                        '代码块',
+                        tr(context, 'm0198'),
                         Icons.code_outlined,
                         fenceMarkdownCode,
                       ),
                       _formatButton(
-                        '任务列表',
+                        tr(context, 'm0199'),
                         Icons.check_box_outlined,
                         (value) => prefixMarkdownLines(value, '- [ ] '),
                       ),
                       _formatButton(
-                        '插入表格',
+                        tr(context, 'm0119'),
                         Icons.table_chart_outlined,
-                        insertMarkdownTable,
+                        (value) => insertMarkdownTable(
+                          value,
+                          template: tr(context, 'markdownTableTemplate'),
+                        ),
                       ),
                       _formatButton(
-                        '分隔线',
+                        tr(context, 'm0200'),
                         Icons.horizontal_rule,
                         (value) => insertMarkdownBlock(value, '---'),
                       ),
                       _formatButton(
-                        '行内公式',
+                        tr(context, 'm0201'),
                         Icons.functions,
                         (value) => wrapMarkdown(value, r'$'),
                       ),
                       _formatButton(
-                        '公式块',
+                        tr(context, 'm0202'),
                         Icons.calculate_outlined,
                         fenceMarkdownMath,
                       ),
                       IconButton(
-                        tooltip: '插入链接',
+                        tooltip: tr(context, 'm0111'),
                         icon: const Icon(Icons.link),
                         onPressed: _busy || _linkDialogOpen
                             ? null
@@ -505,8 +520,8 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                     keyboardType: TextInputType.multiline,
                     decoration: InputDecoration(
                       hintText: widget.note.isMarkdown
-                          ? '使用 Markdown 开始记录…'
-                          : '输入 HTML 原文，例如 <p>开始记录…</p>',
+                          ? tr(context, 'm0203')
+                          : tr(context, 'm0204'),
                       border: InputBorder.none,
                     ),
                   ),

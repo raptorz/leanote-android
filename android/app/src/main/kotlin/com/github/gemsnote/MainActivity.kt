@@ -49,6 +49,13 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "gemsnote/app_language").setMethodCallHandler { call, result ->
+            if (call.method != "setLanguage") result.notImplemented()
+            else try {
+                NativeLanguage.set(this, call.argument<String>("language") ?: "system")
+                result.success(null)
+            } catch (error: Exception) { result.error("language", NativeLanguage.errorMessage(this, error), null) }
+        }
         avatarCamera.clearAbandonedCapture()
         cameraChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "gemsnote/avatar_camera")
         cameraChannel!!.setMethodCallHandler { call, result ->
@@ -76,7 +83,7 @@ class MainActivity : FlutterActivity() {
                     }
                     else -> result.notImplemented()
                 }
-            } catch (error: Exception) { result.error("homeWidget", error.message, null) }
+            } catch (error: Exception) { result.error("homeWidget", NativeLanguage.errorMessage(this, error), null) }
         }
         activeActivity = WeakReference(this)
         shareChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "gemsnote/shared_text")
@@ -105,12 +112,12 @@ class MainActivity : FlutterActivity() {
                         val account = call.argument<String>("accountKey")
                         val item = (0 until queue.length()).map { queue.getJSONObject(it) }
                             .firstOrNull { it.getString("id") == id }
-                            ?: error("分享已不存在")
+                            ?: error(NativeLanguage.text(this, R.string.native_0))
                         require(!account.isNullOrBlank())
                         val previous = item.optString("accountKey", "")
-                        check(previous.isEmpty() || previous == account) { "此分享已指定其他账号" }
+                        check(previous.isEmpty() || previous == account) { NativeLanguage.text(this, R.string.native_1) }
                         item.put("accountKey", account)
-                        check(prefs.edit().putString("queue", queue.toString()).commit()) { "无法保存分享状态" }
+                        check(prefs.edit().putString("queue", queue.toString()).commit()) { NativeLanguage.text(this, R.string.native_2) }
                         result.success(null)
                     }
                     "acknowledge" -> {
@@ -121,7 +128,7 @@ class MainActivity : FlutterActivity() {
                             val item = queue.getJSONObject(i)
                             if (item.getString("id") != id) remaining.put(item)
                         }
-                        check(prefs.edit().putString("queue", remaining.toString()).commit()) { "无法清除分享状态" }
+                        check(prefs.edit().putString("queue", remaining.toString()).commit()) { NativeLanguage.text(this, R.string.native_3) }
                         resources().delete(id)
                         result.success(null)
                     }
@@ -129,23 +136,23 @@ class MainActivity : FlutterActivity() {
                         val id = call.argument<String>("id")
                         val account = call.argument<String>("accountKey")
                         val item = (0 until queue.length()).map { queue.getJSONObject(it) }
-                            .firstOrNull { it.getString("id") == id } ?: error("分享已不存在")
-                        require(!account.isNullOrBlank() && item.optString("accountKey") == account) { "此分享尚未指定当前账号" }
-                        require(item.optString("resourceKind").isNotEmpty()) { "分享不包含资源文件" }
+                            .firstOrNull { it.getString("id") == id } ?: error(NativeLanguage.text(this, R.string.native_0))
+                        require(!account.isNullOrBlank() && item.optString("accountKey") == account) { NativeLanguage.text(this, R.string.native_4) }
+                        require(item.optString("resourceKind").isNotEmpty()) { NativeLanguage.text(this, R.string.native_5) }
                         val size = item.getLong("resourceSize")
                         readers.execute {
                             try {
                                 val bytes = resources().read(id, size)
                                 runOnUiThread { result.success(bytes) }
                             } catch (error: Exception) {
-                                runOnUiThread { result.error("shareResource", error.message, null) }
+                                runOnUiThread { result.error("shareResource", NativeLanguage.errorMessage(this, error), null) }
                             }
                         }
                     }
                     else -> result.notImplemented()
                 }
             } catch (error: Exception) {
-                result.error("shareInbox", error.message, null)
+                result.error("shareInbox", NativeLanguage.errorMessage(this, error), null)
             }
         }
     }
@@ -175,7 +182,7 @@ class MainActivity : FlutterActivity() {
     private fun receiveText(incoming: Intent?) {
         if (incoming == null || incoming.action !in setOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE)) return
         try {
-            require(incoming.type?.contains('/') == true) { "无法识别分享类型" }
+            require(incoming.type?.contains('/') == true) { NativeLanguage.text(this, R.string.native_6) }
             val multiple = incoming.action == Intent.ACTION_SEND_MULTIPLE
             val streams = if (multiple) {
                 IntentCompat.getParcelableArrayListExtra(incoming, Intent.EXTRA_STREAM, Uri::class.java)?.toList()
@@ -184,7 +191,7 @@ class MainActivity : FlutterActivity() {
                 listOfNotNull(IntentCompat.getParcelableExtra(incoming, Intent.EXTRA_STREAM, Uri::class.java))
             }
             val clip = incoming.clipData
-            require(clip == null || clip.itemCount <= 8) { "每次最多接收 8 项分享" }
+            require(clip == null || clip.itemCount <= 8) { NativeLanguage.text(this, R.string.native_7) }
             val clipUris = if (clip == null) emptyList() else
                 (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri }
             val uris = if (streams.isNotEmpty()) streams else clipUris
@@ -195,22 +202,22 @@ class MainActivity : FlutterActivity() {
                 null -> emptyList()
                 is CharSequence -> listOf(extraText.toString())
                 is ArrayList<*> -> extraText.map {
-                    require(it is CharSequence) { "无法识别分享文本" }
+                    require(it is CharSequence) { NativeLanguage.text(this, R.string.native_8) }
                     it.toString()
                 }
-                else -> error("无法识别分享文本")
+                else -> error(NativeLanguage.text(this, R.string.native_8))
             }
-            require(values.size <= 8) { "每次最多接收 8 项分享" }
+            require(values.size <= 8) { NativeLanguage.text(this, R.string.native_7) }
             val texts = values.map { TextInput(subject, SharedTextDecoder.validate(it)) }
-            require(multiple || uris.size <= 1 && texts.size <= 1) { "单项分享包含多项内容" }
-            require(uris.size + texts.size in 1..8) { "每次需要分享 1–8 项文本或文本文件" }
+            require(multiple || uris.size <= 1 && texts.size <= 1) { NativeLanguage.text(this, R.string.native_9) }
+            require(uris.size + texts.size in 1..8) { NativeLanguage.text(this, R.string.native_10) }
             if (uris.isNotEmpty()) {
-                require(multiple || uris.size == 1) { "单项分享包含多个文件，请使用多项分享" }
-                require(uris.size <= 8) { "每次最多接收 8 项分享" }
-                require(clipUris.all { it in uris }) { "分享包含未识别的额外文件" }
+                require(multiple || uris.size == 1) { NativeLanguage.text(this, R.string.native_11) }
+                require(uris.size <= 8) { NativeLanguage.text(this, R.string.native_7) }
+                require(clipUris.all { it in uris }) { NativeLanguage.text(this, R.string.native_12) }
                 readTextFiles(uris, subject, texts, incoming.type!!)
             } else {
-                require(!incoming.hasExtra(Intent.EXTRA_STREAM)) { "无法识别分享文件" }
+                require(!incoming.hasExtra(Intent.EXTRA_STREAM)) { NativeLanguage.text(this, R.string.native_13) }
                 enqueue(texts)
             }
         } catch (error: Exception) {
@@ -224,7 +231,7 @@ class MainActivity : FlutterActivity() {
     private fun readTextFiles(uris: List<Uri>, subject: String, captions: List<TextInput>, declaredType: String) {
         check(activeReaders.incrementAndGet() <= 2) {
             activeReaders.decrementAndGet()
-            "正在读取其他分享，请稍后重试"
+            NativeLanguage.text(this, R.string.native_14)
         }
         val completed = AtomicBoolean(false)
         val timeout = AtomicReference<ScheduledFuture<*>?>()
@@ -232,13 +239,13 @@ class MainActivity : FlutterActivity() {
             val staged = mutableListOf<String>()
             try {
                 val inputs = uris.map { uri ->
-                    check(!completed.get()) { "分享读取已结束" }
+                    check(!completed.get()) { NativeLanguage.text(this, R.string.native_15) }
                     require(uri.scheme == "content" && !uri.authority.isNullOrEmpty()) {
-                        "分享文件必须使用授权的 content URI"
+                        NativeLanguage.text(this, R.string.native_16)
                     }
                     val provider = packageManager.resolveContentProvider(uri.authority!!, 0)
                     require(provider?.applicationInfo?.uid != applicationInfo.uid) {
-                        "不能通过外部分享读取应用内部文件"
+                        NativeLanguage.text(this, R.string.native_17)
                     }
                     val mime = contentResolver.getType(uri) ?: declaredType
                     var name = subject
@@ -250,16 +257,16 @@ class MainActivity : FlutterActivity() {
                     }
                     if (mime in textTypes) {
                         val text = contentResolver.openInputStream(uri)?.use { SharedTextDecoder.read(it) }
-                            ?: error("无法读取分享文件")
+                            ?: error(NativeLanguage.text(this, R.string.native_18))
                         TextInput(name, text)
                     } else {
                         name = name.replace('\\', '/').substringAfterLast('/').ifBlank { "shared-file" }
                         name = name.replace(Regex("[\\x00-\\x1f\\x7f]"), "").ifBlank { "shared-file" }
                         name = name.substring(0, name.offsetByCodePoints(0, minOf(120, name.codePointCount(0, name.length))))
                         if (name == "." || name == "..") name = "shared-file"
-                        val input = TextInput(name, "分享的文件：$name", kind = if (mime in setOf("image/png", "image/jpeg")) "image" else "attachment")
+                        val input = TextInput(name, NativeLanguage.text(this, R.string.native_shared_file, name), kind = if (mime in setOf("image/png", "image/jpeg")) "image" else "attachment")
                         val size = contentResolver.openInputStream(uri)?.use { resources().write(input.id, it) { completed.get() } }
-                            ?: error("无法读取分享文件")
+                            ?: error(NativeLanguage.text(this, R.string.native_18))
                         staged.add(input.id)
                         input.copy(size = size)
                     }
@@ -295,7 +302,7 @@ class MainActivity : FlutterActivity() {
         }
         timeout.set(timeouts.schedule({
             if (completed.compareAndSet(false, true)) {
-                runOnUiThread { showShareError(IllegalStateException("读取分享超时，未保存，请重试")) }
+                runOnUiThread { showShareError(IllegalStateException(NativeLanguage.text(this, R.string.native_19))) }
             }
         }, 15, TimeUnit.SECONDS))
         if (completed.get()) timeout.get()?.cancel(false)
@@ -308,22 +315,22 @@ class MainActivity : FlutterActivity() {
     private fun enqueue(inputs: List<TextInput>) {
         val queue = JSONArray(prefs.getString("queue", "[]"))
         pruneResources(queue)
-        check(queue.length() + inputs.size <= 8) { "待处理分享容量不足，请先处理应用中的分享" }
+        check(queue.length() + inputs.size <= 8) { NativeLanguage.text(this, R.string.native_20) }
         for (input in inputs) {
             queue.put(JSONObject().put("id", input.id)
                 .put("title", input.title).put("text", input.text)
                 .put("resourceKind", input.kind).put("resourceName", if (input.kind.isEmpty()) "" else input.title)
                 .put("resourceSize", input.size))
         }
-        check(prefs.edit().putString("queue", queue.toString()).commit()) { "无法保存分享内容" }
+        check(prefs.edit().putString("queue", queue.toString()).commit()) { NativeLanguage.text(this, R.string.native_21) }
         // Persistence already succeeded. A detached engine or toast failure
         // must not cause callers to delete the newly committed originals.
         runCatching { activeActivity.get()?.shareChannel?.invokeMethod("changed", null) }
-        runCatching { Toast.makeText(applicationContext, "已接收 ${inputs.size} 项分享，请在待处理分享中确认导入", Toast.LENGTH_LONG).show() }
+        runCatching { Toast.makeText(applicationContext, NativeLanguage.text(this, R.string.native_share_received, inputs.size), Toast.LENGTH_LONG).show() }
     }
 
     private fun showShareError(error: Exception) {
-        Toast.makeText(applicationContext, error.message ?: "无法读取分享内容", Toast.LENGTH_LONG).show()
+        Toast.makeText(applicationContext, NativeLanguage.errorMessage(this, error) ?: NativeLanguage.text(this, R.string.native_22), Toast.LENGTH_LONG).show()
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {

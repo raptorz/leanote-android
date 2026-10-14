@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -139,6 +141,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
       (span is TextSpan && (span.children?.any(_hasWidgets) ?? false));
 
   List<InlineSpan> _render(
+    AppStrings strings,
     List<dom.Node> nodes, {
     int depth = 0,
     bool pre = false,
@@ -163,7 +166,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
       if (_omitted.contains(tag)) continue;
       // Avoid unbounded recursion for hostile or accidentally deeply nested HTML.
       if (depth >= 64) {
-        spans.add(const TextSpan(text: '[嵌套内容过深，请查看原文]'));
+        spans.add(TextSpan(text: strings.text('deepHtml')));
         continue;
       }
       if (tag == 'table' && tables != null) {
@@ -181,6 +184,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
                   imageWidth,
                   images,
                   depth + 1,
+                  strings,
                 ),
               ),
             ),
@@ -196,14 +200,21 @@ class SafeHtmlNoteBody extends StatelessWidget {
             WidgetSpan(
               child: SizedBox(
                 width: imageWidth,
-                child: _table(node, rows, imageWidth, images, depth + 1),
+                child: _table(
+                  node,
+                  rows,
+                  imageWidth,
+                  images,
+                  depth + 1,
+                  strings,
+                ),
               ),
             ),
           );
           spans.add(const TextSpan(text: '\n'));
           continue;
         }
-        spans.add(const TextSpan(text: '\n[复杂或大型表格按文字显示，可查看原文]\n'));
+        spans.add(TextSpan(text: strings.text('largeTable')));
       }
       if (tag == 'img' || tag == 'video' || tag == 'audio') {
         final collected = tag == 'img' && images != null && images.length < 100;
@@ -212,7 +223,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
           spans.add(const TextSpan(text: '\n'));
           spans.add(
             WidgetSpan(
-              child: SizedBox(width: imageWidth, child: _image(node)),
+              child: SizedBox(width: imageWidth, child: _image(node, strings)),
             ),
           );
           spans.add(const TextSpan(text: '\n'));
@@ -221,7 +232,13 @@ class SafeHtmlNoteBody extends StatelessWidget {
         final alt = node.attributes['alt'];
         spans.add(
           TextSpan(
-            text: '[媒体尚未缓存${alt == null || alt.isEmpty ? '' : '：$alt'}]',
+            text: strings.text('missingMedia', [
+              alt == null || alt.isEmpty
+                  ? ''
+                  : strings.locale.languageCode == 'zh'
+                  ? '：$alt'
+                  : ': $alt',
+            ]),
           ),
         );
         continue;
@@ -263,6 +280,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
       final rendered = TextSpan(
         style: style,
         children: _render(
+          strings,
           node.nodes,
           depth: depth + 1,
           pre: pre || tag == 'pre',
@@ -340,6 +358,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
     double width,
     List<dom.Element>? images,
     int depth,
+    AppStrings strings,
   ) {
     final cellWidth = (width / grid.columns).clamp(140.0, 320.0);
     return Column(
@@ -349,7 +368,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
           (node) => node.localName == 'caption',
         ))
           Text.rich(
-            TextSpan(children: _render(caption.nodes, depth: depth)),
+            TextSpan(children: _render(strings, caption.nodes, depth: depth)),
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         SingleChildScrollView(
@@ -377,6 +396,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
                         : _cellStyle(cell.element).alignment,
                     TextSpan(
                       children: _render(
+                        strings,
                         cell.element?.nodes ?? [],
                         depth: depth + 1,
                         images: images,
@@ -410,6 +430,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
     double availableWidth,
     List<dom.Element>? images,
     int depth,
+    AppStrings strings,
   ) {
     final columns = rows.fold<int>(
       0,
@@ -422,7 +443,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
       children: [
         for (final node in caption)
           Text.rich(
-            TextSpan(children: _render(node.nodes, depth: depth)),
+            TextSpan(children: _render(strings, node.nodes, depth: depth)),
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         SingleChildScrollView(
@@ -449,6 +470,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
                               textAlign: _cellStyle(row[index]).alignment,
                               TextSpan(
                                 children: _render(
+                                  strings,
                                   row[index].nodes,
                                   depth: depth + 1,
                                   images: images,
@@ -479,6 +501,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
     padding: const EdgeInsets.all(20),
     child: LayoutBuilder(
       builder: (context, constraints) {
+        final strings = AppStrings.of(context);
         final images = <dom.Element>[];
         final tables = <dom.Element>[];
         final nodes = html.parseFragment(content).nodes;
@@ -486,6 +509,7 @@ class SafeHtmlNoteBody extends StatelessWidget {
         final baseStyle = DefaultTextStyle.of(context).style
             .copyWith(fontSize: 16, height: 1.65);
         final spans = _render(
+          strings,
           nodes,
           inheritedStyle: baseStyle,
           images: loadCachedImage == null ? null : images,
@@ -504,8 +528,8 @@ class SafeHtmlNoteBody extends StatelessWidget {
                   : SelectionArea(child: Text.rich(text)),
               if (links.isNotEmpty)
                 ExpansionTile(
-                  title: Text('正文链接（${links.length}）'),
-                  subtitle: const Text('查看地址后选择复制或外部打开'),
+                  title: Text(tr(context, 'm0353', [links.length])),
+                  subtitle: Text(tr(context, 'm0354')),
                   children: [
                     for (final href in links)
                       ListTile(
@@ -526,9 +550,9 @@ class SafeHtmlNoteBody extends StatelessWidget {
                         ),
                       ),
                     if (links.length == 100)
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.all(12),
-                        child: Text('最多列出 100 个不同地址，其余可查看原文。'),
+                        child: Text(tr(context, 'm0355')),
                       ),
                   ],
                 ),
@@ -539,9 +563,11 @@ class SafeHtmlNoteBody extends StatelessWidget {
     ),
   );
 
-  Widget _image(dom.Element element) {
+  Widget _image(dom.Element element, AppStrings strings) {
     final uri = Uri.tryParse(element.attributes['src'] ?? '');
-    if (uri == null || uri.toString().isEmpty) return const Text('图片地址无效');
+    if (uri == null || uri.toString().isEmpty) {
+      return Text(strings.text('invalidImageAddress'));
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: CachedMarkdownImage(

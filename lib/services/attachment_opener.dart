@@ -1,3 +1,7 @@
+import 'dart:ui' show Locale;
+
+import '../l10n/app_strings.dart';
+
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -16,12 +20,14 @@ class AttachmentOpenException implements Exception {
 
 class AttachmentOpener {
   AttachmentOpener({
+    this.strings = const AppStrings(Locale('zh')),
     Future<Directory> Function()? temporaryDirectory,
     Future<OpenResult> Function(String)? open,
     DateTime Function()? now,
   }) : _temporaryDirectory = temporaryDirectory ?? getTemporaryDirectory,
        _open = open ?? ((file) => OpenFilex.open(file)),
        _now = now ?? DateTime.now;
+  final AppStrings strings;
   final Future<Directory> Function() _temporaryDirectory;
   final Future<OpenResult> Function(String) _open;
   final DateTime Function() _now;
@@ -64,7 +70,11 @@ class AttachmentOpener {
             ?.group(0)
             ?.toLowerCase() ??
         '';
-    final name = NoteExporter.safeFileName(title, extension, fallback: '附件');
+    final name = NoteExporter.safeFileName(
+      title,
+      extension,
+      fallback: strings.label('附件'),
+    );
     final file = File(path.join(directory.path, name));
     var handedOff = false;
     try {

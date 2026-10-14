@@ -1,3 +1,7 @@
+import 'dart:ui' show Locale;
+
+import '../l10n/app_strings.dart';
+
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -11,15 +15,19 @@ class ImportedNote {
 }
 
 class NoteImporter {
-  NoteImporter({Future<PlatformFile?> Function()? pick})
-    : _pick = pick ?? _pickSystem;
+  NoteImporter({
+    Future<PlatformFile?> Function()? pick,
+    this.strings = const AppStrings(Locale('zh')),
+  }) : _pick = pick ?? (() => _pickSystem(strings));
+  final AppStrings strings;
   final Future<PlatformFile?> Function() _pick;
   static const maxBytes = 32 * 1024 * 1024;
-  static Future<PlatformFile?> _pickSystem() => FilePicker.pickFile(
-    dialogTitle: '导入笔记原文',
-    type: FileType.custom,
-    allowedExtensions: ['md', 'markdown', 'txt', 'html', 'htm'],
-  );
+  static Future<PlatformFile?> _pickSystem(AppStrings strings) =>
+      FilePicker.pickFile(
+        dialogTitle: strings.label('导入笔记原文'),
+        type: FileType.custom,
+        allowedExtensions: ['md', 'markdown', 'txt', 'html', 'htm'],
+      );
 
   Future<ImportedNote?> pick() async {
     final file = await _pick();
@@ -50,7 +58,7 @@ class NoteImporter {
         .replaceAll(RegExp(r'[\x00-\x1f\x7f]'), '')
         .trim();
     title = String.fromCharCodes(title.runes.take(200));
-    if (title.isEmpty) title = '导入的笔记';
+    if (title.isEmpty) title = strings.label('导入的笔记');
     return ImportedNote(
       title,
       content,

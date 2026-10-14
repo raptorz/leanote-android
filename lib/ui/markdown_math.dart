@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
@@ -131,12 +133,12 @@ class MathElementBuilder extends MarkdownElementBuilder {
           onLongPress: () => showDialog<void>(
             context: context,
             builder: (context) => AlertDialog(
-              title: const Text('公式原文'),
+              title: Text(trNow(context, 'm0160')),
               content: SelectableText(source),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('关闭'),
+                  child: Text(trNow(context, 'm0010')),
                 ),
               ],
             ),

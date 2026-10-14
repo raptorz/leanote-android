@@ -1,3 +1,7 @@
+import 'dart:ui' show Locale;
+
+import '../l10n/app_strings.dart';
+
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -5,11 +9,14 @@ import 'package:file_picker/file_picker.dart';
 import '../domain/models/attachment_upload.dart';
 
 class AttachmentPicker {
-  AttachmentPicker({Future<PlatformFile?> Function()? pick})
-    : _pick = pick ?? _system;
+  AttachmentPicker({
+    Future<PlatformFile?> Function()? pick,
+    this.strings = const AppStrings(Locale('zh')),
+  }) : _pick = pick ?? (() => _system(strings));
+  final AppStrings strings;
   final Future<PlatformFile?> Function() _pick;
-  static Future<PlatformFile?> _system() =>
-      FilePicker.pickFile(dialogTitle: '选择附件');
+  static Future<PlatformFile?> _system(AppStrings strings) =>
+      FilePicker.pickFile(dialogTitle: strings.label('选择附件'));
 
   Future<AttachmentUpload?> pick() async {
     final file = await _pick();

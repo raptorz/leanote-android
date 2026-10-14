@@ -595,6 +595,10 @@ class AuthRepository {
         });
   }
 
+  Future<String> languagePreference() => _database.languagePreference();
+  Future<void> setLanguagePreference(String value) =>
+      _database.setLanguagePreference(value);
+
   Future<List<Account>> savedAccounts() async {
     final result = <Account>[];
     for (final account in await _database.cachedAccounts()) {

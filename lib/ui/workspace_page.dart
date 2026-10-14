@@ -1,3 +1,7 @@
+import '../l10n/app_strings.dart';
+import '../l10n/language_controller.dart';
+import 'language_dialog.dart';
+
 import 'dart:typed_data';
 import 'dart:async';
 
@@ -75,6 +79,7 @@ class _WorkspacePageState extends State<WorkspacePage>
     if (_widgetActionBusy || !mounted || _signedOut || _loggingOut) return;
     final action = widget.homeWidget?.pending;
     if (action == null) return;
+    final strings = AppStrings.snapshot(context);
     _widgetActionBusy = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
@@ -83,7 +88,7 @@ class _WorkspacePageState extends State<WorkspacePage>
         if (ModalRoute.of(context)?.isCurrent != true) return;
         await widget.homeWidget!.acknowledge(action);
         if (action.account != widget.session.account.cacheKey) {
-          throw StateError('小组件对应的账号已切换，请从当前账号重新打开');
+          throw StateError(strings.text('m0466'));
         }
         if (action.action == 'open') {
           final notes = await _widgetNotes();
@@ -92,18 +97,18 @@ class _WorkspacePageState extends State<WorkspacePage>
                 (n) => n.noteId == action.noteId && !n.isTrash && !n.isDeleted,
               )
               .firstOrNull;
-          if (note == null) throw StateError('此笔记已移除或不在当前账号中');
+          if (note == null) throw StateError(strings.text('m0467'));
           if (mounted) await _openReader(note);
         } else if (action.action == 'create') {
           final books = await widget.repository.notebooks(
             widget.session.account.cacheKey,
           );
-          if (books.isEmpty) throw StateError('请先在应用中新建笔记本');
+          if (books.isEmpty) throw StateError(strings.text('m0468'));
           if (!mounted) return;
           final target = await showDialog<String>(
             context: context,
             builder: (context) => AlertDialog(
-              title: const Text('选择新笔记的笔记本'),
+              title: Text(trNow(context, 'm0469')),
               content: SizedBox(
                 width: 360,
                 height: 360,
@@ -115,7 +120,7 @@ class _WorkspacePageState extends State<WorkspacePage>
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('取消'),
+                  child: Text(trNow(context, 'm0026')),
                 ),
               ],
             ),
@@ -133,8 +138,9 @@ class _WorkspacePageState extends State<WorkspacePage>
         }
       } on Object catch (error) {
         if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('打开小组件失败：$error')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(trNow(context, 'm0470', [error]))),
+          );
         }
       } finally {
         _widgetActionBusy = false;
@@ -180,7 +186,7 @@ class _WorkspacePageState extends State<WorkspacePage>
       final sort = await widget.repository.noteSort(widget.session);
       if (mounted) setState(() => _noteSort = sort);
     } on Object {
-      if (mounted) setState(() => _sortError = '读取排序设置失败，暂按修改时间排序');
+      if (mounted) setState(() => _sortError = trNow(context, 'm0471'));
     } finally {
       if (mounted) setState(() => _sortBusy = false);
     }
@@ -202,7 +208,7 @@ class _WorkspacePageState extends State<WorkspacePage>
         });
       }
     } on Object {
-      if (mounted) setState(() => _sortError = '保存排序设置失败，仍使用原排序');
+      if (mounted) setState(() => _sortError = trNow(context, 'm0472'));
     } finally {
       if (mounted) setState(() => _sortBusy = false);
     }
@@ -264,9 +270,8 @@ class _WorkspacePageState extends State<WorkspacePage>
       }
     } on Object {
       if (mounted && !_signedOut) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('保存资源缓存设置失败，仍使用原设置，请重试')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(trNow(context, 'm0473'))));
       }
     } finally {
       if (mounted) setState(() => _cachePreferenceBusy = false);
@@ -292,8 +297,11 @@ class _WorkspacePageState extends State<WorkspacePage>
       }
       if (!status.isEmpty) {
         setState(
-          () => _fileStatus =
-              '资源缓存进度已恢复：${status.notes} 篇笔记、${status.files} 个文件待处理，失败 ${status.failed} 项；可从账号菜单开始继续',
+          () => _fileStatus = trNow(context, 'm0474', [
+            status.notes,
+            status.files,
+            status.failed,
+          ]),
         );
       }
     } on Object {
@@ -301,7 +309,7 @@ class _WorkspacePageState extends State<WorkspacePage>
           !_signedOut &&
           _fileTask == null &&
           generation == _downloadStatusGeneration) {
-        setState(() => _fileStatus = '读取资源缓存任务失败，可从账号菜单开始重试');
+        setState(() => _fileStatus = trNow(context, 'm0475'));
       }
     }
   }
@@ -314,7 +322,7 @@ class _WorkspacePageState extends State<WorkspacePage>
   }
 
   Widget get _shareButton => IconButton(
-    tooltip: '待处理分享',
+    tooltip: trNow(context, 'm0476'),
     icon: Badge(
       isLabelVisible: _shareInbox.pending != null || _shareInbox.error != null,
       child: const Icon(Icons.move_to_inbox_outlined),
@@ -332,7 +340,7 @@ class _WorkspacePageState extends State<WorkspacePage>
       if (!mounted) return;
       if (source == null) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('没有待处理分享')));
+            .showSnackBar(SnackBar(content: Text(trNow(context, 'm0477'))));
         return;
       }
       final books = await widget.repository.notebooks(
@@ -375,8 +383,9 @@ class _WorkspacePageState extends State<WorkspacePage>
       }
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('读取分享失败：$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(trNow(context, 'm0478', [error]))),
+        );
       }
     } finally {
       if (mounted) setState(() => _shareOpen = false);
@@ -453,7 +462,7 @@ class _WorkspacePageState extends State<WorkspacePage>
     }
     final queue = _fileQueue = widget.repository.fileCacheQueue(widget.session);
     _downloadStatusGeneration++;
-    setState(() => _fileStatus = '正在准备离线资源缓存…');
+    setState(() => _fileStatus = trNow(context, 'm0479'));
     _fileTask = (() async {
       try {
         final notes = await widget.repository.notes(
@@ -472,20 +481,29 @@ class _WorkspacePageState extends State<WorkspacePage>
           onProgress: (notes, files, failures) {
             if (mounted) {
               setState(
-                () =>
-                    _fileStatus = '资源缓存：已处理 $notes 篇、$files 个文件，失败 $failures 项',
+                () => _fileStatus = trNow(context, 'm0480', [
+                  notes,
+                  files,
+                  failures,
+                ]),
               );
             }
           },
         );
         if (mounted) {
           setState(
-            () => _fileStatus =
-                '${_fileStatus ?? "资源缓存"}（${queue.cancelled ? "已停止" : "已结束"}；未完成进度已保存，可再次开始继续；缓存限额 64 MiB）',
+            () => _fileStatus = trNow(context, 'm0483', [
+              _fileStatus ?? trNow(context, 'm0481'),
+              queue.cancelled
+                  ? trNow(context, 'm0205')
+                  : trNow(context, 'm0482'),
+            ]),
           );
         }
       } on Object catch (error) {
-        if (mounted) setState(() => _fileStatus = '资源缓存失败（不影响笔记同步）：$error');
+        if (mounted) {
+          setState(() => _fileStatus = trNow(context, 'm0484', [error]));
+        }
       } finally {
         _fileQueue = null;
         _fileTask = null;
@@ -565,7 +583,9 @@ class _WorkspacePageState extends State<WorkspacePage>
       setState(() => _avatarError = null);
       await _refreshAvatarCache();
     } on Object catch (error) {
-      if (mounted) setState(() => _avatarError = '头像刷新失败（不影响笔记同步）：$error');
+      if (mounted) {
+        setState(() => _avatarError = trNow(context, 'm0485', [error]));
+      }
     } finally {
       _refreshingAvatar = false;
     }
@@ -580,7 +600,7 @@ class _WorkspacePageState extends State<WorkspacePage>
       }
     } on Object catch (error) {
       if (mounted && generation == _avatarRead) {
-        setState(() => _syncError = '读取头像缓存失败：$error');
+        setState(() => _syncError = trNow(context, 'm0486', [error]));
       }
     }
   }
@@ -643,7 +663,9 @@ class _WorkspacePageState extends State<WorkspacePage>
         });
       }
     } on Object catch (error) {
-      if (mounted) setState(() => _syncError = '无法读取待同步状态：$error');
+      if (mounted) {
+        setState(() => _syncError = trNow(context, 'm0487', [error]));
+      }
     }
   }
 
@@ -671,7 +693,7 @@ class _WorkspacePageState extends State<WorkspacePage>
                 overflow: TextOverflow.ellipsis,
               ),
               trailing: IconButton(
-                tooltip: '关闭提示',
+                tooltip: trNow(context, 'm0488'),
                 onPressed: () => setState(() {
                   _syncError = null;
                   _avatarError = null;
@@ -755,7 +777,9 @@ class _WorkspacePageState extends State<WorkspacePage>
         _notes = notes;
       });
     } on Object catch (error) {
-      if (mounted) setState(() => _syncError = '读取所有笔记失败：$error');
+      if (mounted) {
+        setState(() => _syncError = trNow(context, 'm0489', [error]));
+      }
     }
   }
 
@@ -796,8 +820,11 @@ class _WorkspacePageState extends State<WorkspacePage>
       MaterialPageRoute<void>(
         builder: (_) => NoteReaderPage(
           note: note,
-          onExport: () => NoteExporter().export(note),
-          onSystemShare: (origin) => NoteSharer().share(note, origin),
+          onExport: () =>
+              NoteExporter(strings: AppStrings.snapshot(context)).export(note),
+          onSystemShare: (origin) =>
+              NoteSharer(strings: AppStrings.snapshot(context))
+                  .share(note, origin),
           canDownloadImage: (uri) =>
               note.usn > 0 &&
               cachedImageFileId(uri, widget.session.account.server) != null,
@@ -835,7 +862,7 @@ class _WorkspacePageState extends State<WorkspacePage>
                   );
                   if (restored == true && mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('历史正文已恢复到本地，待同步')),
+                      SnackBar(content: Text(trNow(context, 'm0490'))),
                     );
                   }
                   return restored == true;
@@ -876,16 +903,16 @@ class _WorkspacePageState extends State<WorkspacePage>
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('彻底删除笔记？'),
-        content: const Text('此操作无法恢复。下次同步会删除服务端的笔记、历史版本和附件；失败时保留待删除任务。'),
+        title: Text(trNow(context, 'm0491')),
+        content: Text(trNow(context, 'm0492')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+            child: Text(trNow(context, 'm0026')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('彻底删除'),
+            child: Text(trNow(context, 'm0286')),
           ),
         ],
       ),
@@ -897,8 +924,9 @@ class _WorkspacePageState extends State<WorkspacePage>
       return true;
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('删除失败：$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(trNow(context, 'm0493', [error]))),
+        );
       }
       return false;
     }
@@ -929,7 +957,9 @@ class _WorkspacePageState extends State<WorkspacePage>
         _notes = notes;
       });
     } on Object catch (error) {
-      if (mounted) setState(() => _syncError = '读取标签笔记失败：$error');
+      if (mounted) {
+        setState(() => _syncError = trNow(context, 'm0494', [error]));
+      }
     }
   }
 
@@ -1009,7 +1039,9 @@ class _WorkspacePageState extends State<WorkspacePage>
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, update) => AlertDialog(
-            title: Text(copy ? '复制到笔记本' : '移动到笔记本'),
+            title: Text(
+              copy ? trNow(context, 'm0291') : trNow(context, 'm0289'),
+            ),
             content: SizedBox(
               width: 320,
               height: 320,
@@ -1025,11 +1057,13 @@ class _WorkspacePageState extends State<WorkspacePage>
                 onPressed: target == null
                     ? null
                     : () => Navigator.pop(context, target),
-                child: Text(copy ? '复制' : '移动'),
+                child: Text(
+                  copy ? trNow(context, 'm0495') : trNow(context, 'm0168'),
+                ),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('取消'),
+                child: Text(trNow(context, 'm0026')),
               ),
             ],
           ),
@@ -1039,7 +1073,7 @@ class _WorkspacePageState extends State<WorkspacePage>
         await widget.repository.copyNote(widget.session, note, selected);
         if (mounted) {
           ScaffoldMessenger.of(context)
-              .showSnackBar(const SnackBar(content: Text('笔记已复制到本地，待同步')));
+              .showSnackBar(SnackBar(content: Text(trNow(context, 'm0496'))));
         }
         return true;
       }
@@ -1050,8 +1084,9 @@ class _WorkspacePageState extends State<WorkspacePage>
       return false;
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('操作失败：$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(trNow(context, 'm0497', [error]))),
+        );
       }
       return false;
     }
@@ -1061,16 +1096,20 @@ class _WorkspacePageState extends State<WorkspacePage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('移入回收站'),
-        content: Text('确定将“${note.title.isEmpty ? '无标题' : note.title}”移入回收站吗？'),
+        title: Text(trNow(context, 'm0293')),
+        content: Text(
+          trNow(context, 'm0498', [
+            note.title.isEmpty ? trNow(context, 'm0275') : note.title,
+          ]),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+            child: Text(trNow(context, 'm0026')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('移入回收站'),
+            child: Text(trNow(context, 'm0293')),
           ),
         ],
       ),
@@ -1111,20 +1150,28 @@ class _WorkspacePageState extends State<WorkspacePage>
             children: [
               ListTile(
                 leading: const Icon(Icons.note_add_outlined),
-                title: const Text('新建笔记'),
-                subtitle: Text('默认：${editor.label}'),
+                title: Text(trNow(context, 'm0499')),
+                subtitle: Text(
+                  trNow(context, 'm0500', [trLabel(context, editor.label)]),
+                ),
                 onTap: () => Navigator.pop(context, editor.name),
               ),
               ListTile(
                 leading: Icon(
                   alternate.isMarkdown ? Icons.code : Icons.article_outlined,
                 ),
-                title: Text('新建${alternate.isMarkdown ? " Markdown" : "富文本"}'),
+                title: Text(
+                  trNow(context, 'm0502', [
+                    alternate.isMarkdown
+                        ? " Markdown"
+                        : trNow(context, 'm0501'),
+                  ]),
+                ),
                 onTap: () => Navigator.pop(context, alternate.name),
               ),
               ListTile(
                 leading: const Icon(Icons.file_open_outlined),
-                title: const Text('导入笔记原文'),
+                title: Text(trNow(context, 'm0136')),
                 onTap: () => Navigator.pop(context, 'import'),
               ),
             ],
@@ -1139,8 +1186,9 @@ class _WorkspacePageState extends State<WorkspacePage>
       }
     } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('新建笔记失败：$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(trNow(context, 'm0503', [error]))),
+        );
       }
     } finally {
       if (mounted) setState(() => _createMenuOpen = false);
@@ -1159,6 +1207,7 @@ class _WorkspacePageState extends State<WorkspacePage>
   }
 
   Future<void> _importNote() async {
+    final missingNotebook = trNow(context, 'm0504');
     final book = _selectedNotebook;
     if (book == null || _syncing || _loggingOut) return;
     final note = await showDialog<Note>(
@@ -1179,7 +1228,7 @@ class _WorkspacePageState extends State<WorkspacePage>
           if (!books.any(
             (item) => item.notebookId == targetId && !item.isDeleted,
           )) {
-            throw StateError('目标笔记本已不存在，请返回重新选择');
+            throw StateError(missingNotebook);
           }
           return widget.repository.createNote(
             widget.session,
@@ -1257,14 +1306,17 @@ class _WorkspacePageState extends State<WorkspacePage>
       if (mounted) _startFileCache();
       if (mounted && !automatic) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('同步完成')));
+            .showSnackBar(SnackBar(content: Text(trNow(context, 'm0505'))));
       }
     } on Object catch (error) {
       if (mounted) {
-        setState(() => _syncError = '同步失败：$error');
+        setState(() => _syncError = trNow(context, 'm0506', [error]));
         if (!automatic) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('同步失败：$error'), backgroundColor: Colors.red),
+            SnackBar(
+              content: Text(trNow(context, 'm0506', [error])),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       }
@@ -1302,7 +1354,7 @@ class _WorkspacePageState extends State<WorkspacePage>
     } on Object {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('切换账号失败，请重试')));
+            .showSnackBar(SnackBar(content: Text(trNow(context, 'm0507'))));
       }
     } finally {
       _accountOpen = false;
@@ -1344,7 +1396,9 @@ class _WorkspacePageState extends State<WorkspacePage>
       _autoSyncTimer?.cancel();
       if (mounted) widget.onSignedOut();
     } on Object catch (error) {
-      if (mounted) setState(() => _syncError = '退出登录失败：$error');
+      if (mounted) {
+        setState(() => _syncError = trNow(context, 'm0508', [error]));
+      }
     } finally {
       await _refreshPending();
       if (mounted) setState(() => _loggingOut = false);
@@ -1437,9 +1491,9 @@ class _WorkspacePageState extends State<WorkspacePage>
           children: [
             Image.asset('assets/images/gemsnote_s.png', width: 32, height: 32),
             const SizedBox(width: 10),
-            const Expanded(
+            Expanded(
               child: Text(
-                '珠玑笔记',
+                tr(context, 'm0141'),
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
@@ -1452,19 +1506,25 @@ class _WorkspacePageState extends State<WorkspacePage>
         actions: [
           if (_shareInbox.supported) _shareButton,
           IconButton(
-            tooltip: '标签',
+            tooltip: tr(context, 'm0410'),
             onPressed: _openTags,
             icon: const Icon(Icons.label_outline),
           ),
           IconButton(
-            tooltip: '新建笔记本',
+            tooltip: tr(context, 'm0329'),
             onPressed: () => _editNotebook(),
             icon: const Icon(Icons.create_new_folder_outlined),
           ),
           PopupMenuButton<String>(
-            tooltip: '账号菜单',
+            tooltip: tr(context, 'm0509'),
             onSelected: (value) {
               if (value == 'homeWidget') _configureHomeWidget();
+              if (value == 'language') {
+                showDialog<void>(
+                  context: context,
+                  builder: (_) => const LanguageDialog(),
+                );
+              }
               if (value == 'defaultEditor') _chooseDefaultEditor();
               if (value == 'switchAccount') _switchAccount();
               if (value == 'account') {
@@ -1495,22 +1555,42 @@ class _WorkspacePageState extends State<WorkspacePage>
             },
             itemBuilder: (_) => [
               if (widget.homeWidget?.supported == true)
-                const PopupMenuItem(value: 'homeWidget', child: Text('桌面小组件')),
-              const PopupMenuItem(value: 'account', child: Text('账号')),
+                PopupMenuItem(
+                  value: 'homeWidget',
+                  child: Text(tr(context, 'm0510')),
+                ),
+              PopupMenuItem(
+                value: 'account',
+                child: Text(tr(context, 'm0034')),
+              ),
               if (widget.onSessionChanged != null)
                 PopupMenuItem(
                   value: 'switchAccount',
                   enabled: !_syncing && !_loggingOut,
-                  child: const Text('切换或添加账号'),
+                  child: Text(tr(context, 'm0511')),
                 ),
-              const PopupMenuItem(value: 'defaultEditor', child: Text('默认编辑器')),
-              const PopupMenuItem(value: 'manageCache', child: Text('离线资源缓存')),
-              const PopupMenuItem(
-                value: 'attachmentOutbox',
-                child: Text('本地待上传资源'),
+              if (LanguageScope.maybeOf(context) != null)
+                PopupMenuItem(
+                  value: 'language',
+                  child: Text(tr(context, 'languageTitle')),
+                ),
+              PopupMenuItem(
+                value: 'defaultEditor',
+                child: Text(tr(context, 'm0107')),
               ),
-              const PopupMenuItem(value: 'sync', child: Text('立即同步')),
-              const PopupMenuItem(value: 'fullSync', child: Text('完全同步（合并）')),
+              PopupMenuItem(
+                value: 'manageCache',
+                child: Text(tr(context, 'm0125')),
+              ),
+              PopupMenuItem(
+                value: 'attachmentOutbox',
+                child: Text(tr(context, 'm0063')),
+              ),
+              PopupMenuItem(value: 'sync', child: Text(tr(context, 'm0512'))),
+              PopupMenuItem(
+                value: 'fullSync',
+                child: Text(tr(context, 'm0513')),
+              ),
               CheckedPopupMenuItem(
                 value: 'autoCache',
                 checked: _autoCacheFiles,
@@ -1518,29 +1598,40 @@ class _WorkspacePageState extends State<WorkspacePage>
                     _cachePreferenceLoaded &&
                     !_cachePreferenceBusy &&
                     !_loggingOut,
-                child: const Text('同步后缓存图片和附件（可能使用移动数据）'),
+                child: Text(tr(context, 'm0514')),
               ),
               if (!_cachePreferenceLoaded)
                 PopupMenuItem(
                   value: 'retryCachePreference',
                   enabled: !_cachePreferenceBusy,
                   child: Text(
-                    _cachePreferenceBusy ? '正在读取资源缓存设置…' : '读取资源缓存设置失败，点击重试',
+                    _cachePreferenceBusy
+                        ? tr(context, 'm0515')
+                        : tr(context, 'm0516'),
                   ),
                 ),
               if (_autoCacheFiles && !_cachePreferenceBusy && _fileTask == null)
-                const PopupMenuItem(value: 'cacheFiles', child: Text('开始资源缓存')),
+                PopupMenuItem(
+                  value: 'cacheFiles',
+                  child: Text(tr(context, 'm0517')),
+                ),
               if (_fileTask != null)
-                const PopupMenuItem(value: 'stopCache', child: Text('停止资源缓存')),
+                PopupMenuItem(
+                  value: 'stopCache',
+                  child: Text(tr(context, 'm0518')),
+                ),
               CheckedPopupMenuItem(
                 value: 'autoSync',
                 checked: _autoSyncEnabled,
-                child: const Text('前台自动同步（每分钟）'),
+                child: Text(tr(context, 'm0519')),
               ),
-              const PopupMenuItem(value: 'resetSync', child: Text('重新同步')),
-              const PopupMenuItem(value: 'trash', child: Text('回收站')),
-              const PopupMenuItem(value: 'about', child: Text('关于')),
-              const PopupMenuItem(value: 'logout', child: Text('退出')),
+              PopupMenuItem(
+                value: 'resetSync',
+                child: Text(tr(context, 'm0094')),
+              ),
+              PopupMenuItem(value: 'trash', child: Text(tr(context, 'm0520'))),
+              PopupMenuItem(value: 'about', child: Text(tr(context, 'm0521'))),
+              PopupMenuItem(value: 'logout', child: Text(tr(context, 'm0522'))),
             ],
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -1553,7 +1644,7 @@ class _WorkspacePageState extends State<WorkspacePage>
         future: _notebooks,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('读取笔记本失败：${snapshot.error}'));
+            return Center(child: Text(tr(context, 'm0523', [snapshot.error])));
           }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -1566,7 +1657,7 @@ class _WorkspacePageState extends State<WorkspacePage>
               if (index == 0) {
                 return ListTile(
                   leading: const Icon(Icons.notes),
-                  title: const Text('所有笔记'),
+                  title: Text(tr(context, 'm0524')),
                   onTap: _openAllNotes,
                 );
               }
@@ -1582,8 +1673,8 @@ class _WorkspacePageState extends State<WorkspacePage>
                     ? IconButton(
                         tooltip:
                             _expandedNotebooks.contains(notebook.notebookId)
-                            ? '收起子笔记本'
-                            : '展开子笔记本',
+                            ? tr(context, 'm0525')
+                            : tr(context, 'm0526'),
                         icon: Icon(
                           _expandedNotebooks.contains(notebook.notebookId)
                               ? Icons.expand_more
@@ -1611,8 +1702,8 @@ class _WorkspacePageState extends State<WorkspacePage>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (notebook.isDirty)
-                      const Tooltip(
-                        message: '笔记本待同步',
+                      Tooltip(
+                        message: tr(context, 'm0527'),
                         child: Icon(
                           Icons.circle,
                           size: 8,
@@ -1634,19 +1725,22 @@ class _WorkspacePageState extends State<WorkspacePage>
                         }
                       },
                       itemBuilder: (_) => [
-                        const PopupMenuItem(
+                        PopupMenuItem(
                           value: 'rename',
-                          child: Text('重命名'),
+                          child: Text(tr(context, 'm0528')),
                         ),
-                        const PopupMenuItem(
+                        PopupMenuItem(
                           value: 'child',
-                          child: Text('新增子笔记本'),
+                          child: Text(tr(context, 'm0330')),
                         ),
-                        const PopupMenuItem(value: 'move', child: Text('移动')),
+                        PopupMenuItem(
+                          value: 'move',
+                          child: Text(tr(context, 'm0168')),
+                        ),
                         if (notebook.usn == 0)
-                          const PopupMenuItem(
+                          PopupMenuItem(
                             value: 'recoverCreation',
-                            child: Text('创建状态与恢复'),
+                            child: Text(tr(context, 'm0529')),
                           ),
                       ],
                     ),
@@ -1665,10 +1759,13 @@ class _WorkspacePageState extends State<WorkspacePage>
             )
           : FloatingActionButton(
               tooltip: _pendingNoteIds.isEmpty && _pendingNotebookIds.isEmpty
-                  ? '立即同步'
+                  ? tr(context, 'm0512')
                   : _pendingNotebookIds.isEmpty
-                  ? '立即同步（${_pendingNoteIds.length} 篇待上传）'
-                  : '立即同步（${_pendingNoteIds.length} 篇笔记、${_pendingNotebookIds.length} 个笔记本待上传）',
+                  ? tr(context, 'm0530', [_pendingNoteIds.length])
+                  : tr(context, 'm0531', [
+                      _pendingNoteIds.length,
+                      _pendingNotebookIds.length,
+                    ]),
               onPressed: _sync,
               child: _syncIcon(),
             ),
@@ -1689,21 +1786,21 @@ class _WorkspacePageState extends State<WorkspacePage>
             );
           }
         },
-        destinations: const [
+        destinations: [
           NavigationDestination(
             icon: Icon(Icons.note_outlined),
             selectedIcon: Icon(Icons.note),
-            label: '笔记',
+            label: tr(context, 'm0532'),
           ),
           NavigationDestination(
             icon: Icon(Icons.star_outline),
             selectedIcon: Icon(Icons.star),
-            label: '已加星',
+            label: tr(context, 'm0533'),
           ),
           NavigationDestination(
             icon: Icon(Icons.share_outlined),
             selectedIcon: Icon(Icons.share),
-            label: '共享',
+            label: tr(context, 'm0534'),
           ),
         ],
       ),
@@ -1727,18 +1824,18 @@ class _WorkspacePageState extends State<WorkspacePage>
         ),
         title: Text(
           _showingAll
-              ? '所有笔记'
+              ? trNow(context, 'm0524')
               : _selectedTag ??
                     (_showingStarred
-                        ? '已加星'
+                        ? trNow(context, 'm0533')
                         : _showingTrash
-                        ? '回收站'
+                        ? trNow(context, 'm0520')
                         : _selectedNotebook!.title),
         ),
         actions: [
           if (_shareInbox.supported) _shareButton,
           PopupMenuButton<NoteSort>(
-            tooltip: '笔记排序',
+            tooltip: trNow(context, 'm0535'),
             icon: const Icon(Icons.sort),
             enabled: !_sortBusy && !_loggingOut,
             onSelected: _saveNoteSort,
@@ -1747,12 +1844,14 @@ class _WorkspacePageState extends State<WorkspacePage>
                 CheckedPopupMenuItem(
                   value: sort,
                   checked: sort == _noteSort,
-                  child: Text(sort.label),
+                  child: Text(trLabel(context, sort.label)),
                 ),
             ],
           ),
           IconButton(
-            tooltip: _syncing ? '正在同步' : '立即同步',
+            tooltip: _syncing
+                ? trNow(context, 'm0408')
+                : trNow(context, 'm0512'),
             onPressed: _syncing ? null : _sync,
             icon: _syncing
                 ? const SizedBox.square(
@@ -1762,7 +1861,7 @@ class _WorkspacePageState extends State<WorkspacePage>
                 : _syncIcon(),
           ),
           IconButton(
-            tooltip: '搜索笔记',
+            tooltip: trNow(context, 'm0298'),
             onPressed: _search,
             icon: const Icon(Icons.search),
           ),
@@ -1773,19 +1872,19 @@ class _WorkspacePageState extends State<WorkspacePage>
           if (_sortBusy) const LinearProgressIndicator(),
           if (_sortError != null)
             ListTile(
-              title: Text(_sortError!),
+              title: Text(trMessage(context, _sortError!)),
               trailing: TextButton(
                 onPressed: _sortBusy
                     ? null
                     : () => _sortRetry == null
                           ? _loadNoteSort()
                           : _saveNoteSort(_sortRetry!),
-                child: const Text('重试排序设置'),
+                child: Text(trNow(context, 'm0536')),
               ),
             ),
           Expanded(
             child: _notes.isEmpty
-                ? const _EmptyState(label: '选择笔记或开始全新记录。')
+                ? _EmptyState(label: trNow(context, 'm0537'))
                 : ListView.separated(
                     itemCount: _notes.length,
                     separatorBuilder: (_, _) => const Divider(height: 1),
@@ -1799,14 +1898,16 @@ class _WorkspacePageState extends State<WorkspacePage>
                           children: [
                             Expanded(
                               child: Text(
-                                note.title.isEmpty ? '无标题' : note.title,
+                                note.title.isEmpty
+                                    ? trNow(context, 'm0275')
+                                    : note.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             if (_pendingNoteIds.contains(note.noteId))
-                              const Tooltip(
-                                message: '本地修改尚未上传',
+                              Tooltip(
+                                message: trNow(context, 'm0538'),
                                 child: Padding(
                                   padding: EdgeInsets.only(left: 6),
                                   child: Icon(
@@ -1820,7 +1921,9 @@ class _WorkspacePageState extends State<WorkspacePage>
                         ),
                         subtitle: Text(note.updatedTime, maxLines: 1),
                         trailing: IconButton(
-                          tooltip: note.isStarred ? '取消星标' : '添加星标',
+                          tooltip: note.isStarred
+                              ? trNow(context, 'm0287')
+                              : trNow(context, 'm0288'),
                           onPressed: () => _toggleStar(note),
                           icon: Icon(
                             note.isStarred ? Icons.star : Icons.star_outline,
@@ -1863,7 +1966,10 @@ class _EmptyState extends StatelessWidget {
       children: [
         Image.asset('assets/images/gemsnote_s.png', width: 72, height: 72),
         const SizedBox(height: 16),
-        const Text('日积字句，终得珠玑。', style: TextStyle(fontWeight: FontWeight.bold)),
+        Text(
+          tr(context, 'm0003'),
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 6),
         Text(label),
       ],
@@ -1906,15 +2012,13 @@ class _HomeWidgetSettingsState extends State<_HomeWidgetSettings> {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.controller,
     builder: (context, _) => AlertDialog(
-      title: const Text('桌面小组件'),
+      title: Text(tr(context, 'm0510')),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            '长按 Android 桌面，添加“珠玑笔记最近笔记”。默认隐藏标题；开启后，桌面会显示当前账号最近 30 条笔记标题，不显示正文。编辑、同步及返回应用时刷新。',
-          ),
+          Text(tr(context, 'm0539')),
           SwitchListTile(
-            title: const Text('在桌面显示笔记标题'),
+            title: Text(tr(context, 'm0540')),
             value: widget.controller.enabled,
             onChanged: busy || !widget.controller.ready
                 ? null
@@ -1923,18 +2027,18 @@ class _HomeWidgetSettingsState extends State<_HomeWidgetSettings> {
                   ),
           ),
           if (error != null || widget.controller.error != null)
-            Text(error ?? widget.controller.error!),
+            Text(trMessage(context, error ?? widget.controller.error!)),
           if (busy) const LinearProgressIndicator(),
         ],
       ),
       actions: [
         TextButton(
           onPressed: busy ? null : () => run(widget.retry),
-          child: const Text('刷新'),
+          child: Text(tr(context, 'm0541')),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('关闭'),
+          child: Text(tr(context, 'm0010')),
         ),
       ],
     ),

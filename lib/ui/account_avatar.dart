@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -12,7 +14,7 @@ class AccountAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget placeholder() => Icon(Icons.account_circle, size: size);
     return Semantics(
-      label: '用户头像',
+      label: tr(context, 'm0011'),
       image: true,
       child: ClipOval(
         child: bytes == null

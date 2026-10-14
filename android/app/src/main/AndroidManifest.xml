@@ -18,7 +18,10 @@
                 android:resource="@xml/avatar_camera_paths" />
         </provider>
         <receiver android:name=".NoteWidget" android:exported="false" android:label="@string/widget_description">
-            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.LOCALE_CHANGED" />
+            </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/note_widget_info" />
         </receiver>
         <service android:name=".NoteWidgetService" android:exported="false"

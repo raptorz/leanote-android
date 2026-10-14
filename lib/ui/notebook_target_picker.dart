@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../domain/models/notebook.dart';
@@ -62,7 +64,9 @@ class _NotebookTargetPickerState extends State<NotebookTargetPicker> {
           width: 36,
           child: hasChildren
               ? IconButton(
-                  tooltip: _expanded.contains(id) ? '收起 $title' : '展开 $title',
+                  tooltip: _expanded.contains(id)
+                      ? trNow(context, 'm0333', [title])
+                      : trNow(context, 'm0334', [title]),
                   onPressed: widget.enabled && _search.trim().isEmpty
                       ? () => setState(() {
                           _expanded.contains(id)
@@ -106,8 +110,8 @@ class _NotebookTargetPickerState extends State<NotebookTargetPicker> {
       children: [
         TextField(
           enabled: widget.enabled,
-          decoration: const InputDecoration(
-            labelText: '搜索笔记本',
+          decoration: InputDecoration(
+            labelText: tr(context, 'm0335'),
             prefixIcon: Icon(Icons.search),
           ),
           onChanged: (value) => setState(() => _search = value),
@@ -115,7 +119,7 @@ class _NotebookTargetPickerState extends State<NotebookTargetPicker> {
         Expanded(
           child: ListView(
             children: [
-              if (widget.allowRoot) _choice('', '根目录'),
+              if (widget.allowRoot) _choice('', tr(context, 'm0336')),
               for (final row in rows)
                 _choice(
                   row.notebook.notebookId,
@@ -124,9 +128,9 @@ class _NotebookTargetPickerState extends State<NotebookTargetPicker> {
                   hasChildren: row.hasChildren,
                 ),
               if (rows.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.all(16),
-                  child: Text('没有匹配的笔记本'),
+                  child: Text(tr(context, 'm0337')),
                 ),
             ],
           ),

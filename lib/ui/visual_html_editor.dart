@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -12,7 +14,10 @@ import 'editor_save_guard.dart';
 import 'visual_html_policy.dart';
 export 'visual_html_policy.dart' show supportsVisualHtml;
 
-String visualEditorDocument(String source) {
+String visualEditorDocument(
+  String source, {
+  AppStrings strings = const AppStrings(Locale('zh')),
+}) {
   if (!supportsVisualHtml(source)) {
     throw ArgumentError('Unsupported rich text');
   }
@@ -87,7 +92,7 @@ window.insertTable = value => {
   const anchor = selection.anchorNode.nodeType === Node.ELEMENT_NODE
     ? selection.anchorNode : selection.anchorNode.parentElement;
   if (anchor.closest('table')) {
-    EditorError.postMessage('请先将光标移到表格外，避免嵌套表格');
+    EditorError.postMessage(${jsonEncode(strings.text('tableCursorOutside')).replaceAll('<', r'\u003c')});
     return;
   }
   document.execCommand('insertHTML', false, value);
@@ -108,7 +113,7 @@ window.replaceTable = (id, expected, replacement) => {
   const target = pendingTable;
   pendingTable = null;
   if (!target || target.id !== id || !editor.contains(target.table) || target.table.outerHTML !== expected) {
-    EditorError.postMessage('表格已变化，请重新选择单元格后重试');
+    EditorError.postMessage(${jsonEncode(strings.text('tableChanged')).replaceAll('<', r'\u003c')});
     return;
   }
   editor.focus();
@@ -126,6 +131,7 @@ window.replaceTable = (id, expected, replacement) => {
 class VisualHtmlEditor extends StatefulWidget {
   const VisualHtmlEditor({
     required this.source,
+    this.strings = const AppStrings(Locale('zh')),
     required this.onChanged,
     required this.flush,
     required this.saveError,
@@ -133,6 +139,7 @@ class VisualHtmlEditor extends StatefulWidget {
   });
 
   final String source;
+  final AppStrings strings;
   final ValueChanged<String> onChanged;
   final Future<bool> Function() flush;
   final ValueListenable<String?> saveError;
@@ -202,7 +209,9 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
           },
           onWebResourceError: (error) {
             if (mounted) {
-              setState(() => _error = '编辑器加载失败：${error.description}');
+              setState(
+                () => _error = trNow(context, 'm0419', [error.description]),
+              );
             }
           },
         ),
@@ -212,15 +221,17 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
 
   Future<void> _load() async {
     try {
-      await _controller.loadHtmlString(visualEditorDocument(widget.source));
+      await _controller.loadHtmlString(
+        visualEditorDocument(widget.source, strings: widget.strings),
+      );
     } catch (error) {
-      if (mounted) setState(() => _error = '编辑器加载失败：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0419', [error]));
     }
   }
 
   bool _accept(String value) {
     if (!supportsVisualHtml(value)) {
-      setState(() => _error = '当前排版超出支持范围，请撤销后重试；未覆盖本地原文。');
+      setState(() => _error = trNow(context, 'm0420'));
       return false;
     }
     widget.onChanged(value);
@@ -258,14 +269,16 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
         if (mounted) Navigator.of(context).pop();
       });
     } catch (error) {
-      if (mounted) setState(() => _error = '读取或保存编辑内容失败，请重试：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0421', [error]));
     } finally {
       _snapshot = null;
       if (mounted && _ready && !_allowPop) {
         try {
           await _controller.runJavaScript('editor.contentEditable = "true"');
         } catch (error) {
-          if (mounted) setState(() => _error = '恢复编辑失败：$error');
+          if (mounted) {
+            setState(() => _error = trNow(context, 'm0422', [error]));
+          }
         }
       }
       if (mounted) setState(() => _leaving = false);
@@ -286,7 +299,7 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
         'window.insertLink(${jsonEncode(value)})',
       );
     } catch (error) {
-      if (mounted) setState(() => _error = '插入链接失败：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0423', [error]));
     } finally {
       if (mounted) setState(() => _dialogOpen = false);
     }
@@ -306,7 +319,7 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
         'window.insertTable(${jsonEncode(value)})',
       );
     } catch (error) {
-      if (mounted) setState(() => _error = '插入表格失败：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0424', [error]));
     } finally {
       if (mounted) setState(() => _dialogOpen = false);
     }
@@ -328,7 +341,9 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
                 'window.format(${jsonEncode(command)}, ${jsonEncode(value)})',
               );
             } catch (error) {
-              if (mounted) setState(() => _error = '排版失败：$error');
+              if (mounted) {
+                setState(() => _error = trNow(context, 'm0425', [error]));
+              }
             }
           },
   );
@@ -352,7 +367,7 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
           'window.format(${jsonEncode(command)}, ${jsonEncode(value)})',
         );
       } catch (error) {
-        if (mounted) setState(() => _error = '排版失败：$error');
+        if (mounted) setState(() => _error = trNow(context, 'm0425', [error]));
       }
     },
   );
@@ -377,7 +392,9 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
       );
       final snapshot = await response;
       if (!mounted) return;
-      if (snapshot['html'] == null) throw const FormatException('请先点击表格中的单元格');
+      if (snapshot['html'] == null) {
+        throw FormatException(trNow(context, 'm0426'));
+      }
       final original = snapshot['html'] as String;
       final replacement = changeEditorTable(
         original,
@@ -391,17 +408,19 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
           context: context,
           builder: (context) => AlertDialog(
             title: Text(
-              operation == TableOperation.removeRow ? '删除当前行？' : '删除当前列？',
+              operation == TableOperation.removeRow
+                  ? trNow(context, 'm0427')
+                  : trNow(context, 'm0428'),
             ),
-            content: const Text('所选行或列中的内容也会删除。'),
+            content: Text(trNow(context, 'm0429')),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('取消'),
+                child: Text(trNow(context, 'm0026')),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('删除'),
+                child: Text(trNow(context, 'm0430')),
               ),
             ],
           ),
@@ -412,7 +431,7 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
         'window.replaceTable($id, ${jsonEncode(original)}, ${jsonEncode(replacement)})',
       );
     } catch (error) {
-      if (mounted) setState(() => _error = '表格操作失败：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0431', [error]));
     } finally {
       _tableSnapshot = null;
       if (mounted) setState(() => _dialogOpen = false);
@@ -427,10 +446,10 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
     },
     child: Scaffold(
       appBar: AppBar(
-        title: const Text('可视化编辑'),
+        title: Text(tr(context, 'm0179')),
         actions: [
           IconButton(
-            tooltip: '完成',
+            tooltip: tr(context, 'm0432'),
             onPressed: _leaving ? null : _close,
             icon: const Icon(Icons.check),
           ),
@@ -441,113 +460,161 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
           EditorSaveBanner(error: widget.saveError, retry: widget.flush),
           if (_error != null)
             MaterialBanner(
-              content: Text(_error!),
-              actions: [TextButton(onPressed: _close, child: const Text('重试'))],
+              content: Text(trMessage(context, _error!)),
+              actions: [
+                TextButton(
+                  onPressed: _close,
+                  child: Text(tr(context, 'm0006')),
+                ),
+              ],
             ),
           if (!_ready) const LinearProgressIndicator(),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _button('撤销', Icons.undo, 'undo'),
-                _button('重做', Icons.redo, 'redo'),
-                _button('加粗', Icons.format_bold, 'bold'),
-                _button('斜体', Icons.format_italic, 'italic'),
-                _button('下划线', Icons.format_underlined, 'underline'),
-                _button('删除线', Icons.format_strikethrough, 'strikeThrough'),
-                _styleMenu('文字颜色', Icons.format_color_text, 'foreColor', const {
-                  '默认黑色': '#000000',
-                  '红色': '#d32f2f',
-                  '橙色': '#e65100',
-                  '绿色': '#2e7d32',
-                  '蓝色': '#1565c0',
-                  '紫色': '#7b1fa2',
-                }),
+                _button(tr(context, 'm0169'), Icons.undo, 'undo'),
+                _button(tr(context, 'm0170'), Icons.redo, 'redo'),
+                _button(tr(context, 'm0190'), Icons.format_bold, 'bold'),
+                _button(tr(context, 'm0191'), Icons.format_italic, 'italic'),
+                _button(
+                  tr(context, 'm0433'),
+                  Icons.format_underlined,
+                  'underline',
+                ),
+                _button(
+                  tr(context, 'm0197'),
+                  Icons.format_strikethrough,
+                  'strikeThrough',
+                ),
                 _styleMenu(
-                  '高亮颜色',
-                  Icons.format_color_fill,
-                  'hiliteColor',
-                  const {
-                    '清除高亮': 'transparent',
-                    '黄色': '#fff59d',
-                    '绿色': '#c8e6c9',
-                    '蓝色': '#bbdefb',
-                    '粉色': '#f8bbd0',
+                  tr(context, 'm0434'),
+                  Icons.format_color_text,
+                  'foreColor',
+                  {
+                    tr(context, 'm0435'): '#000000',
+                    tr(context, 'm0436'): '#d32f2f',
+                    tr(context, 'm0437'): '#e65100',
+                    tr(context, 'm0438'): '#2e7d32',
+                    tr(context, 'm0439'): '#1565c0',
+                    tr(context, 'm0440'): '#7b1fa2',
                   },
                 ),
-                _styleMenu('字号', Icons.format_size, 'fontSize', const {
-                  '小': '2',
-                  '标准': '3',
-                  '大': '4',
-                  '特大': '5',
-                  '标题大小': '6',
-                }),
-                _button('左对齐', Icons.format_align_left, 'justifyLeft'),
-                _button('居中', Icons.format_align_center, 'justifyCenter'),
-                _button('右对齐', Icons.format_align_right, 'justifyRight'),
-                _button('两端对齐', Icons.format_align_justify, 'justifyFull'),
-                _button('清除文字格式', Icons.format_clear, 'removeFormat'),
-                _button('标题', Icons.title, 'formatBlock', 'h2'),
-                _button('正文', Icons.notes, 'formatBlock', 'p'),
-                _button('引用', Icons.format_quote, 'formatBlock', 'blockquote'),
+                _styleMenu(
+                  tr(context, 'm0441'),
+                  Icons.format_color_fill,
+                  'hiliteColor',
+                  {
+                    tr(context, 'm0442'): 'transparent',
+                    tr(context, 'm0443'): '#fff59d',
+                    tr(context, 'm0438'): '#c8e6c9',
+                    tr(context, 'm0439'): '#bbdefb',
+                    tr(context, 'm0444'): '#f8bbd0',
+                  },
+                ),
+                _styleMenu(
+                  tr(context, 'm0445'),
+                  Icons.format_size,
+                  'fontSize',
+                  {
+                    tr(context, 'm0446'): '2',
+                    tr(context, 'm0447'): '3',
+                    tr(context, 'm0448'): '4',
+                    tr(context, 'm0449'): '5',
+                    tr(context, 'm0450'): '6',
+                  },
+                ),
+                _button(
+                  tr(context, 'm0451'),
+                  Icons.format_align_left,
+                  'justifyLeft',
+                ),
+                _button(
+                  tr(context, 'm0452'),
+                  Icons.format_align_center,
+                  'justifyCenter',
+                ),
+                _button(
+                  tr(context, 'm0453'),
+                  Icons.format_align_right,
+                  'justifyRight',
+                ),
+                _button(
+                  tr(context, 'm0454'),
+                  Icons.format_align_justify,
+                  'justifyFull',
+                ),
+                _button(
+                  tr(context, 'm0455'),
+                  Icons.format_clear,
+                  'removeFormat',
+                ),
+                _button(tr(context, 'm0193'), Icons.title, 'formatBlock', 'h2'),
+                _button(tr(context, 'm0456'), Icons.notes, 'formatBlock', 'p'),
+                _button(
+                  tr(context, 'm0196'),
+                  Icons.format_quote,
+                  'formatBlock',
+                  'blockquote',
+                ),
                 IconButton(
-                  tooltip: '插入链接',
+                  tooltip: tr(context, 'm0111'),
                   icon: const Icon(Icons.link),
                   onPressed: !_ready || _leaving || _dialogOpen
                       ? null
                       : _insertLink,
                 ),
-                _button('移除链接', Icons.link_off, 'unlink'),
+                _button(tr(context, 'm0457'), Icons.link_off, 'unlink'),
                 PopupMenuButton<TableOperation>(
-                  tooltip: '表格行列操作',
+                  tooltip: tr(context, 'm0458'),
                   enabled: _ready && !_leaving && !_dialogOpen,
                   icon: const Icon(Icons.table_rows_outlined),
                   onSelected: _changeTable,
-                  itemBuilder: (_) => const [
+                  itemBuilder: (_) => [
                     PopupMenuItem(
                       value: TableOperation.mergeRight,
-                      child: Text('与右侧单元格合并'),
+                      child: Text(tr(context, 'm0459')),
                     ),
                     PopupMenuItem(
                       value: TableOperation.mergeDown,
-                      child: Text('与下方单元格合并'),
+                      child: Text(tr(context, 'm0460')),
                     ),
                     PopupMenuItem(
                       value: TableOperation.splitCell,
-                      child: Text('拆分当前单元格'),
+                      child: Text(tr(context, 'm0461')),
                     ),
                     PopupMenuItem(
                       value: TableOperation.addRow,
-                      child: Text('下方插入行'),
+                      child: Text(tr(context, 'm0462')),
                     ),
                     PopupMenuItem(
                       value: TableOperation.addColumn,
-                      child: Text('右侧插入列'),
+                      child: Text(tr(context, 'm0463')),
                     ),
                     PopupMenuItem(
                       value: TableOperation.removeRow,
-                      child: Text('删除当前行'),
+                      child: Text(tr(context, 'm0464')),
                     ),
                     PopupMenuItem(
                       value: TableOperation.removeColumn,
-                      child: Text('删除当前列'),
+                      child: Text(tr(context, 'm0465')),
                     ),
                   ],
                 ),
                 IconButton(
-                  tooltip: '插入表格',
+                  tooltip: tr(context, 'm0119'),
                   icon: const Icon(Icons.table_chart_outlined),
                   onPressed: !_ready || _leaving || _dialogOpen
                       ? null
                       : _insertTable,
                 ),
                 _button(
-                  '无序列表',
+                  tr(context, 'm0194'),
                   Icons.format_list_bulleted,
                   'insertUnorderedList',
                 ),
                 _button(
-                  '有序列表',
+                  tr(context, 'm0195'),
                   Icons.format_list_numbered,
                   'insertOrderedList',
                 ),

@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../sync/sync_coordinator.dart';
@@ -57,14 +59,14 @@ class _SyncProgressDialogState extends State<_SyncProgressDialog> {
 
   String get _label {
     final progress = _progress;
-    if (progress == null) return '正在准备同步…';
+    if (progress == null) return trNow(context, 'm0402');
     final count = progress.completed;
     return switch (progress.stage) {
-      SyncStage.uploading => '正在上传本地修改，已上传 $count 篇',
-      SyncStage.notebooks => '正在下载笔记本，已接收 $count 个',
-      SyncStage.notes => '正在下载笔记正文，已接收 $count 篇',
-      SyncStage.tags => '正在下载标签，已接收 $count 个',
-      SyncStage.saving => '正在保存本地数据…',
+      SyncStage.uploading => trNow(context, 'm0403', [count]),
+      SyncStage.notebooks => trNow(context, 'm0404', [count]),
+      SyncStage.notes => trNow(context, 'm0405', [count]),
+      SyncStage.tags => trNow(context, 'm0406', [count]),
+      SyncStage.saving => trNow(context, 'm0407'),
     };
   }
 
@@ -72,7 +74,7 @@ class _SyncProgressDialogState extends State<_SyncProgressDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: false,
     child: AlertDialog(
-      title: const Text('正在同步'),
+      title: Text(tr(context, 'm0408')),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -81,7 +83,7 @@ class _SyncProgressDialogState extends State<_SyncProgressDialog> {
           const SizedBox(height: 16),
           Semantics(liveRegion: true, child: Text(_label)),
           const SizedBox(height: 8),
-          const Text('请保持应用打开，完成后此窗口会自动关闭。'),
+          Text(tr(context, 'm0409')),
         ],
       ),
     ),

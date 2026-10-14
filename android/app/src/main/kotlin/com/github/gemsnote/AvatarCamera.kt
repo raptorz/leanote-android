@@ -29,11 +29,11 @@ class AvatarCamera(private val activity: Activity) {
         output.parentFile?.listFiles()?.filter { it.name.startsWith("capture_") && it.path !in activeFiles }?.forEach { it.delete() }
     }
     fun capture(result: MethodChannel.Result) {
-        if (pending != null) { result.error("cameraBusy", "相机正在使用中", null); return }
+        if (pending != null) { result.error("cameraBusy", NativeLanguage.text(activity, R.string.native_23), null); return }
         pending = result
         try {
             val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-            check(intent.resolveActivity(activity.packageManager) != null) { "没有可用的相机应用" }
+            check(intent.resolveActivity(activity.packageManager) != null) { NativeLanguage.text(activity, R.string.native_24) }
             output.parentFile!!.mkdirs()
             output.delete()
             activeFiles.add(output.path)
@@ -52,13 +52,13 @@ class AvatarCamera(private val activity: Activity) {
             var rotated: Bitmap? = null
             try {
                 val file = output
-                require(file.length() in 1..(16L * 1024 * 1024)) { "拍摄照片超过 16 MiB 或无效" }
+                require(file.length() in 1..(16L * 1024 * 1024)) { NativeLanguage.text(activity, R.string.native_25) }
                 val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeFile(file.path, bounds)
-                require(bounds.outWidth in 1..8192 && bounds.outHeight in 1..8192) { "拍摄照片尺寸过大或无效" }
+                require(bounds.outWidth in 1..8192 && bounds.outHeight in 1..8192) { NativeLanguage.text(activity, R.string.native_26) }
                 var sample = 1
                 while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 1024) sample *= 2
-                bitmap = BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample }) ?: error("无法读取拍摄照片")
+                bitmap = BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample }) ?: error(NativeLanguage.text(activity, R.string.native_27))
                 val matrix = Matrix()
                 when (ExifInterface(file.path).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
                     ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.setScale(-1f, 1f)
@@ -89,6 +89,6 @@ class AvatarCamera(private val activity: Activity) {
         } catch (_: Exception) { }
         output.delete()
         activeFiles.remove(output.path)
-        if (error == null) result?.success(bytes) else result?.error("avatarCamera", error.message, null)
+        if (error == null) result?.success(bytes) else result?.error("avatarCamera", NativeLanguage.errorMessage(activity, error), null)
     }
 }

@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../domain/models/default_editor.dart';
@@ -35,7 +37,7 @@ class _DefaultEditorDialogState extends State<DefaultEditorDialog> {
       final editor = await widget.load();
       if (mounted) setState(() => _selected = editor);
     } on Object catch (error) {
-      if (mounted) setState(() => _error = '读取设置失败：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0105', [error]));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -51,7 +53,7 @@ class _DefaultEditorDialogState extends State<DefaultEditorDialog> {
       await widget.save(_selected!);
       if (mounted) Navigator.pop(context);
     } on Object catch (error) {
-      if (mounted) setState(() => _error = '保存设置失败：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0106', [error]));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -61,17 +63,20 @@ class _DefaultEditorDialogState extends State<DefaultEditorDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: AlertDialog(
-      title: const Text('默认编辑器'),
+      title: Text(tr(context, 'm0107')),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('用于当前账号在本机新建笔记，不改变已有笔记格式。新建时仍可临时选择另一种格式。'),
+          Text(tr(context, 'm0108')),
           const SizedBox(height: 16),
           if (_selected != null)
             SegmentedButton<DefaultEditor>(
               segments: [
                 for (final editor in DefaultEditor.values)
-                  ButtonSegment(value: editor, label: Text(editor.label)),
+                  ButtonSegment(
+                    value: editor,
+                    label: Text(trLabel(context, editor.label)),
+                  ),
               ],
               selected: {_selected!},
               onSelectionChanged: _busy
@@ -81,21 +86,21 @@ class _DefaultEditorDialogState extends State<DefaultEditorDialog> {
           if (_busy) const LinearProgressIndicator(),
           if (_error != null)
             Text(
-              _error!,
+              trMessage(context, _error!),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           if (_selected == null && !_busy)
-            TextButton(onPressed: _load, child: const Text('重试读取')),
+            TextButton(onPressed: _load, child: Text(tr(context, 'm0109'))),
         ],
       ),
       actions: [
         FilledButton(
           onPressed: _busy || _selected == null ? null : _save,
-          child: const Text('保存'),
+          child: Text(tr(context, 'm0025')),
         ),
         TextButton(
           onPressed: _busy ? null : () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(tr(context, 'm0026')),
         ),
       ],
     ),

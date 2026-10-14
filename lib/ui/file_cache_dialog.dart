@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../domain/models/file_cache_usage.dart';
@@ -39,7 +41,7 @@ class _FileCacheDialogState extends State<FileCacheDialog> {
       final usage = await widget.load();
       if (mounted) setState(() => _usage = usage);
     } on Object {
-      if (mounted) setState(() => _error = '读取缓存用量失败，请重试');
+      if (mounted) setState(() => _error = trNow(context, 'm0123'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -61,7 +63,7 @@ class _FileCacheDialogState extends State<FileCacheDialog> {
         });
       }
     } on Object {
-      if (mounted) setState(() => _error = '清理缓存失败，请重试');
+      if (mounted) setState(() => _error = trNow(context, 'm0124'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -71,7 +73,7 @@ class _FileCacheDialogState extends State<FileCacheDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: AlertDialog(
-      title: const Text('离线资源缓存'),
+      title: Text(tr(context, 'm0125')),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -80,20 +82,18 @@ class _FileCacheDialogState extends State<FileCacheDialog> {
             Text(widget.accountLabel),
             const SizedBox(height: 12),
             if (_usage != null)
-              Text('${_usage!.files} 个文件 · ${_usage!.sizeLabel}'),
+              Text(tr(context, 'm0126', [_usage!.files, _usage!.sizeLabel])),
             if (_usage != null && _usage!.pendingDownloads > 0)
-              Text('待处理资源下载：${_usage!.pendingDownloads} 篇笔记'),
-            const Text(
-              '仅统计当前账号已下载的图片和附件。清理也会移除该账号的资源下载任务；笔记正文、待同步修改和文件列表会保留。清理后需联网重新下载。',
-            ),
+              Text(tr(context, 'm0127', [_usage!.pendingDownloads])),
+            Text(tr(context, 'm0128')),
             const SizedBox(height: 8),
-            const Text('不包含导出或分享产生的副本。数据库空间可供后续复用，应用占用空间不一定立即缩小。'),
-            if (_confirming) const Text('确认清理当前账号的离线图片和附件？'),
-            if (_cleared) const Text('离线资源缓存已清理'),
+            Text(tr(context, 'm0129')),
+            if (_confirming) Text(tr(context, 'm0130')),
+            if (_cleared) Text(tr(context, 'm0131')),
             if (_busy) const LinearProgressIndicator(),
             if (_error != null)
               Text(
-                _error!,
+                trMessage(context, _error!),
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
           ],
@@ -101,7 +101,7 @@ class _FileCacheDialogState extends State<FileCacheDialog> {
       ),
       actions: [
         if (_usage == null && !_busy)
-          TextButton(onPressed: _load, child: const Text('重试读取')),
+          TextButton(onPressed: _load, child: Text(tr(context, 'm0109'))),
         if (_usage != null &&
             (_usage!.files > 0 || _usage!.pendingDownloads > 0))
           FilledButton(
@@ -110,7 +110,9 @@ class _FileCacheDialogState extends State<FileCacheDialog> {
                 : _confirming
                 ? _clear
                 : () => setState(() => _confirming = true),
-            child: Text(_confirming ? '确认清理' : '清理缓存'),
+            child: Text(
+              _confirming ? tr(context, 'm0132') : tr(context, 'm0133'),
+            ),
           ),
         TextButton(
           onPressed: _busy
@@ -125,7 +127,9 @@ class _FileCacheDialogState extends State<FileCacheDialog> {
                     Navigator.pop(context);
                   }
                 },
-          child: Text(_confirming ? '取消' : '关闭'),
+          child: Text(
+            _confirming ? tr(context, 'm0026') : tr(context, 'm0010'),
+          ),
         ),
       ],
     ),

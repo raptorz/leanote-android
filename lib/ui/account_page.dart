@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -40,7 +42,9 @@ class _AccountPageState extends State<AccountPage> {
     });
     bool uploaded = false;
     try {
-      final picker = widget.avatarPicker ?? AvatarPicker();
+      final picker =
+          widget.avatarPicker ??
+          AvatarPicker(strings: AppStrings.snapshot(context));
       final source = await (camera ? picker.capture() : picker.pick());
       if (source == null || !mounted) return;
       final bytes = await showDialog<Uint8List>(
@@ -69,14 +73,11 @@ class _AccountPageState extends State<AccountPage> {
           true;
       if (uploaded && mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('头像已上传，正在刷新')));
+            .showSnackBar(SnackBar(content: Text(trNow(context, 'm0027'))));
       }
     } on Object catch (error) {
       if (mounted) {
-        setState(
-          () => _error =
-              '无法读取头像：$error。文件需不超过 2 MiB、4096×4096，支持 PNG/JPEG/WebP/GIF/BMP。',
-        );
+        setState(() => _error = trNow(context, 'm0028', [error]));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -97,7 +98,7 @@ class _AccountPageState extends State<AccountPage> {
       );
       if (mounted) Navigator.pop(context, true);
     } on Object {
-      if (mounted) setState(() => _error = '密码已修改，但本机登录状态清理失败，请重试。不会再次修改密码。');
+      if (mounted) setState(() => _error = trNow(context, 'm0029'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -121,7 +122,7 @@ class _AccountPageState extends State<AccountPage> {
         });
       }
     } catch (error) {
-      if (mounted) setState(() => _error = '读取本地账号信息失败：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0030', [error]));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -141,10 +142,10 @@ class _AccountPageState extends State<AccountPage> {
         final avatar = await widget.repository.cachedAvatar(widget.session);
         if (mounted) setState(() => _avatar = avatar);
       } on Object catch (error) {
-        if (mounted) setState(() => _error = '资料已刷新，但头像刷新失败，保留原头像：$error');
+        if (mounted) setState(() => _error = trNow(context, 'm0031', [error]));
       }
     } catch (error) {
-      if (mounted) setState(() => _error = '刷新失败，仍显示本地资料：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0032', [error]));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -157,7 +158,7 @@ class _AccountPageState extends State<AccountPage> {
       children: [
         Text(title, style: Theme.of(context).textTheme.labelMedium),
         const SizedBox(height: 4),
-        SelectableText(value.isEmpty ? '未设置' : value),
+        SelectableText(value.isEmpty ? trNow(context, 'm0033') : value),
       ],
     ),
   );
@@ -167,10 +168,10 @@ class _AccountPageState extends State<AccountPage> {
     canPop: !_passwordChanged,
     child: Scaffold(
       appBar: AppBar(
-        title: const Text('账号'),
+        title: Text(tr(context, 'm0034')),
         actions: [
           IconButton(
-            tooltip: '刷新资料',
+            tooltip: tr(context, 'm0035'),
             onPressed: _busy || _passwordChanged ? null : _refresh,
             icon: const Icon(Icons.refresh),
           ),
@@ -181,11 +182,11 @@ class _AccountPageState extends State<AccountPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('密码已修改，本地笔记已保留。'),
-                  if (_error != null) Text(_error!),
+                  Text(tr(context, 'm0036')),
+                  if (_error != null) Text(trMessage(context, _error!)),
                   FilledButton(
                     onPressed: _busy ? null : _finishPasswordChange,
-                    child: const Text('返回登录'),
+                    child: Text(tr(context, 'm0037')),
                   ),
                 ],
               ),
@@ -197,22 +198,24 @@ class _AccountPageState extends State<AccountPage> {
                 Center(child: AccountAvatar(bytes: _avatar, size: 80)),
                 OutlinedButton(
                   onPressed: _busy ? null : _uploadAvatar,
-                  child: const Text('更换头像'),
+                  child: Text(tr(context, 'm0038')),
                 ),
-                if ((widget.avatarPicker ?? AvatarPicker()).cameraSupported)
+                if ((widget.avatarPicker ??
+                        AvatarPicker(strings: AppStrings.snapshot(context)))
+                    .cameraSupported)
                   OutlinedButton(
                     onPressed: _busy ? null : () => _uploadAvatar(camera: true),
-                    child: const Text('拍照设置头像'),
+                    child: Text(tr(context, 'm0039')),
                   ),
                 if (_error != null)
                   Text(
-                    _error!,
+                    trMessage(context, _error!),
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
                     ),
                   ),
-                _field('服务器地址', _account.server.toString()),
-                _field('用户名', _account.username),
+                _field(tr(context, 'm0040'), _account.server.toString()),
+                _field(tr(context, 'm0041'), _account.username),
                 OutlinedButton(
                   onPressed: _busy
                       ? null
@@ -236,14 +239,14 @@ class _AccountPageState extends State<AccountPage> {
                           );
                           if (saved == true && context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('用户名已更新')),
+                              SnackBar(content: Text(tr(context, 'm0042'))),
                             );
                             await _refresh();
                           }
                         },
-                  child: const Text('修改用户名'),
+                  child: Text(tr(context, 'm0017')),
                 ),
-                _field('邮箱', _account.email),
+                _field(tr(context, 'm0043'), _account.email),
                 OutlinedButton(
                   onPressed: _busy
                       ? null
@@ -268,15 +271,13 @@ class _AccountPageState extends State<AccountPage> {
                           );
                           if (sent == true && context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('验证邮件已发送，请在新邮箱确认后刷新资料。当前邮箱尚未修改。'),
-                              ),
+                              SnackBar(content: Text(tr(context, 'm0044'))),
                             );
                           }
                         },
-                  child: const Text('修改邮箱'),
+                  child: Text(tr(context, 'm0016')),
                 ),
-                _field('用户 ID', _account.userId),
+                _field(tr(context, 'm0045'), _account.userId),
                 OutlinedButton(
                   onPressed: _busy
                       ? null
@@ -302,10 +303,10 @@ class _AccountPageState extends State<AccountPage> {
                             await _finishPasswordChange();
                           }
                         },
-                  child: const Text('修改密码'),
+                  child: Text(tr(context, 'm0046')),
                 ),
                 const Divider(),
-                const Text('账号信息保存在本地，离线时也可查看。点击右上角刷新可获取服务器上的最新资料。'),
+                Text(tr(context, 'm0047')),
               ],
             ),
     ),

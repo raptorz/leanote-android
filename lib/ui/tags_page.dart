@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../repositories/auth_repository.dart';
@@ -63,12 +65,12 @@ class _TagsPageState extends State<TagsPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('标签'),
+      title: Text(tr(context, 'm0410')),
       actions: [
         if (widget.session != null)
           IconButton(
             onPressed: _createTag,
-            tooltip: '创建标签',
+            tooltip: tr(context, 'm0101'),
             icon: const Icon(Icons.add),
           ),
       ],
@@ -82,7 +84,7 @@ class _TagsPageState extends State<TagsPage> {
               onPressed: () => setState(() {
                 _tags = _loadTags();
               }),
-              child: const Text('读取标签失败，点击重试'),
+              child: Text(tr(context, 'm0411')),
             ),
           );
         }
@@ -103,12 +105,12 @@ class _TagsPageState extends State<TagsPage> {
               child: TextField(
                 controller: _filter,
                 decoration: InputDecoration(
-                  labelText: '过滤标签',
+                  labelText: tr(context, 'm0412'),
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon: _filter.text.isEmpty
                       ? null
                       : IconButton(
-                          tooltip: '清空过滤',
+                          tooltip: tr(context, 'm0413'),
                           icon: const Icon(Icons.clear),
                           onPressed: () => setState(_filter.clear),
                         ),
@@ -117,7 +119,7 @@ class _TagsPageState extends State<TagsPage> {
               ),
             ),
             CheckboxListTile(
-              title: const Text('显示未使用标签'),
+              title: Text(tr(context, 'm0414')),
               value: _includeUnused,
               onChanged: (value) => setState(() {
                 _includeUnused = value ?? false;
@@ -125,19 +127,19 @@ class _TagsPageState extends State<TagsPage> {
               }),
             ),
             if (!filtering && !_includeUnused && snapshot.data!.length > 10)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Text('显示笔记最多的 10 个标签，其他请过滤查找'),
+                child: Text(tr(context, 'm0415')),
               ),
             Expanded(
               child: entries.isEmpty
                   ? Center(
                       child: Text(
                         filtering
-                            ? '没有匹配的标签'
+                            ? tr(context, 'm0416')
                             : _includeUnused
-                            ? '暂无标签'
-                            : '暂无被笔记引用的标签',
+                            ? tr(context, 'm0417')
+                            : tr(context, 'm0418'),
                       ),
                     )
                   : ListView.builder(

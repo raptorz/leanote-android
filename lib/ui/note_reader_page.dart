@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -67,13 +69,14 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
     setState(() => _sharing = true);
     try {
       final box = _menuKey.currentContext?.findRenderObject();
-      if (box is! RenderBox || !box.hasSize) throw StateError('分享位置不可用');
+      if (box is! RenderBox || !box.hasSize) {
+        throw StateError(trNow(context, 'm0271'));
+      }
       await widget.onSystemShare!(box.localToGlobal(Offset.zero) & box.size);
     } on Object {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('系统分享失败，请重试；较大笔记请使用导出原文（分享最多 256 KiB）')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(trNow(context, 'm0272'))));
       }
     } finally {
       if (mounted) setState(() => _sharing = false);
@@ -87,13 +90,12 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
       final saved = await widget.onExport!();
       if (mounted && saved) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('笔记已导出')));
+            .showSnackBar(SnackBar(content: Text(trNow(context, 'm0273'))));
       }
     } on Object {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('导出失败，请检查保存位置或可用空间后重试')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(trNow(context, 'm0274'))));
       }
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -116,23 +118,27 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
     final note = widget.note;
     return Scaffold(
       appBar: AppBar(
-        title: Text(note.title.isEmpty ? '无标题' : note.title),
+        title: Text(note.title.isEmpty ? tr(context, 'm0275') : note.title),
         actions: [
           if (note.isMarkdown || widget.safeHtmlPreview) ...[
             IconButton(
-              tooltip: _showSource ? '查看预览' : '查看原文',
+              tooltip: _showSource
+                  ? tr(context, 'm0276')
+                  : tr(context, 'm0277'),
               onPressed: () => setState(() => _showSource = !_showSource),
               icon: Icon(_showSource ? Icons.visibility_outlined : Icons.code),
             ),
             IconButton(
-              tooltip: note.isMarkdown ? '复制 Markdown 原文' : '复制 HTML 原文',
+              tooltip: note.isMarkdown
+                  ? tr(context, 'm0278')
+                  : tr(context, 'm0279'),
               onPressed: () => copyNoteText(context, note.content),
               icon: const Icon(Icons.copy_outlined),
             ),
           ],
           if (widget.readOnly && widget.onFiles != null)
             IconButton(
-              tooltip: '图片与附件',
+              tooltip: tr(context, 'm0222'),
               icon: const Icon(Icons.attach_file),
               onPressed: _openingFiles
                   ? null
@@ -152,7 +158,7 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
             ),
           if (!widget.readOnly) ...[
             IconButton(
-              tooltip: '编辑',
+              tooltip: tr(context, 'm0280'),
               onPressed: () async {
                 await widget.onEdit?.call();
                 if (context.mounted) Navigator.of(context).pop();
@@ -217,39 +223,60 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
                   PopupMenuItem(
                     value: 'systemShare',
                     enabled: !_sharing,
-                    child: Text(_sharing ? '正在分享…' : '系统分享原文'),
+                    child: Text(
+                      _sharing ? tr(context, 'm0281') : tr(context, 'm0282'),
+                    ),
                   ),
                 if (widget.onExport != null)
                   PopupMenuItem(
                     value: 'export',
                     enabled: !_exporting,
-                    child: Text(_exporting ? '正在导出…' : '导出原文'),
+                    child: Text(
+                      _exporting ? tr(context, 'm0283') : tr(context, 'm0284'),
+                    ),
                   ),
                 if (widget.onFiles != null)
-                  const PopupMenuItem(value: 'files', child: Text('图片与附件')),
+                  PopupMenuItem(
+                    value: 'files',
+                    child: Text(tr(context, 'm0222')),
+                  ),
                 if (widget.onEditTags != null)
-                  const PopupMenuItem(value: 'tags', child: Text('编辑标签')),
+                  PopupMenuItem(
+                    value: 'tags',
+                    child: Text(tr(context, 'm0285')),
+                  ),
                 if (note.isTrash && widget.onDeleteForever != null)
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: 'deleteForever',
-                    child: Text('彻底删除'),
+                    child: Text(tr(context, 'm0286')),
                   ),
                 if (widget.onHistory != null)
-                  const PopupMenuItem(value: 'history', child: Text('历史版本')),
+                  PopupMenuItem(
+                    value: 'history',
+                    child: Text(tr(context, 'm0254')),
+                  ),
                 PopupMenuItem(
                   value: 'star',
-                  child: Text(note.isStarred ? '取消星标' : '添加星标'),
+                  child: Text(
+                    note.isStarred
+                        ? tr(context, 'm0287')
+                        : tr(context, 'm0288'),
+                  ),
                 ),
-                const PopupMenuItem(value: 'move', child: Text('移动到笔记本')),
+                PopupMenuItem(value: 'move', child: Text(tr(context, 'm0289'))),
                 if (!note.isTrash && widget.onCopy != null)
                   PopupMenuItem(
                     value: 'copy',
                     enabled: !_copying,
-                    child: Text(_copying ? '正在复制…' : '复制到笔记本'),
+                    child: Text(
+                      _copying ? tr(context, 'm0290') : tr(context, 'm0291'),
+                    ),
                   ),
                 PopupMenuItem(
                   value: 'trash',
-                  child: Text(note.isTrash ? '恢复笔记' : '移入回收站'),
+                  child: Text(
+                    note.isTrash ? tr(context, 'm0292') : tr(context, 'm0293'),
+                  ),
                 ),
               ],
             ),
@@ -336,7 +363,7 @@ class _Metadata extends StatelessWidget {
     color: const Color(0xffebe8dc),
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
     child: Text(
-      '${note.isMarkdown ? 'MD' : 'RT'}  ·  修改 ${note.updatedTime}',
+      tr(context, 'm0294', [note.isMarkdown ? 'MD' : 'RT', note.updatedTime]),
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
       style: Theme.of(context).textTheme.bodySmall,

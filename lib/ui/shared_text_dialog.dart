@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../domain/models/note.dart';
@@ -69,8 +71,8 @@ class _SharedTextDialogState extends State<SharedTextDialog> {
       if (mounted) {
         setState(
           () => _error = _imported == null
-              ? '导入失败：$failure'
-              : '笔记已保存，清理待处理分享失败：$failure。重试不会重复创建笔记。',
+              ? trNow(context, 'm0135', [failure])
+              : trNow(context, 'm0383', [failure]),
         );
       }
     } finally {
@@ -83,16 +85,16 @@ class _SharedTextDialogState extends State<SharedTextDialog> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('忽略这条分享？'),
-        content: const Text('将移除待处理内容，不创建笔记。'),
+        title: Text(trNow(context, 'm0384')),
+        content: Text(trNow(context, 'm0385')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+            child: Text(trNow(context, 'm0026')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('忽略'),
+            child: Text(trNow(context, 'm0386')),
           ),
         ],
       ),
@@ -106,7 +108,7 @@ class _SharedTextDialogState extends State<SharedTextDialog> {
       await widget.onAcknowledge();
       if (mounted) Navigator.pop(context);
     } on Object catch (failure) {
-      if (mounted) setState(() => _error = '忽略失败：$failure');
+      if (mounted) setState(() => _error = trNow(context, 'm0387', [failure]));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -116,7 +118,9 @@ class _SharedTextDialogState extends State<SharedTextDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: AlertDialog(
-      title: Text(widget.source.hasResource ? '导入分享文件' : '导入分享文本'),
+      title: Text(
+        widget.source.hasResource ? tr(context, 'm0388') : tr(context, 'm0389'),
+      ),
       content: SizedBox(
         width: 440,
         child: SingleChildScrollView(
@@ -124,39 +128,41 @@ class _SharedTextDialogState extends State<SharedTextDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('保存到：${widget.accountLabel}'),
-              const Text('按 Markdown 保存文本，不抓取网页或下载资源。保存后待同步上传。'),
+              Text(tr(context, 'm0390', [widget.accountLabel])),
+              Text(tr(context, 'm0391')),
               if (widget.source.hasResource) ...[
                 Text(
-                  '${widget.source.resourceName} · ${widget.source.resourceSize} 字节',
+                  tr(context, 'm0392', [
+                    widget.source.resourceName,
+                    widget.source.resourceSize,
+                  ]),
                 ),
-                const Text('文件将保存到本机待上传资源。联网后可从账号菜单上传，导入不会自动上传文件。'),
+                Text(tr(context, 'm0393')),
                 if (widget.source.resourceKind == 'image')
                   CheckboxListTile(
-                    title: const Text('作为正文图片暂存'),
-                    subtitle: const Text('取消勾选可作为普通附件保留原始文件'),
+                    title: Text(tr(context, 'm0394')),
+                    subtitle: Text(tr(context, 'm0395')),
                     value: _asImage,
                     onChanged: _busy || _imported != null || !widget.canImport
                         ? null
                         : (value) => setState(() => _asImage = value ?? false),
                   ),
               ],
-              if (!widget.canImport) const Text('此分享已指定其他账号，请切换账号后继续，或忽略这条分享。'),
+              if (!widget.canImport) Text(tr(context, 'm0396')),
               TextField(
                 controller: _title,
                 enabled: !_busy && _imported == null && widget.canImport,
-                decoration: const InputDecoration(labelText: '笔记标题'),
+                decoration: InputDecoration(labelText: tr(context, 'm0185')),
                 maxLength: 200,
               ),
               TextField(
                 controller: _body,
                 enabled: !_busy && _imported == null && widget.canImport,
-                decoration: const InputDecoration(labelText: '分享正文'),
+                decoration: InputDecoration(labelText: tr(context, 'm0397')),
                 minLines: 2,
                 maxLines: 5,
               ),
-              if (widget.notebooks.isEmpty)
-                const Text('请先创建笔记本，再回来导入；稍后处理会保留分享。'),
+              if (widget.notebooks.isEmpty) Text(tr(context, 'm0398')),
               SizedBox(
                 height: 210,
                 child: NotebookTargetPicker(
@@ -168,7 +174,7 @@ class _SharedTextDialogState extends State<SharedTextDialog> {
               ),
               if (_error != null)
                 Text(
-                  _error!,
+                  trMessage(context, _error!),
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               if (_busy) const LinearProgressIndicator(),
@@ -179,17 +185,19 @@ class _SharedTextDialogState extends State<SharedTextDialog> {
       actions: [
         TextButton(
           onPressed: _busy || _imported != null ? null : _discard,
-          child: const Text('忽略'),
+          child: Text(tr(context, 'm0386')),
         ),
         TextButton(
           onPressed: _busy ? null : () => Navigator.pop(context, _imported),
-          child: const Text('稍后处理'),
+          child: Text(tr(context, 'm0399')),
         ),
         FilledButton(
           onPressed: _busy || _notebook == null || !widget.canImport
               ? null
               : _import,
-          child: Text(_imported == null ? '保存笔记' : '重试清理'),
+          child: Text(
+            _imported == null ? tr(context, 'm0400') : tr(context, 'm0401'),
+          ),
         ),
       ],
     ),

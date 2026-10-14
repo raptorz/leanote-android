@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -34,10 +36,12 @@ class _EditorSaveBannerState extends State<EditorSaveBanner> {
     try {
       final saved = await widget.retry();
       if (!saved && mounted && widget.error.value == null) {
-        setState(() => _retryError = '保存未完成，请重试。');
+        setState(() => _retryError = trNow(context, 'm0114'));
       }
     } catch (error) {
-      if (mounted) setState(() => _retryError = '保存到本地失败：$error');
+      if (mounted) {
+        setState(() => _retryError = trNow(context, 'm0115', [error]));
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -53,7 +57,9 @@ class _EditorSaveBannerState extends State<EditorSaveBanner> {
             actions: [
               TextButton(
                 onPressed: _busy ? null : _retry,
-                child: Text(_busy ? '正在保存' : '重试保存'),
+                child: Text(
+                  _busy ? tr(context, 'm0116') : tr(context, 'm0117'),
+                ),
               ),
             ],
           ),

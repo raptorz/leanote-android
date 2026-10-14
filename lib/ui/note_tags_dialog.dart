@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../domain/models/tag_choices.dart';
@@ -58,7 +60,7 @@ class _NoteTagsDialogState extends State<NoteTagsDialog> {
       await widget.onSave(List.unmodifiable(_tags));
       if (mounted) Navigator.pop(context, true);
     } on Object catch (error) {
-      if (mounted) setState(() => _error = '保存失败：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0306', [error]));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -68,7 +70,7 @@ class _NoteTagsDialogState extends State<NoteTagsDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: AlertDialog(
-      title: const Text('编辑标签'),
+      title: Text(tr(context, 'm0285')),
       content: SizedBox(
         width: 360,
         child: SingleChildScrollView(
@@ -76,8 +78,8 @@ class _NoteTagsDialogState extends State<NoteTagsDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('每次输入一个标签。保存到本地后，需要同步才会更新服务端。'),
-              const Text('受当前接口限制，已有标签不能全部清空。'),
+              Text(tr(context, 'm0307')),
+              Text(tr(context, 'm0308')),
               const SizedBox(height: 12),
               Wrap(
                 spacing: 6,
@@ -95,9 +97,9 @@ class _NoteTagsDialogState extends State<NoteTagsDialog> {
                 controller: _input,
                 enabled: !_busy,
                 decoration: InputDecoration(
-                  labelText: '新标签',
+                  labelText: tr(context, 'm0309'),
                   suffixIcon: IconButton(
-                    tooltip: '添加标签',
+                    tooltip: tr(context, 'm0310'),
                     onPressed: _busy ? null : _add,
                     icon: const Icon(Icons.add),
                   ),
@@ -116,7 +118,7 @@ class _NoteTagsDialogState extends State<NoteTagsDialog> {
                             : () => setState(() {
                                 _suggestions = _loadSuggestions();
                               }),
-                        child: const Text('读取已有标签失败，点击重试'),
+                        child: Text(tr(context, 'm0311')),
                       );
                     }
                     if (!snapshot.hasData) {
@@ -133,7 +135,7 @@ class _NoteTagsDialogState extends State<NoteTagsDialog> {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('已有标签'),
+                        Text(tr(context, 'm0312')),
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxHeight: 120),
                           child: SingleChildScrollView(
@@ -160,7 +162,7 @@ class _NoteTagsDialogState extends State<NoteTagsDialog> {
                 ),
               if (_error != null)
                 Text(
-                  _error!,
+                  trMessage(context, _error!),
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               if (_busy) const LinearProgressIndicator(),
@@ -171,9 +173,12 @@ class _NoteTagsDialogState extends State<NoteTagsDialog> {
       actions: [
         TextButton(
           onPressed: _busy ? null : () => Navigator.pop(context, false),
-          child: const Text('取消'),
+          child: Text(tr(context, 'm0026')),
         ),
-        FilledButton(onPressed: _busy ? null : _save, child: const Text('保存')),
+        FilledButton(
+          onPressed: _busy ? null : _save,
+          child: Text(tr(context, 'm0025')),
+        ),
       ],
     ),
   );

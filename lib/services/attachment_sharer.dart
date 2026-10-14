@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:typed_data';
 import 'dart:ui';
 
@@ -6,8 +8,11 @@ import 'package:share_plus/share_plus.dart';
 import 'note_exporter.dart';
 
 class AttachmentSharer {
-  AttachmentSharer({Future<ShareResult> Function(ShareParams)? share})
-    : _share = share ?? SharePlus.instance.share;
+  AttachmentSharer({
+    this.strings = const AppStrings(Locale('zh')),
+    Future<ShareResult> Function(ShareParams)? share,
+  }) : _share = share ?? SharePlus.instance.share;
+  final AppStrings strings;
   final Future<ShareResult> Function(ShareParams) _share;
 
   Future<void> share(String title, Uint8List bytes, Rect origin) async {
@@ -20,7 +25,11 @@ class AttachmentSharer {
             ?.group(0)
             ?.toLowerCase() ??
         '';
-    final name = NoteExporter.safeFileName(title, extension, fallback: '附件');
+    final name = NoteExporter.safeFileName(
+      title,
+      extension,
+      fallback: strings.label('附件'),
+    );
     final mime =
         const {
           '.pdf': 'application/pdf',

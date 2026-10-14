@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 class PasswordChangeDialog extends StatefulWidget {
@@ -44,11 +46,11 @@ class _PasswordChangeDialogState extends State<PasswordChangeDialog> {
     if (_identity.text.trim().isEmpty ||
         _old.text.isEmpty ||
         _new.text.isEmpty) {
-      setState(() => _error = '请填写全部字段');
+      setState(() => _error = trNow(context, 'm0012'));
       return;
     }
     if (_new.text != _confirm.text) {
-      setState(() => _error = '两次输入的新密码不一致');
+      setState(() => _error = trNow(context, 'm0338'));
       return;
     }
     setState(() {
@@ -62,10 +64,7 @@ class _PasswordChangeDialogState extends State<PasswordChangeDialog> {
     } on Object {
       _clearPasswords();
       if (mounted) {
-        setState(
-          () => _error =
-              '修改失败，请检查网络、当前密码和新密码要求。若请求超时，密码可能已修改，请取消并用新密码重新登录确认，勿自动重试。',
-        );
+        setState(() => _error = trNow(context, 'm0339'));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -84,26 +83,24 @@ class _PasswordChangeDialogState extends State<PasswordChangeDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: AlertDialog(
-      title: const Text('修改密码'),
+      title: Text(tr(context, 'm0046')),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              '修改成功会使所有设备的登录状态失效，并返回登录页。本地笔记和未上传修改会保留；重新登录同一账号时请选择保留缓存，不要重新同步。',
-            ),
+            Text(tr(context, 'm0340')),
             TextField(
               controller: _identity,
               enabled: !_busy,
-              decoration: const InputDecoration(labelText: '当前登录账号（用户名或邮箱）'),
+              decoration: InputDecoration(labelText: tr(context, 'm0020')),
             ),
-            _password(_old, '当前密码'),
-            _password(_new, '新密码'),
-            _password(_confirm, '确认新密码'),
+            _password(_old, tr(context, 'm0021')),
+            _password(_new, tr(context, 'm0341')),
+            _password(_confirm, tr(context, 'm0342')),
             if (_busy) const LinearProgressIndicator(),
             if (_error != null)
               Text(
-                _error!,
+                trMessage(context, _error!),
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
           ],
@@ -112,11 +109,11 @@ class _PasswordChangeDialogState extends State<PasswordChangeDialog> {
       actions: [
         FilledButton(
           onPressed: _busy ? null : _save,
-          child: const Text('修改并退出登录'),
+          child: Text(tr(context, 'm0343')),
         ),
         TextButton(
           onPressed: _busy ? null : () => Navigator.pop(context, false),
-          child: const Text('取消'),
+          child: Text(tr(context, 'm0026')),
         ),
       ],
     ),

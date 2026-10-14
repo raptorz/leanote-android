@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../data/database/attachment_outbox.dart';
@@ -46,7 +48,7 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
       );
       if (mounted) setState(() => _items = items);
     } on Object {
-      if (mounted) setState(() => _error = '读取本地附件失败，请重试');
+      if (mounted) setState(() => _error = trNow(context, 'm0055'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -61,11 +63,11 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('取消'),
+              child: Text(trNow(context, 'm0026')),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('确认'),
+              child: Text(trNow(context, 'm0056')),
             ),
           ],
         ),
@@ -92,8 +94,8 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
         );
       } else if (action == 'remove') {
         if (await _confirm(
-          '移除本地附件？',
-          '将删除“${item.name}”的暂存原件及任务，不会删除服务端附件。未上传的文件将无法恢复，请先导出保留。',
+          trNow(context, 'm0057'),
+          trNow(context, 'm0058', [item.name]),
         )) {
           await widget.repository.removeStagedAttachment(
             widget.session,
@@ -104,10 +106,10 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
         await widget.repository.insertStagedImage(widget.session, item.id);
       } else if (action == 'retry') {
         if (await _confirm(
-          '重新允许上传？',
+          trNow(context, 'm0059'),
           item.isImage
-              ? '图片可能已经上传，但响应未收到。未关联正文的图片可能不出现在文件列表中；重新上传可能产生多余资源。确认接受后才允许重试，本地原件不会删除。'
-              : '先查看服务端文件列表，核实“${item.name}”没有上传成功。若原请求已成功，再次上传会产生重复附件。',
+              ? trNow(context, 'm0060')
+              : trNow(context, 'm0061', [item.name]),
         )) {
           await widget.repository.retryUncertainAttachment(
             widget.session,
@@ -121,10 +123,9 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
         );
         if (!mounted) return;
         if (action == 'export') {
-          await (widget.exporter ?? AttachmentExporter()).save(
-            file.name,
-            file.bytes,
-          );
+          await (widget.exporter ??
+                  AttachmentExporter(strings: AppStrings.snapshot(context)))
+              .save(file.name, file.bytes);
         } else if (action == 'upload' && item.isImage) {
           final image = await NoteImageUpload.normalize(file.bytes);
           if (!mounted) return;
@@ -163,7 +164,7 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
       }
       if (mounted) await _load();
     } on Object catch (error) {
-      if (mounted) setState(() => _error = '操作未完成：$error。本地原件保留，请刷新核实状态。');
+      if (mounted) setState(() => _error = trNow(context, 'm0062', [error]));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -174,35 +175,33 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
     canPop: !_busy,
     child: Scaffold(
       appBar: AppBar(
-        title: const Text('本地待上传资源'),
+        title: Text(tr(context, 'm0063')),
         actions: [
           IconButton(
             onPressed: _busy ? null : _load,
             icon: const Icon(Icons.refresh),
-            tooltip: '刷新本地任务',
+            tooltip: tr(context, 'm0064'),
           ),
         ],
       ),
       body: Column(
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.all(12),
-            child: Text(
-              '原件保存在本机，不会自动上传或随缓存清理。联网后逐项上传；需要当前密码，密码不保存。图片会追加到最新正文末尾并保存，再同步笔记以完成关联。',
-            ),
+            child: Text(tr(context, 'm0065')),
           ),
           if (_busy) const LinearProgressIndicator(),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.all(12),
               child: Text(
-                _error!,
+                trMessage(context, _error!),
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ),
           Expanded(
             child: _items.isEmpty
-                ? const Center(child: Text('暂无暂存附件'))
+                ? Center(child: Text(tr(context, 'm0066')))
                 : ListView.builder(
                     itemCount: _items.length,
                     itemBuilder: (_, index) {
@@ -210,40 +209,48 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
                       return ListTile(
                         title: Text(item.name),
                         subtitle: Text(
-                          '${item.statusLabel} · ${item.size} 字节\n笔记：${item.noteId}',
+                          tr(context, 'm0067', [
+                            trLabel(context, item.statusLabel),
+                            item.size,
+                            item.noteId,
+                          ]),
                         ),
                         isThreeLine: true,
                         trailing: PopupMenuButton<String>(
                           enabled: !_busy,
-                          tooltip: '附件操作',
+                          tooltip: tr(context, 'm0068'),
                           onSelected: (value) => _action(item, value),
                           itemBuilder: (_) => [
                             if (item.state == 'pending')
                               PopupMenuItem(
                                 value: 'upload',
-                                child: Text(item.isImage ? '上传并插入图片' : '上传附件'),
+                                child: Text(
+                                  item.isImage
+                                      ? tr(context, 'm0069')
+                                      : tr(context, 'm0070'),
+                                ),
                               ),
                             if (item.isImage && item.state == 'uploaded')
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'insert',
-                                child: Text('插入到笔记末尾'),
+                                child: Text(tr(context, 'm0071')),
                               ),
-                            const PopupMenuItem(
+                            PopupMenuItem(
                               value: 'files',
-                              child: Text('查看服务端文件列表'),
+                              child: Text(tr(context, 'm0072')),
                             ),
                             if (item.state == 'uncertain')
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'retry',
-                                child: Text('核实后允许重试'),
+                                child: Text(tr(context, 'm0073')),
                               ),
-                            const PopupMenuItem(
+                            PopupMenuItem(
                               value: 'export',
-                              child: Text('导出本地原件'),
+                              child: Text(tr(context, 'm0074')),
                             ),
-                            const PopupMenuItem(
+                            PopupMenuItem(
                               value: 'remove',
-                              child: Text('移除本地附件'),
+                              child: Text(tr(context, 'm0075')),
                             ),
                           ],
                         ),

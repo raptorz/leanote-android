@@ -1,3 +1,7 @@
+import 'dart:ui' show Locale;
+
+import '../l10n/app_strings.dart';
+
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -6,8 +10,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class AvatarPicker {
-  AvatarPicker({Future<PlatformFile?> Function()? pick})
-    : _pick = pick ?? _system;
+  AvatarPicker({
+    Future<PlatformFile?> Function()? pick,
+    this.strings = const AppStrings(Locale('zh')),
+  }) : _pick = pick ?? (() => _system(strings));
+  final AppStrings strings;
   final Future<PlatformFile?> Function() _pick;
   static const maxBytes = 2 * 1024 * 1024;
   bool get cameraSupported =>
@@ -19,11 +26,12 @@ class AvatarPicker {
     return bytes == null ? null : normalize(bytes, maxDimension: 1024);
   }
 
-  static Future<PlatformFile?> _system() => FilePicker.pickFile(
-    dialogTitle: '选择头像',
-    type: FileType.custom,
-    allowedExtensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'],
-  );
+  static Future<PlatformFile?> _system(AppStrings strings) =>
+      FilePicker.pickFile(
+        dialogTitle: strings.label('选择头像'),
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'],
+      );
   Future<Uint8List?> pick() async {
     final file = await _pick();
     if (file == null) return null;

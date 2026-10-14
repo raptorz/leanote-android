@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -93,8 +95,11 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
     setState(() {
       _batch = null;
       _failedFiles = result.failed;
-      _batchMessage =
-          '${result.cancelled ? "已停止" : "下载处理完成"}：已处理 ${result.completed} 个，失败 ${result.failed.length} 个。缓存最多 64 MiB，较早文件可能被淘汰。';
+      _batchMessage = trNow(context, 'm0207', [
+        result.cancelled ? trNow(context, 'm0205') : trNow(context, 'm0206'),
+        result.completed,
+        result.failed.length,
+      ]);
     });
   }
 
@@ -125,7 +130,7 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
       if (mounted && generation == _generation) setState(() => _files = files);
     } on Object catch (error) {
       if (mounted && generation == _generation) {
-        setState(() => _error = '读取文件列表失败：$error');
+        setState(() => _error = trNow(context, 'm0208', [error]));
       }
     } finally {
       if (mounted && generation == _generation) {
@@ -154,12 +159,14 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
           builder: (_) => _ImagePreview(
             title: file.title,
             bytes: bytes,
-            exporter: widget.imageExporter ?? ImageExporter(),
+            exporter:
+                widget.imageExporter ??
+                ImageExporter(strings: AppStrings.snapshot(context)),
           ),
         ),
       );
     } on Object catch (error) {
-      if (mounted) setState(() => _error = '读取图片失败：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0082', [error]));
     } finally {
       if (mounted) setState(() => _opening = null);
     }
@@ -169,7 +176,10 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
     if (_cachedOnly || _loading || _opening != null || _batch != null) return;
     setState(() => _opening = 'upload');
     try {
-      final file = await (widget.attachmentPicker ?? AttachmentPicker()).pick();
+      final file =
+          await (widget.attachmentPicker ??
+                  AttachmentPicker(strings: AppStrings.snapshot(context)))
+              .pick();
       if (!mounted || file == null) return;
       final result = await showDialog<bool>(
         context: context,
@@ -189,13 +199,15 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
       if (!mounted || result == null) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(result ? '附件已上传' : '附件已上传，但本地刷新失败，请同步后刷新文件列表，勿重复上传'),
+          content: Text(
+            result ? trNow(context, 'm0209') : trNow(context, 'm0210'),
+          ),
         ),
       );
       setState(() => _opening = null);
       await _load();
     } on Object catch (error) {
-      if (mounted) setState(() => _error = '无法上传附件：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0211', [error]));
     } finally {
       if (mounted) setState(() => _opening = null);
     }
@@ -205,7 +217,10 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
     if (_loading || _opening != null || _batch != null) return;
     setState(() => _opening = 'stage');
     try {
-      final file = await (widget.attachmentPicker ?? AttachmentPicker()).pick();
+      final file =
+          await (widget.attachmentPicker ??
+                  AttachmentPicker(strings: AppStrings.snapshot(context)))
+              .pick();
       if (file == null || !mounted) return;
       await widget.repository.stageAttachment(
         widget.session,
@@ -214,10 +229,10 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('附件已保存到本机，可从待上传附件中处理')));
+            .showSnackBar(SnackBar(content: Text(trNow(context, 'm0212'))));
       }
     } on Object catch (error) {
-      if (mounted) setState(() => _error = '暂存附件失败：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0213', [error]));
     } finally {
       if (mounted) setState(() => _opening = null);
     }
@@ -239,19 +254,17 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
         cachedOnly: _cachedOnly,
       );
       if (!mounted) return;
-      await (widget.attachmentOpener ?? AttachmentOpener()).open(
-        file.title,
-        bytes,
-        canOpen: () => mounted,
-      );
+      await (widget.attachmentOpener ??
+              AttachmentOpener(strings: AppStrings.snapshot(context)))
+          .open(file.title, bytes, canOpen: () => mounted);
     } on AttachmentOpenException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } on Object {
       if (mounted) {
         setState(
           () => _error = _cachedOnly
-              ? '打开附件失败：未缓存、缓存已失效或系统无法打开，请联网下载后重试'
-              : '打开附件失败，请检查网络或系统文件打开功能后重试（最大 32 MiB）',
+              ? trNow(context, 'm0214')
+              : trNow(context, 'm0215'),
         );
       }
     } finally {
@@ -277,19 +290,19 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
       if (!mounted) return;
       // Resolve the current page bounds after download, including any rotation.
       final box = context.findRenderObject() as RenderBox?;
-      if (box == null || !box.hasSize) throw StateError('无法定位分享窗口');
+      if (box == null || !box.hasSize) {
+        throw StateError(trNow(context, 'm0216'));
+      }
       final origin = box.localToGlobal(Offset.zero) & box.size;
-      await (widget.attachmentSharer ?? AttachmentSharer()).share(
-        file.title,
-        bytes,
-        origin,
-      );
+      await (widget.attachmentSharer ??
+              AttachmentSharer(strings: AppStrings.snapshot(context)))
+          .share(file.title, bytes, origin);
     } on Object {
       if (mounted) {
         setState(
           () => _error = _cachedOnly
-              ? '分享附件失败：附件未缓存、缓存已失效或无法打开分享菜单，请联网下载后重试'
-              : '分享附件失败，请检查网络、文件权限或系统分享功能后重试（最大 32 MiB）',
+              ? trNow(context, 'm0217')
+              : trNow(context, 'm0218'),
         );
       }
     } finally {
@@ -311,18 +324,20 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
         cachedOnly: _cachedOnly,
       );
       if (!mounted) return;
-      final saved = await (widget.attachmentExporter ?? AttachmentExporter())
-          .save(file.title, bytes);
+      final saved =
+          await (widget.attachmentExporter ??
+                  AttachmentExporter(strings: AppStrings.snapshot(context)))
+              .save(file.title, bytes);
       if (mounted && saved) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('附件已保存')));
+            .showSnackBar(SnackBar(content: Text(trNow(context, 'm0219'))));
       }
     } on Object {
       if (mounted) {
         setState(
           () => _error = _cachedOnly
-              ? '保存附件失败：附件未缓存、缓存已失效或无法写入保存位置，请联网下载后重试'
-              : '保存附件失败，请检查网络、文件权限或保存位置后重试（最大 32 MiB）',
+              ? trNow(context, 'm0220')
+              : trNow(context, 'm0221'),
         );
       }
     } finally {
@@ -333,10 +348,10 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('图片与附件'),
+      title: Text(tr(context, 'm0222')),
       actions: [
         PopupMenuButton<String>(
-          tooltip: '本地附件',
+          tooltip: tr(context, 'm0223'),
           enabled: !_loading && _opening == null && _batch == null,
           onSelected: (value) async {
             if (value == 'stage') {
@@ -355,13 +370,13 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
               );
             }
           },
-          itemBuilder: (_) => const [
-            PopupMenuItem(value: 'stage', child: Text('离线添加附件')),
-            PopupMenuItem(value: 'outbox', child: Text('本地待上传资源')),
+          itemBuilder: (_) => [
+            PopupMenuItem(value: 'stage', child: Text(tr(context, 'm0224'))),
+            PopupMenuItem(value: 'outbox', child: Text(tr(context, 'm0063'))),
           ],
         ),
         IconButton(
-          tooltip: '上传附件',
+          tooltip: tr(context, 'm0070'),
           icon: const Icon(Icons.upload_file),
           onPressed:
               _cachedOnly || _loading || _opening != null || _batch != null
@@ -369,7 +384,7 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
               : _uploadAttachment,
         ),
         IconButton(
-          tooltip: '刷新文件列表',
+          tooltip: tr(context, 'm0225'),
           onPressed: _loading || _opening != null || _batch != null
               ? null
               : _load,
@@ -380,8 +395,8 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
     body: Column(
       children: [
         SwitchListTile(
-          title: const Text('离线缓存'),
-          subtitle: const Text('仅查看缓存，可能不是最新内容；未缓存图片需联网查看。'),
+          title: Text(tr(context, 'm0226')),
+          subtitle: Text(tr(context, 'm0227')),
           value: _cachedOnly,
           onChanged: _opening != null || _batch != null
               ? null
@@ -390,17 +405,12 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
                   _load();
                 },
         ),
-        const Padding(
-          padding: EdgeInsets.all(12),
-          child: Text(
-            '图片最多 8 MiB，附件最多 32 MiB，缓存合计 64 MiB。已下载附件可离线保存，取消系统保存也保留缓存。联网刷新会清除本笔记旧文件缓存。',
-          ),
-        ),
+        Padding(padding: EdgeInsets.all(12), child: Text(tr(context, 'm0228'))),
         if (_loading) const LinearProgressIndicator(),
         if (!_cachedOnly) ...[
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 12),
-            child: Text('批量缓存会使用网络流量，最多并行下载 3 个文件；离开页面将停止安排后续下载。'),
+            child: Text(tr(context, 'm0229')),
           ),
           Wrap(
             spacing: 8,
@@ -414,22 +424,22 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
                     ? null
                     : () => _cacheFiles(),
                 icon: const Icon(Icons.download),
-                label: const Text('缓存当前笔记文件'),
+                label: Text(tr(context, 'm0230')),
               ),
               if (_failedFiles.isNotEmpty)
                 TextButton(
                   onPressed: _batch != null
                       ? null
                       : () => _cacheFiles(retry: true),
-                  child: const Text('重试失败文件'),
+                  child: Text(tr(context, 'm0231')),
                 ),
               if (_batch != null)
                 TextButton(
                   onPressed: () {
                     _batch?.cancel();
-                    setState(() => _batchMessage = '正在停止，等待已开始的下载结束…');
+                    setState(() => _batchMessage = tr(context, 'm0232'));
                   },
-                  child: const Text('停止下载'),
+                  child: Text(tr(context, 'm0233')),
                 ),
             ],
           ),
@@ -441,25 +451,35 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
                 : _batchProgress!.completed / _batchProgress!.total,
           ),
           Text(
-            '已处理 ${_batchProgress!.completed}/${_batchProgress!.total}，失败 ${_batchProgress!.failed}',
+            tr(context, 'm0234', [
+              _batchProgress!.completed,
+              _batchProgress!.total,
+              _batchProgress!.failed,
+            ]),
           ),
         ],
         if (_batchMessage != null)
           Padding(
             padding: const EdgeInsets.all(12),
-            child: Text(_batchMessage!),
+            child: Text(trMessage(context, _batchMessage!)),
           ),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.all(12),
             child: Text(
-              _error!,
+              trMessage(context, _error!),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
         Expanded(
           child: !_loading && _files.isEmpty
-              ? Center(child: Text(_error == null ? '暂无图片或附件' : '请刷新重试'))
+              ? Center(
+                  child: Text(
+                    _error == null
+                        ? tr(context, 'm0235')
+                        : tr(context, 'm0236'),
+                  ),
+                )
               : ListView.builder(
                   itemCount: _files.length,
                   itemBuilder: (_, index) {
@@ -473,8 +493,8 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
                       title: Text(file.title.isEmpty ? file.id : file.title),
                       subtitle: Text(
                         file.isAttachment
-                            ? '附件 · ${file.type}'
-                            : '图片 · ${file.type}',
+                            ? tr(context, 'm0237', [file.type])
+                            : tr(context, 'm0238', [file.type]),
                       ),
                       trailing: _opening == file.id
                           ? const SizedBox.square(
@@ -486,21 +506,21 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
-                                  tooltip: '打开附件',
+                                  tooltip: tr(context, 'm0239'),
                                   icon: const Icon(Icons.open_in_new),
                                   onPressed: _opening != null || _batch != null
                                       ? null
                                       : () => _openAttachment(file),
                                 ),
                                 IconButton(
-                                  tooltip: '保存附件',
+                                  tooltip: tr(context, 'm0240'),
                                   icon: const Icon(Icons.save_alt),
                                   onPressed: _opening != null || _batch != null
                                       ? null
                                       : () => _saveAttachment(file),
                                 ),
                                 IconButton(
-                                  tooltip: '分享附件',
+                                  tooltip: tr(context, 'm0241'),
                                   icon: const Icon(Icons.share_outlined),
                                   onPressed: _opening != null || _batch != null
                                       ? null
@@ -546,13 +566,12 @@ class _ImagePreviewState extends State<_ImagePreview> {
       final saved = await widget.exporter.save(widget.title, widget.bytes);
       if (mounted && saved) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('图片已保存')));
+            .showSnackBar(SnackBar(content: Text(trNow(context, 'm0242'))));
       }
     } on Object {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('保存图片失败，请检查保存位置或可用空间后重试')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(trNow(context, 'm0243'))));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -562,10 +581,10 @@ class _ImagePreviewState extends State<_ImagePreview> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text(widget.title.isEmpty ? '图片' : widget.title),
+      title: Text(widget.title.isEmpty ? tr(context, 'm0244') : widget.title),
       actions: [
         IconButton(
-          tooltip: _saving ? '正在保存…' : '保存图片',
+          tooltip: _saving ? tr(context, 'm0245') : tr(context, 'm0246'),
           onPressed: _saving ? null : _save,
           icon: const Icon(Icons.save_alt),
         ),
@@ -581,7 +600,7 @@ class _ImagePreviewState extends State<_ImagePreview> {
             policy: ResizeImagePolicy.fit,
           ),
           fit: BoxFit.contain,
-          errorBuilder: (_, _, _) => const Text('无法解码图片，请返回重试'),
+          errorBuilder: (_, _, _) => Text(tr(context, 'm0247')),
         ),
       ),
     ),

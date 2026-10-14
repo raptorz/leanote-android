@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/domain/models/account.dart';
 import 'package:gemsnote/repositories/auth_repository.dart';
@@ -45,6 +46,9 @@ class SwitchRepository implements AuthRepository {
 }
 
 class RootSwitchRepository extends ForegroundRepository {
+  @override
+  Future<String> languagePreference() async => 'zh';
+
   bool loggedOut = false;
   @override
   Future<StoredSession?> restore() async =>
@@ -57,6 +61,21 @@ class RootSwitchRepository extends ForegroundRepository {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('gemsnote/app_language'),
+          (_) async => null,
+        );
+  });
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('gemsnote/app_language'),
+          null,
+        );
+  });
   testWidgets(
     'login screen restores another saved account without remote refresh',
     (tester) async {

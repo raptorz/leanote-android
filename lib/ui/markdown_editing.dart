@@ -141,11 +141,10 @@ TextEditingValue insertMarkdownBlock(TextEditingValue value, String block) {
   );
 }
 
-TextEditingValue insertMarkdownTable(TextEditingValue value) =>
-    insertMarkdownBlock(
-      value,
-      '| 标题 1 | 标题 2 |\n| --- | --- |\n| 内容 1 | 内容 2 |',
-    );
+TextEditingValue insertMarkdownTable(
+  TextEditingValue value, {
+  String template = '| 标题 1 | 标题 2 |\n| --- | --- |\n| 内容 1 | 内容 2 |',
+}) => insertMarkdownBlock(value, template);
 
 TextEditingValue fenceMarkdownMath(TextEditingValue value) {
   final selection = _selection(value);

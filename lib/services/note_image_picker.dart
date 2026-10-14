@@ -1,3 +1,7 @@
+import 'dart:ui' show Locale;
+
+import '../l10n/app_strings.dart';
+
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -50,14 +54,18 @@ class NoteImageUpload {
 }
 
 class NoteImagePicker {
-  NoteImagePicker({Future<PlatformFile?> Function()? pick})
-    : _pick = pick ?? _system;
+  NoteImagePicker({
+    Future<PlatformFile?> Function()? pick,
+    this.strings = const AppStrings(Locale('zh')),
+  }) : _pick = pick ?? (() => _system(strings));
+  final AppStrings strings;
   final Future<PlatformFile?> Function() _pick;
-  static Future<PlatformFile?> _system() => FilePicker.pickFile(
-    dialogTitle: '选择正文图片',
-    type: FileType.custom,
-    allowedExtensions: ['png', 'jpg', 'jpeg'],
-  );
+  static Future<PlatformFile?> _system(AppStrings strings) =>
+      FilePicker.pickFile(
+        dialogTitle: strings.label('选择正文图片'),
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg'],
+      );
 
   Future<NoteImageUpload?> pick() async {
     final file = await _pick();

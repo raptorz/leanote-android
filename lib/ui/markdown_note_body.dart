@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
@@ -12,12 +14,12 @@ Future<void> copyNoteText(BuildContext context, String text) async {
     await Clipboard.setData(ClipboardData(text: text));
     if (context.mounted) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('已复制')));
+          .showSnackBar(SnackBar(content: Text(trNow(context, 'm0161'))));
     }
   } on Object {
     if (context.mounted) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('复制失败，请重试')));
+          .showSnackBar(SnackBar(content: Text(trNow(context, 'm0162'))));
     }
   }
 }
@@ -64,7 +66,9 @@ class MarkdownNoteBody extends StatelessWidget {
         : Container(
             padding: const EdgeInsets.all(12),
             color: const Color(0xffebe8dc),
-            child: Text('图片尚未缓存${alt == null || alt.isEmpty ? '' : '：$alt'}'),
+            child: Text(
+              tr(context, 'm0163', [alt == null || alt.isEmpty ? '' : '：$alt']),
+            ),
           ),
     onTapLink: (text, href, title) {
       if (href == null || href.isEmpty) return;

@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -40,6 +42,7 @@ class _SharedFilesPageState extends State<SharedFilesPage> {
 
   Future<void> _act(SharedFile file, String action, Rect origin) async {
     if (_busy != null) return;
+    final strings = AppStrings.snapshot(context);
     setState(() {
       _busy = file.fileId;
       _error = null;
@@ -52,7 +55,7 @@ class _SharedFilesPageState extends State<SharedFilesPage> {
           widget.note,
           file,
         );
-        if (cached == null) throw StateError('文件尚未缓存，请联网下载');
+        if (cached == null) throw StateError(strings.text('m0356'));
         bytes = cached;
       } else {
         bytes = await widget.repository.downloadSharedFile(
@@ -65,33 +68,29 @@ class _SharedFilesPageState extends State<SharedFilesPage> {
       switch (action) {
         case 'download':
           ScaffoldMessenger.of(context)
-              .showSnackBar(const SnackBar(content: Text('文件已缓存，可离线使用')));
+              .showSnackBar(SnackBar(content: Text(trNow(context, 'm0357'))));
         case 'save':
           final saved = file.isAttachment
-              ? await (widget.attachmentExporter ?? AttachmentExporter()).save(
-                  file.title,
-                  bytes,
-                )
-              : await (widget.imageExporter ?? ImageExporter()).save(
-                  file.title,
-                  bytes,
-                );
+              ? await (widget.attachmentExporter ??
+                        AttachmentExporter(
+                          strings: AppStrings.snapshot(context),
+                        ))
+                    .save(file.title, bytes)
+              : await (widget.imageExporter ??
+                        ImageExporter(strings: AppStrings.snapshot(context)))
+                    .save(file.title, bytes);
           if (mounted && saved) {
             ScaffoldMessenger.of(context)
-                .showSnackBar(const SnackBar(content: Text('文件已保存')));
+                .showSnackBar(SnackBar(content: Text(trNow(context, 'm0358'))));
           }
         case 'open':
-          await (widget.attachmentOpener ?? AttachmentOpener()).open(
-            file.title,
-            bytes,
-            canOpen: () => mounted,
-          );
+          await (widget.attachmentOpener ??
+                  AttachmentOpener(strings: AppStrings.snapshot(context)))
+              .open(file.title, bytes, canOpen: () => mounted);
         case 'share':
-          await (widget.attachmentSharer ?? AttachmentSharer()).share(
-            file.title,
-            bytes,
-            origin,
-          );
+          await (widget.attachmentSharer ??
+                  AttachmentSharer(strings: AppStrings.snapshot(context)))
+              .share(file.title, bytes, origin);
         case 'preview':
           await Navigator.of(context).push<void>(
             MaterialPageRoute(
@@ -103,7 +102,7 @@ class _SharedFilesPageState extends State<SharedFilesPage> {
                       bytes,
                       fit: BoxFit.contain,
                       cacheWidth: 2048,
-                      errorBuilder: (_, _, _) => const Text('图片无法解码'),
+                      errorBuilder: (_, _, _) => Text(trNow(context, 'm0359')),
                     ),
                   ),
                 ),
@@ -112,7 +111,7 @@ class _SharedFilesPageState extends State<SharedFilesPage> {
           );
       }
     } on Object catch (error) {
-      if (mounted) setState(() => _error = '读取共享文件失败：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0360', [error]));
     } finally {
       if (mounted) setState(() => _busy = null);
     }
@@ -120,15 +119,13 @@ class _SharedFilesPageState extends State<SharedFilesPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('共享图片与附件')),
+    appBar: AppBar(title: Text(tr(context, 'm0361'))),
     body: Column(
       children: [
         Padding(
           padding: const EdgeInsets.all(12),
           child: Text(
-            widget.cachedOnly
-                ? '离线使用已下载的文件；无法离线确认共享权限是否撤销。'
-                : '操作时核实共享权限和文件版本；图片最多 8 MiB，附件最多 32 MiB。',
+            widget.cachedOnly ? tr(context, 'm0362') : tr(context, 'm0363'),
           ),
         ),
         if (_busy != null) const LinearProgressIndicator(),
@@ -136,13 +133,13 @@ class _SharedFilesPageState extends State<SharedFilesPage> {
           Padding(
             padding: const EdgeInsets.all(12),
             child: Text(
-              _error!,
+              trMessage(context, _error!),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
         Expanded(
           child: widget.note.files.isEmpty
-              ? const Center(child: Text('暂无共享资源'))
+              ? Center(child: Text(tr(context, 'm0364')))
               : ListView.builder(
                   itemCount: widget.note.files.length,
                   itemBuilder: (context, index) {
@@ -158,11 +155,14 @@ class _SharedFilesPageState extends State<SharedFilesPage> {
                         file.title.isEmpty ? file.fileId : file.title,
                       ),
                       subtitle: Text(
-                        '${file.size} B${supported ? '' : ' · 超出移动端大小限制'}',
+                        tr(context, 'm0366', [
+                          file.size,
+                          supported ? '' : tr(context, 'm0365'),
+                        ]),
                       ),
                       trailing: Builder(
                         builder: (anchor) => PopupMenuButton<String>(
-                          tooltip: '文件操作',
+                          tooltip: tr(context, 'm0367'),
                           enabled: _busy == null && supported,
                           onSelected: (action) {
                             final box = anchor.findRenderObject();
@@ -176,27 +176,27 @@ class _SharedFilesPageState extends State<SharedFilesPage> {
                           },
                           itemBuilder: (_) => [
                             if (!widget.cachedOnly)
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'download',
-                                child: Text('下载到缓存'),
+                                child: Text(tr(context, 'm0368')),
                               ),
                             if (!file.isAttachment)
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'preview',
-                                child: Text('查看图片'),
+                                child: Text(tr(context, 'm0369')),
                               ),
-                            const PopupMenuItem(
+                            PopupMenuItem(
                               value: 'save',
-                              child: Text('保存到文件'),
+                              child: Text(tr(context, 'm0370')),
                             ),
                             if (file.isAttachment)
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: 'open',
-                                child: Text('用其他应用打开'),
+                                child: Text(tr(context, 'm0371')),
                               ),
-                            const PopupMenuItem(
+                            PopupMenuItem(
                               value: 'share',
-                              child: Text('系统分享'),
+                              child: Text(tr(context, 'm0372')),
                             ),
                           ],
                         ),

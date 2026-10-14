@@ -1,3 +1,7 @@
+import 'dart:ui' show Locale;
+
+import '../l10n/app_strings.dart';
+
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -12,10 +16,23 @@ typedef SaveNoteFile = Future<Uri?> Function({
 });
 
 class NoteExporter {
-  NoteExporter({SaveNoteFile? save}) : _save = save ?? _saveSystem;
+  NoteExporter({
+    SaveNoteFile? save,
+    this.strings = const AppStrings(Locale('zh')),
+  }) : _save =
+           save ??
+           (({required fileName, required bytes, required mimeType}) =>
+               _saveSystem(
+                 fileName: fileName,
+                 bytes: bytes,
+                 mimeType: mimeType,
+                 dialogTitle: strings.label('导出笔记'),
+               ));
+  final AppStrings strings;
   final SaveNoteFile _save;
 
   static Future<Uri?> _saveSystem({
+    required String dialogTitle,
     required String fileName,
     required Uint8List bytes,
     required String mimeType,
@@ -23,12 +40,12 @@ class NoteExporter {
     fileName: fileName,
     bytes: bytes,
     mimeType: mimeType,
-    dialogTitle: '导出笔记',
+    dialogTitle: dialogTitle,
   );
 
-  static String fileName(Note note) {
+  static String fileName(Note note, {String fallback = '未命名笔记'}) {
     final extension = note.isMarkdown ? '.md' : '.html';
-    return safeFileName(note.title, extension, fallback: '未命名笔记');
+    return safeFileName(note.title, extension, fallback: fallback);
   }
 
   static String safeFileName(
@@ -64,7 +81,7 @@ class NoteExporter {
       throw StateError('笔记原文超过 32 MiB，暂不支持导出');
     }
     return await _save(
-          fileName: fileName(note),
+          fileName: fileName(note, fallback: strings.label('未命名笔记')),
           bytes: bytes,
           mimeType: note.isMarkdown ? 'text/markdown' : 'text/html',
         ) !=

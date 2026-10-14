@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -89,7 +91,7 @@ class _AvatarCropDialogState extends State<AvatarCropDialog> {
       }
       setState(() => _image = image);
     } on Object catch (error) {
-      if (mounted) setState(() => _error = '读取图片失败：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0082', [error]));
     } finally {
       codec?.dispose();
     }
@@ -113,7 +115,7 @@ class _AvatarCropDialogState extends State<AvatarCropDialog> {
         Navigator.pop(context, bytes);
       }
     } on Object catch (error) {
-      if (mounted) setState(() => _error = '裁剪失败：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0083', [error]));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -129,14 +131,14 @@ class _AvatarCropDialogState extends State<AvatarCropDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: AlertDialog(
-      title: const Text('裁剪头像'),
+      title: Text(tr(context, 'm0084')),
       content: SingleChildScrollView(
         child: SizedBox(
           width: 300,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('拖动图片调整位置，滑动缩放。动态图片使用第一帧。'),
+              Text(tr(context, 'm0085')),
               const SizedBox(height: 12),
               if (_image == null && _error == null)
                 const CircularProgressIndicator(),
@@ -191,7 +193,7 @@ class _AvatarCropDialogState extends State<AvatarCropDialog> {
                     ? null
                     : (value) => setState(() => _zoom = value),
               ),
-              if (_error != null) Text(_error!),
+              if (_error != null) Text(trMessage(context, _error!)),
               if (_busy) const LinearProgressIndicator(),
             ],
           ),
@@ -200,7 +202,7 @@ class _AvatarCropDialogState extends State<AvatarCropDialog> {
       actions: [
         TextButton(
           onPressed: _busy ? null : () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(tr(context, 'm0026')),
         ),
         TextButton(
           onPressed: _busy
@@ -209,11 +211,11 @@ class _AvatarCropDialogState extends State<AvatarCropDialog> {
                   _center = const Offset(.5, .5);
                   _zoom = 1;
                 }),
-          child: const Text('居中重置'),
+          child: Text(tr(context, 'm0086')),
         ),
         FilledButton(
           onPressed: _image == null || _busy ? null : _finish,
-          child: const Text('使用此头像'),
+          child: Text(tr(context, 'm0087')),
         ),
       ],
     ),

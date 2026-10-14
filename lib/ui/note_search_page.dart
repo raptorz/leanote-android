@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -83,7 +85,7 @@ class _NoteSearchPageState extends State<NoteSearchPage> {
       });
     } on Object catch (error) {
       if (mounted && generation == _generation) {
-        setState(() => _error = '搜索失败：$error');
+        setState(() => _error = trNow(context, 'm0295', [error]));
       }
     } finally {
       if (mounted && generation == _generation) setState(() => _busy = false);
@@ -104,13 +106,13 @@ class _NoteSearchPageState extends State<NoteSearchPage> {
       );
       if (!mounted || generation != _generation) return;
       if (note == null) {
-        setState(() => _openError = '笔记已删除或移入回收站，请重新搜索');
+        setState(() => _openError = trNow(context, 'm0296'));
       } else {
         Navigator.pop(context, note);
       }
     } on Object catch (error) {
       if (mounted && generation == _generation) {
-        setState(() => _openError = '读取笔记失败，点击笔记可重试：$error');
+        setState(() => _openError = trNow(context, 'm0297', [error]));
       }
     } finally {
       if (mounted && generation == _generation) {
@@ -126,8 +128,8 @@ class _NoteSearchPageState extends State<NoteSearchPage> {
         controller: _query,
         autofocus: true,
         onChanged: _queryChanged,
-        decoration: const InputDecoration(
-          hintText: '搜索笔记',
+        decoration: InputDecoration(
+          hintText: tr(context, 'm0298'),
           border: InputBorder.none,
         ),
       ),
@@ -146,29 +148,34 @@ class _NoteSearchPageState extends State<NoteSearchPage> {
         if (_error != null)
           ListTile(
             title: Text(
-              _error!,
+              trMessage(context, _error!),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
             trailing: TextButton(
               onPressed: _busy
                   ? null
                   : () => _search(_generation, limit: _retryLimit),
-              child: const Text('重试'),
+              child: Text(tr(context, 'm0006')),
             ),
           ),
         if (_results.isNotEmpty)
-          Text('已显示 ${_results.length} 篇${_hasMore ? '，还有更多结果' : ''}'),
+          Text(
+            tr(context, 'm0300', [
+              _results.length,
+              _hasMore ? tr(context, 'm0299') : '',
+            ]),
+          ),
         Expanded(
           child: _results.isEmpty
               ? Center(
                   child: Text(
                     _query.text.trim().isEmpty
-                        ? '输入关键词开始搜索'
+                        ? tr(context, 'm0301')
                         : _busy
-                        ? '正在搜索…'
+                        ? tr(context, 'm0302')
                         : _error != null
-                        ? '请重试搜索'
-                        : '没有匹配的笔记',
+                        ? tr(context, 'm0303')
+                        : tr(context, 'm0304'),
                   ),
                 )
               : ListView.separated(
@@ -183,7 +190,7 @@ class _NoteSearchPageState extends State<NoteSearchPage> {
                                 _generation,
                                 limit: _limit + _pageSize,
                               ),
-                        child: const Text('加载更多'),
+                        child: Text(tr(context, 'm0305')),
                       );
                     }
                     final note = _results[index];
@@ -192,7 +199,7 @@ class _NoteSearchPageState extends State<NoteSearchPage> {
                         note.isMarkdown ? Icons.code : Icons.article_outlined,
                       ),
                       title: Text(
-                        note.title.isEmpty ? '无标题' : note.title,
+                        note.title.isEmpty ? tr(context, 'm0275') : note.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),

@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../domain/models/account.dart';
@@ -41,7 +43,7 @@ class _AccountSwitcherPageState extends State<AccountSwitcherPage> {
       final accounts = await widget.repository.savedAccounts();
       if (mounted) setState(() => _accounts = accounts);
     } on Object {
-      if (mounted) setState(() => _error = '读取账号失败，请重试');
+      if (mounted) setState(() => _error = trNow(context, 'm0048'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -57,7 +59,7 @@ class _AccountSwitcherPageState extends State<AccountSwitcherPage> {
       final session = await widget.repository.switchAccount(account.cacheKey);
       if (mounted) Navigator.pop(context, session);
     } on Object {
-      if (mounted) setState(() => _error = '切换失败，请重试；登录失效时请通过添加账号重新登录');
+      if (mounted) setState(() => _error = trNow(context, 'm0049'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -87,24 +89,24 @@ class _AccountSwitcherPageState extends State<AccountSwitcherPage> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy && !_loading,
     child: Scaffold(
-      appBar: AppBar(title: const Text('切换账号')),
+      appBar: AppBar(title: Text(tr(context, 'm0050'))),
       body: ListView(
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.all(16),
-            child: Text('切换保留各账号的离线修改和登录信息，不会自动同步。已退出的账号需要重新登录。'),
+            child: Text(tr(context, 'm0051')),
           ),
           if (_loading || _busy) const LinearProgressIndicator(),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                _error!,
+                trMessage(context, _error!),
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ),
           if (_error != null && !_busy && !_loading)
-            TextButton(onPressed: _load, child: const Text('重新读取账号')),
+            TextButton(onPressed: _load, child: Text(tr(context, 'm0052'))),
           for (final account in _accounts)
             ListTile(
               title: Text(
@@ -115,7 +117,7 @@ class _AccountSwitcherPageState extends State<AccountSwitcherPage> {
               ),
               isThreeLine: true,
               trailing: account.cacheKey == widget.current?.account.cacheKey
-                  ? const Text('当前')
+                  ? Text(tr(context, 'm0053'))
                   : null,
               enabled: !_busy && !_loading,
               onTap: account.cacheKey == widget.current?.account.cacheKey
@@ -127,7 +129,7 @@ class _AccountSwitcherPageState extends State<AccountSwitcherPage> {
             child: FilledButton.icon(
               onPressed: _busy || _loading ? null : _add,
               icon: const Icon(Icons.person_add_outlined),
-              label: const Text('添加账号'),
+              label: Text(tr(context, 'm0054')),
             ),
           ),
         ],

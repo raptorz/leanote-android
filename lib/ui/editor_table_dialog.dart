@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 /// Bounded, attribute-free HTML supported by the offline visual editor.
@@ -37,7 +39,7 @@ class _EditorTableDialogState extends State<EditorTableDialog> {
         rows > 20 ||
         columns < 1 ||
         columns > 10) {
-      setState(() => _error = '行数须为 1–20，列数须为 1–10 的整数。');
+      setState(() => _error = trNow(context, 'm0118'));
       return;
     }
     Navigator.of(context).pop(buildEditorTable(rows, columns));
@@ -45,7 +47,7 @@ class _EditorTableDialogState extends State<EditorTableDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('插入表格'),
+    title: Text(tr(context, 'm0119')),
     content: SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -54,17 +56,17 @@ class _EditorTableDialogState extends State<EditorTableDialog> {
             controller: _rows,
             autofocus: true,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: '行数（1–20）'),
+            decoration: InputDecoration(labelText: tr(context, 'm0120')),
           ),
           TextField(
             controller: _columns,
             keyboardType: TextInputType.number,
             onSubmitted: (_) => _submit(),
-            decoration: const InputDecoration(labelText: '列数（1–10）'),
+            decoration: InputDecoration(labelText: tr(context, 'm0121')),
           ),
           if (_error != null)
             Text(
-              _error!,
+              trMessage(context, _error!),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
         ],
@@ -73,9 +75,9 @@ class _EditorTableDialogState extends State<EditorTableDialog> {
     actions: [
       TextButton(
         onPressed: () => Navigator.of(context).pop(),
-        child: const Text('取消'),
+        child: Text(tr(context, 'm0026')),
       ),
-      FilledButton(onPressed: _submit, child: const Text('插入')),
+      FilledButton(onPressed: _submit, child: Text(tr(context, 'm0122'))),
     ],
   );
 }

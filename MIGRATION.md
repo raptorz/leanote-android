@@ -12,11 +12,11 @@
 - 旧 Android 小组件保留为目标。深链、生物识别属于既有规划扩展，是否为旧功能对应项还需核对，不能冒充已迁移。
 - 注册、博客、演示账号、旧数据库迁移目前按原迁移方案排除；若发现与必要移动功能有依赖需重新记录。
 
-## 当前现场（2026-10-13）
+## 当前现场（2026-10-14）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`ecc15e5` 历史图片 API2 下载与离线缓存；`fcfa25d` 富文本常用样式编辑和阅读；`df711b7` 搜索摘要与最新正文读取；`8e2d063` 离线 Markdown 数学公式与编辑工具；`d221858` 头像裁剪与 Android 拍照；`d65eba0` 上传前 USN 回退预检；`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
-- 2026-10-13 恢复时工作区干净。最新静态检查无问题，完整 Flutter 测试 654 项通过（另 1 项性能基准默认跳过），共享资源专项 18 项通过（含后来新增的配额淘汰测试），Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
+- 最近提交：`4738b19` 共享图片与附件；`ecc15e5` 历史图片 API2 下载与离线缓存；`fcfa25d` 富文本常用样式编辑和阅读；`df711b7` 搜索摘要与最新正文读取；`8e2d063` 离线 Markdown 数学公式与编辑工具；`d221858` 头像裁剪与 Android 拍照；`d65eba0` 上传前 USN 回退预检；`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
+- 2026-10-14 最新静态检查无问题，完整 Flutter 测试 664 项通过（另 1 项性能基准默认跳过），语言专项 9 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
 - 当前任务：持久下载、离线图片/附件暂存与 Android 资源分享已实现并验证，离线新建笔记本与不确定结果恢复已实现，继续同步一致性及其余功能缺口。iOS 与发布按最新要求暂缓，不作为当前功能迁移的执行前置条件。
 
@@ -47,7 +47,7 @@
 | M17 资源任务与缓存管理 | desktop-app/service/file_service.go | ApiNote.GetNote + ApiFile | background/NoteSyncService | services/account_file_cache.dart、file_cache_batch.dart、ui/file_cache_dialog.dart；API2 | 账号资源下载队列已持久化（schema v10），支持重启/暂停续传、逐文件失败恢复、失效快照拦截；64MiB 缓存与任务清理已实现；附件离线上传暂存已实现；图片离线暂存/上传恢复已实现；系统后台执行未完 |
 | M18 缓存偏好持久化 | desktop-app/db 配置、service/file_service.go | 无新增请求 | ui/SettingsActivity | app_database schema v8、workspace_page；本地 | 已提交 f524502；账号隔离、升级、读写失败/重试测试通过 |
 | M19 账号资料、头像、密码 | desktop-app/webapi/background_profile.go、proxy.go | Api2.UploadAvatar、User.UpdateUsername/UpdatePwd、web/emailChange | ui/SettingsActivity | ui/account_page.dart、avatar_upload_dialog.dart；API2 + 允许的公开头像 | 主要功能、头像裁剪、Android 相机与 PNG/JPEG/WebP/GIF/BMP 导入已实现；iOS 相机暂缓，原生相机方向/取消/进程恢复及帐号变更竞态真机验收待做 |
-| M20 默认编辑器、语言、关于 | desktop-app/webapi/about.go、应用配置 | 默认编辑器与语言本地；协议版本 API2 | ui/SettingsActivity、AboutActivity | default_editor_dialog.dart、about_dialog.dart；API2 | 编辑器/版本已实现，界面国际化与语言设置未实现；中英系统及切换测试待做 |
+| M20 默认编辑器、语言、关于 | desktop-app/webapi/about.go、应用配置 | 默认编辑器与语言本地；协议版本 API2 | ui/SettingsActivity、AboutActivity | default_editor_dialog.dart、about_dialog.dart；API2 | 编辑器/版本、Flutter 中英文与 system/zh/en 全设备语言设置已实现（schema v17）；Android 分享、拍照、小组件跟随选择；仍需系统语言切换、输入法及原生入口真机验收 |
 | M21 多账号快速切换 | desktop-app/app.go、db 配置 | Api2.TokenLogin、ApiUser.Info | service/AccountService、ui/MainActivity | app.dart、data/session/session_store.dart | 本轮实现切换/添加账号、登录页恢复已登录账号；保留离线修改与多账号凭据，切换前等待资源任务、重建工作区；静态检查和全量 488 项测试通过；原生安全存储/生命周期验收仍待进行 |
 | M22 导入导出、对外分享 | desktop-app/webapi/local.go | 本地操作无需新接口 | ui/edit/NoteEditActivity | services/note_importer.dart、note_exporter.dart、note_sharer.dart | 原文导入导出及系统分享已实现；完整含资源导出仍待对照；Android/iOS 文件与分享面板验收 |
 | M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity、ios/ShareExtension 与 Shared | Android 单项/多项文本、文本文件、图片与二进制附件接收已实现，含私有原件暂存、账号认领和事务导入；JVM/Flutter 测试和 APK 构建通过，设备生命周期验收待做；iOS 文件/多项及验证暂缓 |
@@ -318,3 +318,13 @@ API2 共享快照现在解析并校验 `file` 条目，按 NoteId 关联，拒�
 共享阅读页支持正文图片主动下载与离线显示，新增只读图片附件入口，提供图片预览、文件保存、附件外部打开和系统分享，无个人笔记上传/编辑入口。文件写权限与共享成员管理没有混入只读资源实现，仍在 M13 保留为后续项。离线仍无法获知服务端已经发生的权限变化；客户端不会声称已导出到外部应用的文件可被撤回。
 
 全量 Flutter 654 项通过、1 项性能基准默认跳过，随后共享资源专项 18 项通过（含新增全局配额测试）；静态检查无问题；Android debug APK 构建通过（10.7 秒）。只将现有 crypto 3.0.7 从间接依赖改为直接依赖用于 SHA-256，未升级其它依赖。未修改服务端或 iOS 原生代码，未发布。
+
+## M20 中英文与应用语言（2026-10-14）
+
+Flutter 界面、文件选择/保存标题、已知业务错误和编辑器提示提供中文 / 英文。默认跟随系统，中文系统使用中文，其它语言回退英文；登录页和账号菜单可选择跟随系统、简体中文或 English。schema v17 将语言独立保存在设备级 app_preferences，跨账号、退出、重新同步与重启保留。加载/写入失败可重试，旧异步读取不会覆盖新选择。语言设置不替换笔记内容、用户标题或插值参数。
+
+Android 原生分享/拍照提示和桌面小组件使用同一选择，通过独立 SharedPreferences 镜像支持应用未启动时的入口；更新失败显示重试提示，不重启 Activity 或丢弃编辑器状态。小组件响应系统语言变化。系统文件面板自身语言由系统控制。iOS 原生部分保持暂缓。
+
+新增 AST 文案迁移辅助工具、双语目录和生成说明；测试校验目录生成一致性、占位符保留、系统语言回退、实时切换/重启、保存失败、异步竞态、导出保留用户文件名、窄屏大字体、原生通道参数及 v16 升级保留草稿。语言弹窗改为滚动布局。新增 flutter_localizations / intl；开发工具 analyzer 的 package_config ^2.0.0 约束要求该间接依赖从 3.0.0 调整为 2.2.0，未升级其它既有插件。
+
+本批完整 Flutter 回归 **664 项通过、1 项性能基准跳过**，语言专项 9 项通过，静态检查无问题，Android debug APK 构建通过（7.5 秒）。尚未进行中英系统、第三方文件面板、相机与桌面小组件的真机验收。

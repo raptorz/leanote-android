@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../domain/models/shared_note.dart';
@@ -48,7 +50,7 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
       if (mounted && generation == _generation) setState(() => _notes = notes);
     } on Object catch (error) {
       if (mounted && generation == _generation) {
-        setState(() => _error = '读取共享列表失败：$error');
+        setState(() => _error = trNow(context, 'm0373', [error]));
       }
     } finally {
       if (mounted && generation == _generation) {
@@ -103,7 +105,7 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
                 : (uri) {
                     final file = image(uri);
                     if (file == null) {
-                      return Future.error(StateError('图片不属于共享资源快照'));
+                      return Future.error(StateError(trNow(context, 'm0374')));
                     }
                     return widget.repository.downloadSharedFile(
                       widget.session,
@@ -125,7 +127,7 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
         ),
       );
     } on Object catch (error) {
-      if (mounted) setState(() => _error = '读取共享正文失败：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0375', [error]));
     } finally {
       if (mounted) setState(() => _opening = null);
     }
@@ -134,10 +136,10 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('共享笔记'),
+      title: Text(tr(context, 'm0376')),
       actions: [
         IconButton(
-          tooltip: '刷新共享列表',
+          tooltip: tr(context, 'm0377'),
           onPressed: _loading || _opening != null ? null : _load,
           icon: const Icon(Icons.refresh),
         ),
@@ -146,8 +148,8 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
     body: Column(
       children: [
         SwitchListTile(
-          title: const Text('离线缓存'),
-          subtitle: const Text('缓存可能已过期；离线时无法确认共享权限是否已撤销。'),
+          title: Text(tr(context, 'm0226')),
+          subtitle: Text(tr(context, 'm0378')),
           value: _cachedOnly,
           onChanged: _opening != null
               ? null
@@ -156,16 +158,13 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
                   _load();
                 },
         ),
-        const Padding(
-          padding: EdgeInsets.all(12),
-          child: Text('只读浏览；已查看的正文和已下载的图片附件可离线使用。文件操作会核实在线共享权限和版本。'),
-        ),
+        Padding(padding: EdgeInsets.all(12), child: Text(tr(context, 'm0379'))),
         if (_loading) const LinearProgressIndicator(),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.all(12),
             child: Text(
-              _error!,
+              trMessage(context, _error!),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
@@ -174,8 +173,10 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
               ? Center(
                   child: Text(
                     _error == null
-                        ? (_cachedOnly ? '暂无缓存的共享笔记' : '暂无共享笔记')
-                        : '请刷新重试',
+                        ? (_cachedOnly
+                              ? tr(context, 'm0380')
+                              : tr(context, 'm0381'))
+                        : tr(context, 'm0236'),
                   ),
                 )
               : ListView.builder(
@@ -184,9 +185,13 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
                     final shared = _notes[index];
                     return ListTile(
                       title: Text(
-                        shared.note.title.isEmpty ? '无标题' : shared.note.title,
+                        shared.note.title.isEmpty
+                            ? tr(context, 'm0275')
+                            : shared.note.title,
                       ),
-                      subtitle: Text('共享者：${shared.note.userId}'),
+                      subtitle: Text(
+                        tr(context, 'm0382', [shared.note.userId]),
+                      ),
                       trailing: _opening == shared.note.noteId
                           ? const SizedBox.square(
                               dimension: 20,

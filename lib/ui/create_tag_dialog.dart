@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 class CreateTagDialog extends StatefulWidget {
@@ -24,7 +26,7 @@ class _CreateTagDialogState extends State<CreateTagDialog> {
     if (_busy || !_name.value.composing.isCollapsed) return;
     final name = _name.text.trim();
     if (name.isEmpty) {
-      setState(() => _error = '请输入标签名称');
+      setState(() => _error = trNow(context, 'm0099'));
       return;
     }
     setState(() {
@@ -36,7 +38,7 @@ class _CreateTagDialogState extends State<CreateTagDialog> {
       if (mounted) Navigator.pop(context, true);
     } on Object catch (error) {
       if (mounted) {
-        setState(() => _error = '未能确认创建成功：$error。若请求中断，请先同步核对标签列表。');
+        setState(() => _error = trNow(context, 'm0100', [error]));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -47,24 +49,24 @@ class _CreateTagDialogState extends State<CreateTagDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: AlertDialog(
-      title: const Text('创建标签'),
+      title: Text(tr(context, 'm0101')),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('需要联网。创建的标签可以稍后添加到笔记，不会修改已有笔记。'),
+            Text(tr(context, 'm0102')),
             TextField(
               controller: _name,
               enabled: !_busy,
               autofocus: true,
               maxLength: 200,
-              decoration: const InputDecoration(labelText: '标签名称'),
+              decoration: InputDecoration(labelText: tr(context, 'm0103')),
               onSubmitted: (_) => _create(),
             ),
             if (_busy) const LinearProgressIndicator(),
             if (_error != null)
               Text(
-                _error!,
+                trMessage(context, _error!),
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
           ],
@@ -73,11 +75,11 @@ class _CreateTagDialogState extends State<CreateTagDialog> {
       actions: [
         TextButton(
           onPressed: _busy ? null : () => Navigator.pop(context, false),
-          child: const Text('取消'),
+          child: Text(tr(context, 'm0026')),
         ),
         FilledButton(
           onPressed: _busy ? null : _create,
-          child: const Text('创建'),
+          child: Text(tr(context, 'm0104')),
         ),
       ],
     ),

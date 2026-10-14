@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../domain/models/notebook.dart';
@@ -35,7 +37,7 @@ class _NotebookDialogState extends State<NotebookDialog> {
   Future<void> _save() async {
     if (_busy) return;
     if (_title.text.trim().isEmpty) {
-      setState(() => _error = '请输入笔记本名称');
+      setState(() => _error = trNow(context, 'm0327'));
       return;
     }
     setState(() {
@@ -61,7 +63,7 @@ class _NotebookDialogState extends State<NotebookDialog> {
       if (mounted) {
         setState(() {
           _busy = false;
-          _error = '保存失败：$error';
+          _error = trNow(context, 'm0306', [error]);
         });
       }
     }
@@ -73,10 +75,10 @@ class _NotebookDialogState extends State<NotebookDialog> {
     child: AlertDialog(
       title: Text(
         widget.existing != null
-            ? '重命名笔记本'
+            ? tr(context, 'm0328')
             : widget.parentNotebookId.isEmpty
-            ? '新建笔记本'
-            : '新增子笔记本',
+            ? tr(context, 'm0329')
+            : tr(context, 'm0330'),
       ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -86,19 +88,25 @@ class _NotebookDialogState extends State<NotebookDialog> {
             autofocus: true,
             enabled: !_busy,
             onSubmitted: (_) => _save(),
-            decoration: InputDecoration(labelText: '笔记本名称', errorText: _error),
+            decoration: InputDecoration(
+              labelText: tr(context, 'm0331'),
+              errorText: _error,
+            ),
           ),
           const SizedBox(height: 12),
-          const Text('先保存到本机，下次同步时上传。'),
+          Text(tr(context, 'm0332')),
           if (_busy) const LinearProgressIndicator(),
         ],
       ),
       actions: [
         TextButton(
           onPressed: _busy ? null : () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(tr(context, 'm0026')),
         ),
-        FilledButton(onPressed: _busy ? null : _save, child: const Text('保存')),
+        FilledButton(
+          onPressed: _busy ? null : _save,
+          child: Text(tr(context, 'm0025')),
+        ),
       ],
     ),
   );

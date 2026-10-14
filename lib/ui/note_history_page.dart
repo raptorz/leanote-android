@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../domain/models/note.dart';
@@ -43,18 +45,16 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('恢复历史正文'),
-        content: const Text(
-          '将替换当前本地正文，包括尚未同步的正文修改。标题、标签、笔记本和星标保持不变。正文中的图片引用会保留，但不能找回服务端已删除的图片，也不恢复附件列表。恢复后需要同步到服务器。',
-        ),
+        title: Text(trNow(context, 'm0248')),
+        content: Text(trNow(context, 'm0249')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
+            child: Text(trNow(context, 'm0026')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('恢复'),
+            child: Text(trNow(context, 'm0250')),
           ),
         ],
       ),
@@ -73,7 +73,7 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
-      if (mounted) setState(() => _error = '恢复失败：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0251', [error]));
     } finally {
       if (mounted) setState(() => _loading = null);
     }
@@ -130,13 +130,13 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
             note: widget.note.copyWith(
               content: content,
               updatedTime: history.updatedTime,
-              title: '${widget.note.title} · 历史版本',
+              title: trNow(context, 'm0252', [widget.note.title]),
             ),
           ),
         ),
       );
     } catch (error) {
-      if (mounted) setState(() => _error = '读取历史正文失败：$error');
+      if (mounted) setState(() => _error = trNow(context, 'm0253', [error]));
     } finally {
       if (mounted) setState(() => _loading = null);
     }
@@ -144,12 +144,12 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('历史版本')),
+    appBar: AppBar(title: Text(tr(context, 'm0254'))),
     body: Column(
       children: [
         SwitchListTile(
-          title: const Text('离线缓存'),
-          subtitle: const Text('已查看的正文与已下载的历史图片可离线阅读。恢复保留图片引用，不恢复附件列表。'),
+          title: Text(tr(context, 'm0226')),
+          subtitle: Text(tr(context, 'm0255')),
           value: _cachedOnly,
           onChanged: _loading != null
               ? null
@@ -163,7 +163,7 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
-              _error!,
+              trMessage(context, _error!),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
@@ -179,10 +179,10 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('读取历史版本失败：${snapshot.error}'),
+                      Text(tr(context, 'm0256', [snapshot.error])),
                       TextButton(
                         onPressed: () => setState(() => _histories = _load()),
-                        child: const Text('重试'),
+                        child: Text(tr(context, 'm0006')),
                       ),
                     ],
                   ),
@@ -194,7 +194,9 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
               final items = snapshot.data!;
               if (items.isEmpty) {
                 return Center(
-                  child: Text(_cachedOnly ? '暂无缓存的历史版本' : '暂无历史版本'),
+                  child: Text(
+                    _cachedOnly ? tr(context, 'm0257') : tr(context, 'm0258'),
+                  ),
                 );
               }
               return ListView.builder(
@@ -204,7 +206,9 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
                   return ListTile(
                     key: ValueKey(history.id),
                     title: Text(history.updatedTime),
-                    subtitle: Text('修改用户：${history.updatedUserId}'),
+                    subtitle: Text(
+                      tr(context, 'm0259', [history.updatedUserId]),
+                    ),
                     trailing: _loading == history.id
                         ? const SizedBox(
                             width: 24,
@@ -214,10 +218,10 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
                         : PopupMenuButton<String>(
                             enabled: _loading == null,
                             onSelected: (_) => _restore(history),
-                            itemBuilder: (_) => const [
+                            itemBuilder: (_) => [
                               PopupMenuItem(
                                 value: 'restore',
-                                child: Text('恢复此版本正文'),
+                                child: Text(tr(context, 'm0260')),
                               ),
                             ],
                           ),

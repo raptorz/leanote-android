@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -31,7 +33,7 @@ class _AvatarUploadDialogState extends State<AvatarUploadDialog> {
   Future<void> _upload() async {
     if (_busy) return;
     if (_identity.text.trim().isEmpty || _password.text.isEmpty) {
-      setState(() => _error = '请填写当前账号和密码');
+      setState(() => _error = trNow(context, 'm0088'));
       return;
     }
     setState(() {
@@ -45,9 +47,7 @@ class _AvatarUploadDialogState extends State<AvatarUploadDialog> {
     } on Object {
       _password.clear();
       if (mounted) {
-        setState(
-          () => _error = '上传失败，请检查网络、当前账号密码或服务端上传限制。超时后请先取消并刷新头像确认结果，不要重复上传。',
-        );
+        setState(() => _error = trNow(context, 'm0089'));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -58,17 +58,17 @@ class _AvatarUploadDialogState extends State<AvatarUploadDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: AlertDialog(
-      title: const Text('更换头像'),
+      title: Text(tr(context, 'm0038')),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Image.memory(widget.bytes, width: 96, height: 96),
-            const Text('图片已转换为小尺寸 PNG。需要当前密码验证身份；密码不会保存。'),
+            Text(tr(context, 'm0090')),
             TextField(
               controller: _identity,
               enabled: !_busy,
-              decoration: const InputDecoration(labelText: '当前登录账号（用户名或邮箱）'),
+              decoration: InputDecoration(labelText: tr(context, 'm0020')),
             ),
             TextField(
               controller: _password,
@@ -76,12 +76,12 @@ class _AvatarUploadDialogState extends State<AvatarUploadDialog> {
               obscureText: true,
               autocorrect: false,
               enableSuggestions: false,
-              decoration: const InputDecoration(labelText: '当前密码'),
+              decoration: InputDecoration(labelText: tr(context, 'm0021')),
             ),
             if (_busy) const LinearProgressIndicator(),
             if (_error != null)
               Text(
-                _error!,
+                trMessage(context, _error!),
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
           ],
@@ -90,11 +90,11 @@ class _AvatarUploadDialogState extends State<AvatarUploadDialog> {
       actions: [
         FilledButton(
           onPressed: _busy ? null : _upload,
-          child: const Text('上传'),
+          child: Text(tr(context, 'm0081')),
         ),
         TextButton(
           onPressed: _busy ? null : () => Navigator.pop(context, false),
-          child: const Text('取消'),
+          child: Text(tr(context, 'm0026')),
         ),
       ],
     ),

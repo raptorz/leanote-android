@@ -81,6 +81,10 @@ object NoteWidgetStore {
 }
 
 class NoteWidget : AppWidgetProvider() {
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        if (intent.action == Intent.ACTION_LOCALE_CHANGED) updateAll(context)
+    }
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) { updateAll(context) }
     override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: android.os.Bundle) { updateAll(context) }
     companion object {
@@ -103,10 +107,12 @@ class NoteWidget : AppWidgetProvider() {
                     return PendingIntent.getActivity(context, id, intent, PendingIntent.FLAG_UPDATE_CURRENT or mutability)
                 }
                 val views = RemoteViews(context.packageName, R.layout.note_widget)
+                views.setTextViewText(R.id.widget_title, NativeLanguage.text(context, R.string.app_name))
+                views.setContentDescription(R.id.widget_create, NativeLanguage.text(context, R.string.widget_create))
                 views.setOnClickPendingIntent(R.id.widget_title, launch("home"))
                 views.setOnClickPendingIntent(R.id.widget_create, launch("create"))
                 views.setOnClickPendingIntent(R.id.widget_empty, launch("home"))
-                views.setTextViewText(R.id.widget_empty, context.getString(if (account.isEmpty()) R.string.widget_sign_in else if (!enabled) R.string.widget_private else R.string.widget_empty))
+                views.setTextViewText(R.id.widget_empty, NativeLanguage.text(context, if (account.isEmpty()) R.string.widget_sign_in else if (!enabled) R.string.widget_private else R.string.widget_empty))
                 views.setViewVisibility(R.id.widget_list, if (enabled) View.VISIBLE else View.GONE)
                 views.setViewVisibility(R.id.widget_empty, if (enabled) View.GONE else View.VISIBLE)
                 // Epoch changes detach the old adapter immediately on account changes.
@@ -146,7 +152,7 @@ class NoteWidgetService : RemoteViewsService() {
             val row = RemoteViews(context.packageName, R.layout.note_widget_row)
             if (!valid() || position !in 0 until notes.length()) return row
             val note = notes.getJSONObject(position)
-            row.setTextViewText(R.id.widget_row, note.getString("title").ifBlank { context.getString(R.string.widget_untitled) })
+            row.setTextViewText(R.id.widget_row, note.getString("title").ifBlank { NativeLanguage.text(context, R.string.widget_untitled) })
             row.setOnClickFillInIntent(R.id.widget_row, Intent().putExtra("noteId", note.getString("id")))
             return row
         }

@@ -1,3 +1,7 @@
+import 'dart:ui' show Locale;
+
+import '../l10n/app_strings.dart';
+
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -6,10 +10,23 @@ import 'note_exporter.dart';
 
 /// Saves already retrieved bytes, without requesting media or changing cache state.
 class ImageExporter {
-  ImageExporter({SaveNoteFile? save}) : _save = save ?? _saveSystem;
+  ImageExporter({
+    SaveNoteFile? save,
+    this.strings = const AppStrings(Locale('zh')),
+  }) : _save =
+           save ??
+           (({required fileName, required bytes, required mimeType}) =>
+               _saveSystem(
+                 fileName: fileName,
+                 bytes: bytes,
+                 mimeType: mimeType,
+                 dialogTitle: strings.label('保存图片'),
+               ));
+  final AppStrings strings;
   final SaveNoteFile _save;
 
   static Future<Uri?> _saveSystem({
+    required String dialogTitle,
     required String fileName,
     required Uint8List bytes,
     required String mimeType,
@@ -17,7 +34,7 @@ class ImageExporter {
     fileName: fileName,
     bytes: bytes,
     mimeType: mimeType,
-    dialogTitle: '保存图片',
+    dialogTitle: dialogTitle,
   );
 
   Future<bool> save(String title, Uint8List bytes) async {
@@ -54,7 +71,11 @@ class ImageExporter {
       '',
     );
     return await _save(
-          fileName: NoteExporter.safeFileName(name, extension, fallback: '图片'),
+          fileName: NoteExporter.safeFileName(
+            name,
+            extension,
+            fallback: strings.label('图片'),
+          ),
           bytes: bytes,
           mimeType: mime,
         ) !=

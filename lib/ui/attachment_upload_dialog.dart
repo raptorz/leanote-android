@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../domain/models/attachment_upload.dart';
@@ -32,7 +34,7 @@ class _AttachmentUploadDialogState extends State<AttachmentUploadDialog> {
   Future<void> _upload() async {
     if (_busy || _attempted) return;
     if (_identity.text.trim().isEmpty || _password.text.isEmpty) {
-      setState(() => _error = '请输入当前账号和密码');
+      setState(() => _error = trNow(context, 'm0076'));
       return;
     }
     setState(() {
@@ -48,7 +50,7 @@ class _AttachmentUploadDialogState extends State<AttachmentUploadDialog> {
       if (mounted) Navigator.of(context).pop(refreshed);
     } on Object catch (error) {
       if (mounted) {
-        setState(() => _error = '上传未完成或结果未确认：$error。请关闭窗口并刷新文件列表核实，不要重复上传。');
+        setState(() => _error = trNow(context, 'm0077', [error]));
       }
     } finally {
       _password.clear();
@@ -60,17 +62,22 @@ class _AttachmentUploadDialogState extends State<AttachmentUploadDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: AlertDialog(
-      title: const Text('上传附件'),
+      title: Text(tr(context, 'm0070')),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('${widget.file.name}（${widget.file.bytes.length} 字节）'),
-            const Text('将先上传当前笔记的未同步正文，再上传附件；不会同步其他笔记。需要当前密码验证，密码不会保存。'),
+            Text(
+              tr(context, 'm0078', [
+                widget.file.name,
+                widget.file.bytes.length,
+              ]),
+            ),
+            Text(tr(context, 'm0079')),
             TextField(
               controller: _identity,
               enabled: !_busy && !_attempted,
-              decoration: const InputDecoration(labelText: '当前账号'),
+              decoration: InputDecoration(labelText: tr(context, 'm0080')),
             ),
             TextField(
               controller: _password,
@@ -78,12 +85,12 @@ class _AttachmentUploadDialogState extends State<AttachmentUploadDialog> {
               obscureText: true,
               autocorrect: false,
               enableSuggestions: false,
-              decoration: const InputDecoration(labelText: '当前密码'),
+              decoration: InputDecoration(labelText: tr(context, 'm0021')),
             ),
             if (_busy) const LinearProgressIndicator(),
             if (_error != null)
               Text(
-                _error!,
+                trMessage(context, _error!),
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
           ],
@@ -92,11 +99,11 @@ class _AttachmentUploadDialogState extends State<AttachmentUploadDialog> {
       actions: [
         FilledButton(
           onPressed: _busy || _attempted ? null : _upload,
-          child: const Text('上传'),
+          child: Text(tr(context, 'm0081')),
         ),
         TextButton(
           onPressed: _busy ? null : () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(tr(context, 'm0026')),
         ),
       ],
     ),

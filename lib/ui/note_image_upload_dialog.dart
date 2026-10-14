@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 
 import '../services/note_image_picker.dart';
@@ -35,7 +37,7 @@ class _NoteImageUploadDialogState extends State<NoteImageUploadDialog> {
   Future<void> _upload() async {
     if (_busy || _attempted) return;
     if (_identity.text.trim().isEmpty || _password.text.isEmpty) {
-      setState(() => _error = '请输入当前账号和密码');
+      setState(() => _error = trNow(context, 'm0076'));
       return;
     }
     setState(() {
@@ -51,9 +53,7 @@ class _NoteImageUploadDialogState extends State<NoteImageUploadDialog> {
       if (mounted) Navigator.of(context).pop(reference);
     } on Object catch (error) {
       if (mounted) {
-        setState(
-          () => _error = '上传未完成或结果未确认：$error。正文未插入图片；图片资源可能已经上传，请勿直接重复提交。',
-        );
+        setState(() => _error = trNow(context, 'm0261', [error]));
       }
     } finally {
       _password.clear();
@@ -65,19 +65,17 @@ class _NoteImageUploadDialogState extends State<NoteImageUploadDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
     child: AlertDialog(
-      title: const Text('插入正文图片'),
+      title: Text(tr(context, 'm0262')),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Image.memory(widget.image.bytes, height: 140, fit: BoxFit.contain),
-            const Text(
-              '将先上传当前笔记，再上传图片。插入后的正文保存到本地，下次同步后图片才会关联到服务端笔记。需要当前密码验证，密码不会保存。',
-            ),
+            Text(tr(context, 'm0263')),
             TextField(
               controller: _identity,
               enabled: !_busy && !_attempted,
-              decoration: const InputDecoration(labelText: '当前账号'),
+              decoration: InputDecoration(labelText: tr(context, 'm0080')),
             ),
             TextField(
               controller: _password,
@@ -85,12 +83,12 @@ class _NoteImageUploadDialogState extends State<NoteImageUploadDialog> {
               obscureText: true,
               autocorrect: false,
               enableSuggestions: false,
-              decoration: const InputDecoration(labelText: '当前密码'),
+              decoration: InputDecoration(labelText: tr(context, 'm0021')),
             ),
             if (_busy) const LinearProgressIndicator(),
             if (_error != null)
               Text(
-                _error!,
+                trMessage(context, _error!),
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
           ],
@@ -99,11 +97,11 @@ class _NoteImageUploadDialogState extends State<NoteImageUploadDialog> {
       actions: [
         FilledButton(
           onPressed: _busy || _attempted ? null : _upload,
-          child: const Text('上传并插入'),
+          child: Text(tr(context, 'm0264')),
         ),
         TextButton(
           onPressed: _busy ? null : () => Navigator.of(context).pop(),
-          child: Text(_attempted ? '关闭' : '取消'),
+          child: Text(_attempted ? tr(context, 'm0010') : tr(context, 'm0026')),
         ),
       ],
     ),

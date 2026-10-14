@@ -1,3 +1,5 @@
+import '../l10n/app_strings.dart';
+
 import 'dart:convert';
 import 'dart:ui';
 
@@ -8,12 +10,17 @@ import '../domain/models/note.dart';
 /// Shares the displayed source as plain text, without media, credentials or URLs
 /// added by the app. The receiving application controls what happens next.
 class NoteSharer {
-  NoteSharer({Future<ShareResult> Function(ShareParams)? share})
-    : _share = share ?? SharePlus.instance.share;
+  NoteSharer({
+    this.strings = const AppStrings(Locale('zh')),
+    Future<ShareResult> Function(ShareParams)? share,
+  }) : _share = share ?? SharePlus.instance.share;
+  final AppStrings strings;
   final Future<ShareResult> Function(ShareParams) _share;
 
   Future<void> share(Note note, Rect origin) async {
-    final title = note.title.trim().isEmpty ? '未命名笔记' : note.title;
+    final title = note.title.trim().isEmpty
+        ? strings.label('未命名笔记')
+        : note.title;
     final text = '$title\n\n${note.content}';
     // Keep text intents well below Android's IPC transaction limit. Larger
     // notes can use the existing source-file export instead; never truncate.

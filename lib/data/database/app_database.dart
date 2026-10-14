@@ -31,7 +31,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 16;
+  static const schemaVersion = 17;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -81,6 +81,7 @@ class AppDatabase {
         if (oldVersion < 14) await db.execute(NoteCreationJournal.schema);
         if (oldVersion < 15) await db.execute(HistoryImageCache.schema);
         if (oldVersion < 16) await db.execute(SharedFileCache.schema);
+        if (oldVersion < 17) await db.execute(_appPreferencesSchema);
       },
     );
     return AppDatabase._(database);
@@ -411,6 +412,30 @@ class AppDatabase {
       logo: row['logo']! as String,
     );
   }
+
+  Future<String> languagePreference() async {
+    final rows = await raw.query(
+      'app_preferences',
+      columns: ['value'],
+      where: 'name=?',
+      whereArgs: ['language'],
+    );
+    final value = rows.isEmpty ? 'system' : rows.single['value'] as String;
+    return {'system', 'zh', 'en'}.contains(value) ? value : 'system';
+  }
+
+  Future<void> setLanguagePreference(String value) async {
+    if (!{'system', 'zh', 'en'}.contains(value)) {
+      throw ArgumentError.value(value, 'language');
+    }
+    await raw.insert('app_preferences', {
+      'name': 'language',
+      'value': value,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  static const _appPreferencesSchema =
+      'CREATE TABLE IF NOT EXISTS app_preferences (name TEXT PRIMARY KEY, value TEXT NOT NULL)';
 
   Future<bool> autoCacheFiles(String accountId) async {
     final rows = await raw.query(
@@ -1899,5 +1924,6 @@ class AppDatabase {
     NoteCreationJournal.schema,
     HistoryImageCache.schema,
     SharedFileCache.schema,
+    _appPreferencesSchema,
   ];
 }
