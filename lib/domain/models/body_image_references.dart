@@ -40,3 +40,32 @@ Set<String> bodyImageIds(
   }
   return ids;
 }
+
+/// Attachment URLs in source text must have matching originals before a note
+/// can be copied. A conservative scan also catches links in unsupported markup.
+Set<String> bodyAttachmentIds(String body, Uri server) {
+  final ids = <String>{};
+  final urls = RegExp(
+    r'''https?://[^\s"'<>()[\]]+|(?<![\w/:])/(?:api2/file/getAttach|api/file/getAttach|attach/download)\?[^\s"'<>()[\]]+''',
+  );
+  for (final match in urls.allMatches(body)) {
+    final uri = Uri.tryParse(match[0]!.replaceAll('&amp;', '&'));
+    if (uri == null) continue;
+    final resolved = server.resolveUri(uri);
+    if (resolved.origin != server.origin ||
+        resolved.userInfo.isNotEmpty ||
+        !const {
+          '/api2/file/getAttach',
+          '/api/file/getAttach',
+          '/attach/download',
+        }.contains(resolved.path)) {
+      continue;
+    }
+    final values = resolved.queryParametersAll['fileId'];
+    if (values?.length == 1 &&
+        RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(values!.single)) {
+      ids.add(values.single);
+    }
+  }
+  return ids;
+}

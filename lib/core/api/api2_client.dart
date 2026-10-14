@@ -1102,11 +1102,22 @@ class Api2Client {
                   (data['Tags'] as List).any((tag) => tag is! String)))) {
         throw const ApiException('invalidResponse');
       }
-      if (data['IsDeleted'] == true) throw const ApiException('conflict');
       return data;
     }
 
     final before = await metadata();
+    if (before['IsDeleted'] == true) {
+      // API2 removes the content on permanent deletion. Two matching metadata
+      // reads still provide a stable tombstone for preserving a local draft.
+      final after = await metadata();
+      if (jsonEncode(before) != jsonEncode(after)) {
+        throw const ApiException('conflict');
+      }
+      return (
+        note: Note.fromJson({...after, 'Content': ''}),
+        filesConfirmedEmpty: false,
+      );
+    }
     final body = await _requestJson(
       server: server,
       path: '/api2/note/getNoteContent',

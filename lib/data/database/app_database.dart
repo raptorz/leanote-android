@@ -1828,9 +1828,8 @@ class AppDatabase {
         remote.userId != local.userId ||
         remote.usn <= local.usn ||
         local.usn <= 0 ||
-        remote.isDeleted ||
         local.isDeleted ||
-        remote.isTrash != local.isTrash) {
+        (!remote.isDeleted && remote.isTrash != local.isTrash)) {
       throw StateError('unresolvedNoteConflict');
     }
     final rows = await txn.query(
@@ -1857,10 +1856,11 @@ class AppDatabase {
       throw StateError('localChangesDuringConflict');
     }
     Note? copy;
-    if (remote.content != local.content ||
+    if (remote.isDeleted ||
+        remote.content != local.content ||
         remote.isMarkdown != local.isMarkdown) {
-      // Resource cloning is not implemented. Validate both original sources;
-      // never sanitize a conflict copy and silently discard unsupported data.
+      // Without a verified bundle, reject resource-bearing bodies instead of
+      // accepting a copy whose image or attachment bytes cannot be recovered.
       final files = await txn.query(
         'note_files',
         columns: ['file_id'],
@@ -1868,7 +1868,7 @@ class AppDatabase {
         whereArgs: [accountId, local.noteId],
         limit: 1,
       );
-      if (local.isTrash ||
+      if ((!remote.isDeleted && local.isTrash) ||
           (bundle == null &&
               (!filesConfirmedEmpty ||
                   !canCopyConflictBody(
@@ -1887,6 +1887,7 @@ class AppDatabase {
         noteId: _objectId(),
         title: '${local.title}（本地冲突副本）',
         usn: 0,
+        isTrash: false,
         createdTime: now,
         updatedTime: now,
       );
@@ -1901,7 +1902,20 @@ class AppDatabase {
         whereArgs: [accountId, copy.noteId],
       );
     }
-    _insertNote(batch, accountId, remote);
+    if (remote.isDeleted) {
+      batch.delete(
+        'note_histories',
+        where: 'account_id = ? AND note_id = ?',
+        whereArgs: [accountId, local.noteId],
+      );
+      batch.delete(
+        'notes',
+        where: 'account_id = ? AND server_id = ?',
+        whereArgs: [accountId, local.noteId],
+      );
+    } else {
+      _insertNote(batch, accountId, remote);
+    }
     await batch.commit(noResult: true);
     if (copy != null && bundle != null) {
       for (final resource in bundle.resources) {

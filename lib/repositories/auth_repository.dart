@@ -1659,7 +1659,7 @@ class AuthRepository {
     // Gathering a package must not rotate or remove the source's local cache.
     // A server list that dropped a known resource at the same note USN is
     // inconsistent with the snapshot we are packaging.
-    final files = source.usn > 0
+    final files = source.usn > 0 && expectedRemote?.isDeleted != true
         ? await _api.noteFiles(
             server: session.account.server,
             token: session.token,
@@ -1812,6 +1812,19 @@ class AuthRepository {
         ),
       );
     }
+    for (final id in bodyAttachmentIds(
+      source.content,
+      session.account.server,
+    )) {
+      if (!resources.any(
+        (r) =>
+            !r.isImage &&
+            r.sourceId == id &&
+            r.origin == session.account.server.origin,
+      )) {
+        throw StateError('缺少正文中的附件原件，请先下载附件后重试。');
+      }
+    }
     if (before != null) {
       final after = await _api.getConflictSnapshot(
         server: session.account.server,
@@ -1821,7 +1834,9 @@ class AuthRepository {
       if (!sameReviewedNote(before.note, after.note)) {
         throw StateError('笔记或资源已变化，请重新打开后重试。');
       }
-      final freshFiles = await noteFiles(session, source.noteId);
+      final freshFiles = expectedRemote?.isDeleted == true
+          ? <NoteFile>[]
+          : await noteFiles(session, source.noteId);
       String signature(List<NoteFile> values) {
         final sorted = values.toList()..sort((a, b) => a.id.compareTo(b.id));
         return jsonEncode(

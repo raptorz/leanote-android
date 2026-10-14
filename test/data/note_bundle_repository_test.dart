@@ -558,4 +558,93 @@ void main() {
       expect(api.createCalls, 0);
     },
   );
+  test(
+    'remote deletion preserves local edit and cached originals in a live copy',
+    () async {
+      await prepareConflict();
+      await db.replaceNoteFiles(account.cacheKey, source.noteId, api.files);
+      for (final file in await db.cachedNoteFiles(
+        account.cacheKey,
+        source.noteId,
+      )) {
+        if (file.isAttachment) {
+          await db.cacheNoteAttachment(
+            account.cacheKey,
+            source.noteId,
+            file,
+            api.originals[file.id]!,
+          );
+        } else {
+          await db.cacheNoteImage(
+            account.cacheKey,
+            source.noteId,
+            file,
+            api.originals[file.id]!,
+          );
+        }
+      }
+      api.remote = api.remote.copyWith(isDeleted: true, content: '');
+      api.files = [];
+      await sync.uploadPending(account: account, token: 'secret');
+      final notes = await db.notes(account.cacheKey);
+      expect(notes, hasLength(1));
+      final copy = notes.single;
+      expect(copy.noteId, isNot(source.noteId));
+      expect(copy.isTrash, isFalse);
+      expect(copy.content, contains('my edit'));
+      expect(copy.usn, 10);
+      expect(
+        await repo.pendingAttachments(session, noteId: copy.noteId),
+        hasLength(2),
+      );
+      expect(
+        await repo.cachedInlineImage(
+          session,
+          copy.noteId,
+          Uri.parse('https://source.test/file/outputImage?fileId=$imageId'),
+        ),
+        api.originals[imageId],
+      );
+      expect(await db.lastSyncUsn(account.cacheKey), 7);
+    },
+  );
+  test(
+    'remote deletion with an uncached original retains the dirty local note',
+    () async {
+      await prepareConflict();
+      await db.replaceNoteFiles(account.cacheKey, source.noteId, api.files);
+      api.remote = api.remote.copyWith(isDeleted: true, content: '');
+      api.files = [];
+      await expectLater(
+        sync.uploadPending(account: account, token: 'secret'),
+        throwsStateError,
+      );
+      expect((await db.notes(account.cacheKey)).single.noteId, source.noteId);
+      expect(
+        (await db.dirtyNotes(account.cacheKey)).single.content,
+        contains('my edit'),
+      );
+      expect(api.createCalls, 0);
+    },
+  );
+  test('deleted note with an unlisted attachment link stays dirty', () async {
+    await prepareConflict();
+    await db.saveEditedText(
+      account.cacheKey,
+      source.noteId,
+      'local',
+      '<p><a href="/api2/file/getAttach?fileId=$attachId">only attachment</a></p>',
+    );
+    api.remote = api.remote.copyWith(isDeleted: true, content: '');
+    api.files = [];
+    await expectLater(
+      sync.uploadPending(account: account, token: 'secret'),
+      throwsStateError,
+    );
+    expect(
+      (await db.dirtyNotes(account.cacheKey)).single.noteId,
+      source.noteId,
+    );
+    expect(api.createCalls, 0);
+  });
 }

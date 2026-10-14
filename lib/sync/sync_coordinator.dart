@@ -402,7 +402,8 @@ class SyncCoordinator {
           noteId: local.noteId,
         );
         final package =
-            (remote.note.content != local.content ||
+            (remote.note.isDeleted ||
+                    remote.note.content != local.content ||
                     remote.note.isMarkdown != local.isMarkdown) &&
                 resourceConflictBundle != null
             ? await resourceConflictBundle!(account, token, local, remote.note)
