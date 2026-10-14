@@ -35,7 +35,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 19;
+  static const schemaVersion = 20;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -91,6 +91,16 @@ class AppDatabase {
           await db.execute(
             'ALTER TABLE resource_bindings ADD COLUMN local_placement INTEGER NOT NULL DEFAULT 0',
           );
+        }
+        if (oldVersion >= 8 && oldVersion < 20) {
+          final columns = await db.rawQuery(
+            'PRAGMA table_info(account_cache_preferences)',
+          );
+          if (!columns.any((row) => row['name'] == 'auto_sync')) {
+            await db.execute(
+              'ALTER TABLE account_cache_preferences ADD COLUMN auto_sync INTEGER NOT NULL DEFAULT 0 CHECK (auto_sync IN (0, 1))',
+            );
+          }
         }
       },
     );
@@ -465,11 +475,39 @@ class AppDatabase {
           whereArgs: [accountId],
         );
         if (accounts.isEmpty) throw StateError('accountCacheMissing');
-        await txn.insert('account_cache_preferences', {
-          'account_id': accountId,
-          'enabled': enabled ? 1 : 0,
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        await txn.rawInsert(
+          '''INSERT INTO account_cache_preferences (account_id, enabled)
+          VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET enabled = excluded.enabled''',
+          [accountId, enabled ? 1 : 0],
+        );
       });
+
+  Future<bool> autoSync(String accountId) async {
+    final rows = await raw.query(
+      'account_cache_preferences',
+      columns: ['auto_sync'],
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+    );
+    return rows.isNotEmpty && rows.single['auto_sync'] == 1;
+  }
+
+  Future<void> setAutoSync(String accountId, bool enabled) => raw.transaction((
+    txn,
+  ) async {
+    final accounts = await txn.query(
+      'accounts',
+      columns: ['account_id'],
+      where: 'account_id = ?',
+      whereArgs: [accountId],
+    );
+    if (accounts.isEmpty) throw StateError('accountCacheMissing');
+    await txn.rawInsert(
+      '''INSERT INTO account_cache_preferences (account_id, enabled, auto_sync)
+          VALUES (?, 0, ?) ON CONFLICT(account_id) DO UPDATE SET auto_sync = excluded.auto_sync''',
+      [accountId, enabled ? 1 : 0],
+    );
+  });
 
   Future<NoteSort> noteSort(String accountId) async {
     final rows = await raw.query(
@@ -2170,7 +2208,8 @@ class AppDatabase {
   static const _cachePreferencesSchema =
       '''CREATE TABLE IF NOT EXISTS account_cache_preferences (
         account_id TEXT PRIMARY KEY,
-        enabled INTEGER NOT NULL CHECK (enabled IN (0, 1))
+        enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+        auto_sync INTEGER NOT NULL DEFAULT 0 CHECK (auto_sync IN (0, 1))
       )''';
 
   static const _sortPreferencesSchema =

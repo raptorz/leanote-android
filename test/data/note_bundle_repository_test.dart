@@ -554,7 +554,7 @@ void main() {
       connect();
       expect(await db.raw.query('resource_bindings'), isEmpty);
       expect((await db.notes(account.cacheKey)).single.content, source.content);
-      expect(await db.raw.getVersion(), 19);
+      expect(await db.raw.getVersion(), AppDatabase.schemaVersion);
     },
   );
   test('schema 18 upgrade adds local placement marker', () async {
@@ -571,7 +571,7 @@ void main() {
       'PRAGMA table_info(resource_bindings)',
     );
     expect(columns.map((c) => c['name']), contains('local_placement'));
-    expect(await db.raw.getVersion(), 19);
+    expect(await db.raw.getVersion(), AppDatabase.schemaVersion);
   });
   test('upload confirmation adopts attachment USN before rebinding and preserves intervening local edits', () async {
     final bundle = await repo.exportBundle(session, source);

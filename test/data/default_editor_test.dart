@@ -156,6 +156,51 @@ void main() {
     },
   );
 
+  test(
+    'automatic sync preference survives restart and stays account-scoped',
+    () async {
+      expect(await db.autoSync(a.cacheKey), false);
+      await db.setAutoCacheFiles(a.cacheKey, true);
+      await db.setAutoSync(a.cacheKey, true);
+      await db.setAutoCacheFiles(a.cacheKey, false);
+      expect(await db.autoSync(a.cacheKey), true);
+      expect(await db.autoSync(b.cacheKey), false);
+      await db.setAutoSync(b.cacheKey, true);
+      await db.setAutoSync(a.cacheKey, false);
+      expect(await db.autoSync(b.cacheKey), true);
+      await db.raw.close();
+      db = await AppDatabase.open(databasePath: path);
+      expect(await db.autoSync(a.cacheKey), false);
+      expect(await db.autoSync(b.cacheKey), true);
+      await snapshot(b);
+      expect(await db.autoSync(b.cacheKey), true);
+      await expectLater(db.setAutoSync('missing', true), throwsStateError);
+    },
+  );
+
+  test(
+    'v19 upgrade preserves cache preference and defaults sync off',
+    () async {
+      await db.raw.execute('DROP TABLE account_cache_preferences');
+      await db.raw.execute('''CREATE TABLE account_cache_preferences (
+      account_id TEXT PRIMARY KEY,
+      enabled INTEGER NOT NULL CHECK (enabled IN (0, 1))
+    )''');
+      await db.raw.insert('account_cache_preferences', {
+        'account_id': a.cacheKey,
+        'enabled': 1,
+      });
+      await db.raw.setVersion(19);
+      await db.raw.close();
+      db = await AppDatabase.open(databasePath: path);
+      expect(await db.raw.getVersion(), AppDatabase.schemaVersion);
+      expect(await db.autoCacheFiles(a.cacheKey), true);
+      expect(await db.autoSync(a.cacheKey), false);
+      await db.setAutoSync(a.cacheKey, true);
+      expect(await db.autoCacheFiles(a.cacheKey), true);
+    },
+  );
+
   test('v7 upgrade preserves pending content and preferences; caching defaults off', () async {
     final note = await db.createLocalNote(
       account: a,

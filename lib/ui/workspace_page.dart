@@ -229,6 +229,7 @@ class _WorkspacePageState extends State<WorkspacePage>
   final _expandedNotebooks = <String>{};
   Timer? _autoSyncTimer;
   bool _autoSyncEnabled = false;
+  bool _autoSyncPreferenceBusy = false;
   bool _signedOut = false;
   bool _accountOpen = false;
   bool _foreground = true;
@@ -529,6 +530,7 @@ class _WorkspacePageState extends State<WorkspacePage>
     _refreshAvatarCache();
     unawaited(_loadNoteSort());
     unawaited(_loadCachePreference());
+    unawaited(_loadAutoSyncPreference());
     if (widget.refreshAvatarOnStart) unawaited(_refreshRemoteAvatar());
   }
 
@@ -555,9 +557,41 @@ class _WorkspacePageState extends State<WorkspacePage>
     _scheduleAutoSync();
   }
 
-  void _toggleAutoSync() {
-    setState(() => _autoSyncEnabled = !_autoSyncEnabled);
-    _scheduleAutoSync();
+  Future<void> _loadAutoSyncPreference() async {
+    if (_autoSyncPreferenceBusy) return;
+    setState(() => _autoSyncPreferenceBusy = true);
+    try {
+      final enabled = await widget.repository.autoSync(widget.session);
+      if (mounted && !_signedOut) {
+        setState(() => _autoSyncEnabled = enabled);
+        _scheduleAutoSync();
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        setState(() => _syncError = trNow(context, 'm0506', [error]));
+      }
+    } finally {
+      if (mounted) setState(() => _autoSyncPreferenceBusy = false);
+    }
+  }
+
+  Future<void> _toggleAutoSync() async {
+    if (_autoSyncPreferenceBusy || _signedOut || _loggingOut) return;
+    setState(() => _autoSyncPreferenceBusy = true);
+    try {
+      final enabled = !_autoSyncEnabled;
+      await widget.repository.setAutoSync(widget.session, enabled);
+      if (mounted && !_signedOut) {
+        setState(() => _autoSyncEnabled = enabled);
+        _scheduleAutoSync();
+      }
+    } on Object catch (error) {
+      if (mounted) {
+        setState(() => _syncError = trNow(context, 'm0506', [error]));
+      }
+    } finally {
+      if (mounted) setState(() => _autoSyncPreferenceBusy = false);
+    }
   }
 
   void _scheduleAutoSync() {
@@ -1677,6 +1711,7 @@ class _WorkspacePageState extends State<WorkspacePage>
               CheckedPopupMenuItem(
                 value: 'autoSync',
                 checked: _autoSyncEnabled,
+                enabled: !_autoSyncPreferenceBusy,
                 child: Text(tr(context, 'm0519')),
               ),
               PopupMenuItem(

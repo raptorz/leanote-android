@@ -12,6 +12,13 @@ import 'package:gemsnote/sync/sync_coordinator.dart';
 import 'package:gemsnote/ui/workspace_page.dart';
 
 class ForegroundRepository implements AuthRepository {
+  bool autoSyncEnabled = false;
+  @override
+  Future<bool> autoSync(StoredSession session) async => autoSyncEnabled;
+  @override
+  Future<void> setAutoSync(StoredSession session, bool enabled) async {
+    autoSyncEnabled = enabled;
+  }
   @override
   AccountFileCache fileCacheQueue(StoredSession session) => AccountFileCache();
   @override
@@ -113,6 +120,20 @@ void main() {
       expect(repo.calls, 1);
     },
   );
+
+  testWidgets('saved auto-sync setting resumes after workspace recreation', (
+    tester,
+  ) async {
+    final repo = ForegroundRepository();
+    await mount(tester, repo);
+    await toggle(tester);
+    expect(repo.autoSyncEnabled, true);
+    await tester.pumpWidget(const SizedBox());
+    await mount(tester, repo);
+    await tester.pump(const Duration(minutes: 1));
+    await tester.pumpAndSettle();
+    expect(repo.calls, 1);
+  });
 
   testWidgets(
     'background and covered routes pause scheduling; resume waits a full interval',

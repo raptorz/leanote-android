@@ -11,6 +11,8 @@ import 'package:gemsnote/ui/account_avatar.dart';
 import 'package:gemsnote/ui/workspace_page.dart';
 
 class AvatarRepository implements AuthRepository {
+  @override
+  Future<bool> autoSync(StoredSession session) async => false;
   Uint8List? avatar;
   var reads = 0;
   var refreshes = 0;
