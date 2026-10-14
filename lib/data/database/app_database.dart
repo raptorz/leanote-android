@@ -1589,6 +1589,37 @@ class AppDatabase {
         );
       });
 
+  /// A stale permanent delete is cancelled when another device changed the
+  /// note. Restore the reviewed remote version so deletion can be reconsidered
+  /// with the current content, without silently discarding that device's work.
+  Future<void> restoreConflictedDeletion(
+    String accountId,
+    Note local,
+    Note remote,
+  ) => raw.transaction((txn) async {
+    if (!local.isDeleted ||
+        remote.isDeleted ||
+        remote.noteId != local.noteId ||
+        remote.userId != local.userId ||
+        remote.usn <= local.usn) {
+      throw StateError('unresolvedNoteDeletion');
+    }
+    final rows = await txn.query(
+      'notes',
+      where: 'account_id = ? AND server_id = ? AND is_dirty = 1',
+      whereArgs: [accountId, local.noteId],
+      limit: 1,
+    );
+    if (rows.length != 1 ||
+        _noteFingerprint(_noteFromRow(rows.single)) !=
+            _noteFingerprint(local)) {
+      throw StateError('localChangesDuringDeletion');
+    }
+    final batch = txn.batch();
+    _insertNote(batch, accountId, remote);
+    await batch.commit(noResult: true);
+  });
+
   Future<void> _requireLiveNote(
     DatabaseExecutor db,
     String accountId,

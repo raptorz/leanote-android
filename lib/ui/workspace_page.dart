@@ -1345,6 +1345,13 @@ class _WorkspacePageState extends State<WorkspacePage>
             .showSnackBar(SnackBar(content: Text(trNow(context, 'm0505'))));
       }
     } on Object catch (error) {
+      // Upload may have committed earlier notes or restored a stale deletion
+      // before reporting the conflict. Reflect that local state immediately.
+      try {
+        if (mounted) await _reloadNotes();
+      } on Object {
+        // Keep the original sync error visible; the next refresh can retry.
+      }
       if (mounted) {
         setState(() => _syncError = trNow(context, 'm0506', [error]));
         if (!automatic) {

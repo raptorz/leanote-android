@@ -379,12 +379,35 @@ class SyncCoordinator {
     for (var index = 0; index < dirty.length; index++) {
       final local = dirty[index];
       if (local.isDeleted) {
-        await _api.deleteTrash(
-          server: account.server,
-          token: token,
-          note: local,
-        );
-        await _database.acknowledgeDeletion(account.cacheKey, local);
+        try {
+          await _api.deleteTrash(
+            server: account.server,
+            token: token,
+            note: local,
+          );
+          await _database.acknowledgeDeletion(account.cacheKey, local);
+        } on ApiException catch (error) {
+          if (error.code != 'conflict' ||
+              error.statusCode != null ||
+              local.usn <= 0) {
+            rethrow;
+          }
+          final remote = await _api.getConflictSnapshot(
+            server: account.server,
+            token: token,
+            noteId: local.noteId,
+          );
+          if (remote.note.isDeleted) {
+            await _database.acknowledgeDeletion(account.cacheKey, local);
+          } else {
+            await _database.restoreConflictedDeletion(
+              account.cacheKey,
+              local,
+              remote.note,
+            );
+            throw StateError('远端笔记已修改，已取消本机永久删除。请检查最新内容后再决定是否删除。');
+          }
+        }
         onProgress?.call(SyncProgress(SyncStage.uploading, index + 1));
         continue;
       }

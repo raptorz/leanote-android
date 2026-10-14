@@ -9,6 +9,33 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+class _DeletionConflictApi extends Api2Client {
+  _DeletionConflictApi(this.remote);
+  Note remote;
+  int deleteCalls = 0;
+
+  @override
+  Future<int> getSyncUsn({required Uri server, required String token}) async =>
+      100;
+
+  @override
+  Future<void> deleteTrash({
+    required Uri server,
+    required String token,
+    required Note note,
+  }) async {
+    deleteCalls++;
+    throw const ApiException('conflict');
+  }
+
+  @override
+  Future<({Note note, bool filesConfirmedEmpty})> getConflictSnapshot({
+    required Uri server,
+    required String token,
+    required String noteId,
+  }) async => (note: remote, filesConfirmedEmpty: true);
+}
+
 void main() {
   final account = Account(
     userId: 'u',
@@ -19,6 +46,7 @@ void main() {
   );
   final note = Note.fromJson({
     'NoteId': '507f1f77bcf86cd799439011',
+    'UserId': 'u',
     'Title': 'Trash',
     'Content': 'Keep until acknowledged',
     'IsTrash': true,
@@ -164,4 +192,50 @@ void main() {
       }
     });
   }
+
+  test(
+    'stale deletion restores remote edits and requires a fresh user decision',
+    () async {
+      await db.deleteLocalTrash(account.cacheKey, note.noteId);
+      final api = _DeletionConflictApi(
+        note.copyWith(
+          usn: 6,
+          title: 'edited elsewhere',
+          content: 'Remote new body',
+        ),
+      );
+      final sync = SyncCoordinator(api, db);
+      await expectLater(
+        sync.uploadPending(account: account, token: 'test-token'),
+        throwsA(isA<StateError>()),
+      );
+      final restored = (await db.notes(
+        account.cacheKey,
+        trashOnly: true,
+      )).single;
+      expect(restored.title, 'edited elsewhere');
+      expect(restored.content, 'Remote new body');
+      expect(restored.usn, 6);
+      expect(await db.pendingNoteIds(account.cacheKey), isEmpty);
+      expect(await db.lastSyncUsn(account.cacheKey), 5);
+      await sync.uploadPending(account: account, token: 'test-token');
+      expect(api.deleteCalls, 1);
+    },
+  );
+
+  test(
+    'stale deletion accepts stable remote tombstone as already deleted',
+    () async {
+      await db.deleteLocalTrash(account.cacheKey, note.noteId);
+      final api = _DeletionConflictApi(
+        note.copyWith(usn: 6, isDeleted: true, content: ''),
+      );
+      await SyncCoordinator(
+        api,
+        db,
+      ).uploadPending(account: account, token: 'test-token');
+      expect(await db.notes(account.cacheKey), isEmpty);
+      expect(await db.pendingNoteIds(account.cacheKey), isEmpty);
+    },
+  );
 }
