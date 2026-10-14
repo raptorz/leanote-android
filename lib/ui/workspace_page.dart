@@ -1029,6 +1029,11 @@ class _WorkspacePageState extends State<WorkspacePage>
               image,
             );
           },
+          stageVisualImage: (image) => widget.repository.stageVisualImage(
+            widget.session,
+            note.noteId,
+            image,
+          ),
           loadCachedImage: (uri) => widget.repository.cachedInlineImage(
             widget.session,
             note.noteId,

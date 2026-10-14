@@ -1361,6 +1361,9 @@ const messages = <String, (String, String)>{
     "The selected location is missing or would create a cycle. No data changed. Review pending parent changes first.",
   ),
   "visualInsertImage": ("在选区后插入图片", "Insert image after selection"),
+  "visualImageModeTitle": ("插入图片", "Insert image"),
+  "visualImageOffline": ("离线插入，稍后上传", "Insert offline, upload later"),
+  "visualImageUpload": ("立即上传", "Upload now"),
   "noteCreationTitle": ("核对新建结果", "Review note creation"),
   "noteCreationIntro": (
     "适用于创建请求结果与本地内容不一致的笔记。联网读取远端版本并核对正文和属性；读取不会修改任何一端。",

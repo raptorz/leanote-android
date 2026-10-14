@@ -15,6 +15,8 @@ import 'editor_link_dialog.dart';
 import '../services/note_image_picker.dart';
 import 'note_image_upload_dialog.dart';
 
+enum _VisualImageMode { offline, upload }
+
 class NoteEditorPage extends StatefulWidget {
   const NoteEditorPage({
     required this.note,
@@ -22,6 +24,7 @@ class NoteEditorPage extends StatefulWidget {
     this.loadCachedImage,
     this.uploadImage,
     this.stageImage,
+    this.stageVisualImage,
     this.pickImage,
     this.identity = '',
     super.key,
@@ -31,6 +34,7 @@ class NoteEditorPage extends StatefulWidget {
   final String identity;
   final Future<NoteImageUpload?> Function()? pickImage;
   final Future<void> Function(NoteImageUpload image)? stageImage;
+  final Future<String> Function(NoteImageUpload image)? stageVisualImage;
   final Future<String> Function(
     NoteImageUpload image,
     String identity,
@@ -219,16 +223,45 @@ class _NoteEditorPageState extends State<NoteEditorPage>
         await (widget.pickImage ??
             NoteImagePicker(strings: AppStrings.snapshot(context)).pick)();
     if (!mounted || image == null) return null;
-    final reference = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => NoteImageUploadDialog(
-        identity: widget.identity,
-        image: image,
-        upload: (identity, password) =>
-            widget.uploadImage!(image, identity, password),
-      ),
-    );
+    final mode = widget.stageVisualImage == null
+        ? _VisualImageMode.upload
+        : widget.uploadImage == null
+        ? _VisualImageMode.offline
+        : await showDialog<_VisualImageMode>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: Text(tr(dialogContext, 'visualImageModeTitle')),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: Text(tr(dialogContext, 'm0026')),
+                ),
+                TextButton(
+                  onPressed: () =>
+                      Navigator.pop(dialogContext, _VisualImageMode.offline),
+                  child: Text(tr(dialogContext, 'visualImageOffline')),
+                ),
+                TextButton(
+                  onPressed: () =>
+                      Navigator.pop(dialogContext, _VisualImageMode.upload),
+                  child: Text(tr(dialogContext, 'visualImageUpload')),
+                ),
+              ],
+            ),
+          );
+    if (!mounted || mode == null) return null;
+    final reference = mode == _VisualImageMode.offline
+        ? await widget.stageVisualImage!(image)
+        : await showDialog<String>(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => NoteImageUploadDialog(
+              identity: widget.identity,
+              image: image,
+              upload: (identity, password) =>
+                  widget.uploadImage!(image, identity, password),
+            ),
+          );
     return reference == null
         ? null
         : VisualImageInsertion(reference, image.bytes);
@@ -357,7 +390,9 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                           strings: AppStrings.of(context),
                           source: _content.text,
                           loadCachedImage: widget.loadCachedImage,
-                          insertImage: widget.uploadImage == null
+                          insertImage:
+                              widget.uploadImage == null &&
+                                  widget.stageVisualImage == null
                               ? null
                               : _pickVisualImage,
                           flush: _flush,

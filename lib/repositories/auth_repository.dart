@@ -343,6 +343,12 @@ class AuthRepository {
     NoteImageUpload image,
   ) => _outbox(session).stageImage(noteId, image);
 
+  Future<String> stageVisualImage(
+    StoredSession session,
+    String noteId,
+    NoteImageUpload image,
+  ) => _database.stageVisualImage(session.account, noteId, image.bytes);
+
   Future<void> insertStagedImage(StoredSession session, String id) async {
     if (_sync.isBusy) throw StateError('请等待当前同步或上传完成');
     final outbox = _outbox(session);
@@ -402,6 +408,62 @@ class AuthRepository {
     }
     final file = await outbox.file(id);
     final image = await NoteImageUpload.normalize(file.bytes);
+    if (await outbox.isLocalPlacement(id)) {
+      if (identity.trim().isEmpty || password.isEmpty) {
+        throw const FormatException('请输入当前账号和密码');
+      }
+      late String reference;
+      await _sync.runAttachmentUpload(
+        () async {
+          final local = await _database.searchableNote(
+            session.account.cacheKey,
+            item.noteId,
+          );
+          if (local == null ||
+              local.userId != session.account.userId ||
+              local.isTrash ||
+              local.isDeleted ||
+              local.usn <= 0 ||
+              !await _database.hasUnuploadedVisualPlacement(
+                session.account.cacheKey,
+                item.noteId,
+              )) {
+            throw StateError('离线图片引用或笔记已变化，请重新打开后核对');
+          }
+          final remote = await _api.getConflictSnapshot(
+            server: session.account.server,
+            token: session.token,
+            noteId: item.noteId,
+          );
+          if (remote.note.usn != local.usn ||
+              remote.note.userId != local.userId ||
+              remote.note.isDeleted ||
+              remote.note.isTrash) {
+            throw StateError('远端笔记已变化，请先核对冲突后上传图片');
+          }
+          reference = await _api.uploadNoteImage(
+            server: session.account.server,
+            token: session.token,
+            userId: session.account.userId,
+            identity: identity,
+            password: password,
+            noteId: item.noteId,
+            image: image,
+            beforeSend: () => outbox.markSending(id),
+          );
+          final fileId = cachedImageFileId(
+            Uri.parse(reference),
+            session.account.server,
+          );
+          if (fileId == null) throw StateError('图片地址无效');
+          await outbox.confirm(id, fileId);
+        },
+        account: session.account,
+        token: session.token,
+      );
+      await outbox.insertImage(id);
+      return reference;
+    }
     final reference = await uploadNoteImage(
       session,
       item.noteId,

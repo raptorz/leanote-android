@@ -54,6 +54,7 @@ class AttachmentOutbox {
 
   static const bindingSchema = """CREATE TABLE IF NOT EXISTS resource_bindings (
     task_id TEXT PRIMARY KEY, source_id TEXT NOT NULL, origin TEXT NOT NULL,
+    local_placement INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY(task_id) REFERENCES attachment_outbox(id) ON DELETE CASCADE
   )""";
 
@@ -116,6 +117,12 @@ class AttachmentOutbox {
 
   Future<bool> hasBinding(String id) async => (await database.rawQuery(
     'SELECT b.task_id FROM resource_bindings b JOIN attachment_outbox o ON o.id = b.task_id WHERE o.account_id = ? AND o.id = ?',
+    [account.cacheKey, id],
+  )).isNotEmpty;
+
+  Future<bool> isLocalPlacement(String id) async => (await database.rawQuery(
+    '''SELECT b.task_id FROM resource_bindings b JOIN attachment_outbox o ON o.id = b.task_id
+    WHERE o.account_id = ? AND o.id = ? AND b.local_placement = 1''',
     [account.cacheKey, id],
   )).isNotEmpty;
 

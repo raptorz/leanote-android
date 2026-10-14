@@ -14,6 +14,7 @@ import 'package:gemsnote/domain/models/note_bundle.dart';
 import 'package:gemsnote/domain/models/note_file.dart';
 import 'package:gemsnote/domain/models/notebook.dart';
 import 'package:gemsnote/repositories/auth_repository.dart';
+import 'package:gemsnote/services/note_image_picker.dart';
 import 'package:gemsnote/sync/sync_coordinator.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -28,6 +29,7 @@ class BundleApi extends Api2Client {
   bool conflict = false, loseCreateResponse = false;
   final created = <String, Note>{};
   int createCalls = 0;
+  int imageUploadCalls = 0;
   Future<void> Function()? duringDownload;
   Future<void> Function()? duringUpload;
   @override
@@ -58,6 +60,22 @@ class BundleApi extends Api2Client {
   @override
   Future<int> getSyncUsn({required Uri server, required String token}) async =>
       100;
+  @override
+  Future<String> uploadNoteImage({
+    required Uri server,
+    required String token,
+    required String userId,
+    required String identity,
+    required String password,
+    required String noteId,
+    required NoteImageUpload image,
+    Future<void> Function()? beforeSend,
+  }) async {
+    await beforeSend?.call();
+    imageUploadCalls++;
+    return '/api2/file/getImage?fileId=507f1f77bcf86cd799439013';
+  }
+
   @override
   Future<String> uploadAttachment({
     required Uri server,
@@ -228,6 +246,121 @@ void main() {
       hasLength(2),
     );
   });
+  test('offline visual image keeps selected reference and original until upload confirms', () async {
+    final image = await NoteImageUpload.normalize(api.originals[imageId]!);
+    final reference = await repo.stageVisualImage(
+      session,
+      source.noteId,
+      image,
+    );
+    expect(
+      reference,
+      matches(RegExp(r'^/api2/file/getImage\?fileId=[0-9a-f]{24}$')),
+    );
+    expect(
+      await repo.cachedInlineImage(
+        session,
+        source.noteId,
+        Uri.parse(reference),
+      ),
+      image.bytes,
+    );
+    final body = '<p>Before <img src="$reference" alt=""> after</p>';
+    await db.saveEditedText(account.cacheKey, source.noteId, 'source', body);
+    expect(
+      await db.hasUnuploadedVisualPlacement(account.cacheKey, source.noteId),
+      isTrue,
+    );
+    final task = (await repo.pendingAttachments(
+      session,
+      noteId: source.noteId,
+    )).single;
+    await expectLater(
+      sync.uploadPending(account: account, token: 'secret'),
+      throwsStateError,
+    );
+    expect(api.imageUploadCalls, 0);
+    await repo.uploadStagedImage(
+      session,
+      task.id,
+      identity: 'u',
+      password: 'pass',
+    );
+    final outbox = AttachmentOutbox(db.raw, account);
+    await outbox.insertImage(task.id);
+    expect(api.imageUploadCalls, 1);
+    expect(
+      await db.hasUnuploadedVisualPlacement(account.cacheKey, source.noteId),
+      isFalse,
+    );
+    expect(
+      (await db.searchableNote(account.cacheKey, source.noteId))!.content,
+      body.replaceFirst(reference, '/api2/file/getImage?fileId=$newId'),
+    );
+    expect(
+      await repo.cachedInlineImage(
+        session,
+        source.noteId,
+        Uri.parse('/api2/file/getImage?fileId=$newId'),
+      ),
+      image.bytes,
+    );
+  });
+  test('offline visual image requires a confirmed remote note', () async {
+    final draft = await db.createLocalNote(
+      account: account,
+      notebookId: 'b',
+      isMarkdown: false,
+    );
+    final image = await NoteImageUpload.normalize(api.originals[imageId]!);
+    await expectLater(
+      repo.stageVisualImage(session, draft.noteId, image),
+      throwsStateError,
+    );
+    expect(
+      await repo.pendingAttachments(session, noteId: draft.noteId),
+      isEmpty,
+    );
+  });
+  test(
+    'remote version change blocks visual upload before sending original',
+    () async {
+      final image = await NoteImageUpload.normalize(api.originals[imageId]!);
+      final reference = await repo.stageVisualImage(
+        session,
+        source.noteId,
+        image,
+      );
+      await db.saveEditedText(
+        account.cacheKey,
+        source.noteId,
+        'source',
+        '<img src="$reference">',
+      );
+      final task = (await repo.pendingAttachments(
+        session,
+        noteId: source.noteId,
+      )).single;
+      api.remote = source.copyWith(usn: 8);
+      await expectLater(
+        repo.uploadStagedImage(
+          session,
+          task.id,
+          identity: 'u',
+          password: 'pass',
+        ),
+        throwsStateError,
+      );
+      expect(api.imageUploadCalls, 0);
+      expect(
+        (await repo.pendingAttachments(
+          session,
+          noteId: source.noteId,
+        )).single.state,
+        'pending',
+      );
+    },
+  );
   test('cross-server import keeps cached images and rebinds confirmed upload in place only once', () async {
     final bundle = await repo.exportBundle(session, source);
     final other = Account(
@@ -375,9 +508,25 @@ void main() {
       connect();
       expect(await db.raw.query('resource_bindings'), isEmpty);
       expect((await db.notes(account.cacheKey)).single.content, source.content);
-      expect(await db.raw.getVersion(), 18);
+      expect(await db.raw.getVersion(), 19);
     },
   );
+  test('schema 18 upgrade adds local placement marker', () async {
+    await db.raw.execute('DROP TABLE resource_bindings');
+    await db.raw.execute('''CREATE TABLE resource_bindings (
+      task_id TEXT PRIMARY KEY, source_id TEXT NOT NULL, origin TEXT NOT NULL,
+      FOREIGN KEY(task_id) REFERENCES attachment_outbox(id) ON DELETE CASCADE
+    )''');
+    await db.raw.setVersion(18);
+    await db.raw.close();
+    db = await AppDatabase.open(databasePath: '${temp.path}/db');
+    connect();
+    final columns = await db.raw.rawQuery(
+      'PRAGMA table_info(resource_bindings)',
+    );
+    expect(columns.map((c) => c['name']), contains('local_placement'));
+    expect(await db.raw.getVersion(), 19);
+  });
   test('upload confirmation adopts attachment USN before rebinding and preserves intervening local edits', () async {
     final bundle = await repo.exportBundle(session, source);
     final imported = await repo.importBundle(session, 'b', bundle);

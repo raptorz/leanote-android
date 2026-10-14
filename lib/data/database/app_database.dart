@@ -35,7 +35,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 18;
+  static const schemaVersion = 19;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -87,6 +87,11 @@ class AppDatabase {
         if (oldVersion < 16) await db.execute(SharedFileCache.schema);
         if (oldVersion < 17) await db.execute(_appPreferencesSchema);
         if (oldVersion < 18) await db.execute(AttachmentOutbox.bindingSchema);
+        if (oldVersion == 18) {
+          await db.execute(
+            'ALTER TABLE resource_bindings ADD COLUMN local_placement INTEGER NOT NULL DEFAULT 0',
+          );
+        }
       },
     );
     return AppDatabase._(database);
@@ -1572,6 +1577,58 @@ class AppDatabase {
       whereArgs: [accountId, noteId],
     );
     if (changed != 1) throw StateError('trashNoteMissing');
+  }
+
+  /// Stage a visual-editor image with a local reference that can be previewed
+  /// and later replaced in place after the original is uploaded.
+  Future<String> stageVisualImage(
+    Account account,
+    String noteId,
+    Uint8List bytes,
+  ) => raw.transaction((txn) async {
+    final local = await txn.query(
+      'notes',
+      columns: ['usn'],
+      where: 'account_id = ? AND server_id = ? AND owner_server_id = ? AND is_trash = 0 AND local_is_deleted = 0',
+      whereArgs: [account.cacheKey, noteId, account.userId],
+      limit: 1,
+    );
+    if (local.length != 1 || (local.single['usn'] as int) <= 0) {
+      throw StateError('请先同步新建笔记，再离线插入图片');
+    }
+    final sourceId = _objectId();
+    final taskId = await AttachmentOutbox(raw, account).stageBundle(
+      txn,
+      noteId,
+      BundledResource(
+        file: AttachmentUpload(name: 'image.png', bytes: bytes),
+        isImage: true,
+        sourceId: sourceId,
+        origin: account.server.origin,
+      ),
+    );
+    await txn.update(
+      'resource_bindings',
+      {'local_placement': 1},
+      where: 'task_id = ?',
+      whereArgs: [taskId],
+    );
+    return '/api2/file/getImage?fileId=$sourceId';
+  });
+
+  Future<bool> hasUnuploadedVisualPlacement(
+    String accountId,
+    String noteId,
+  ) async {
+    final rows = await raw.rawQuery(
+      '''SELECT b.task_id FROM resource_bindings b JOIN attachment_outbox o ON o.id = b.task_id
+      JOIN notes n ON n.account_id = o.account_id AND n.server_id = o.note_id
+      WHERE o.account_id = ? AND o.note_id = ? AND o.kind = 'image'
+      AND b.local_placement = 1 AND o.state != 'inserted'
+      AND instr(n.content, b.source_id) > 0 LIMIT 1''',
+      [accountId, noteId],
+    );
+    return rows.isNotEmpty;
   }
 
   Future<void> acknowledgeDeletion(String accountId, Note note) =>

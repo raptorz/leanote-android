@@ -72,8 +72,10 @@ class SyncCoordinator {
     _attachmentUploading = true;
     return _running =
         Future<void>(() async {
-          if (account != null && token != null && noteId != null) {
+          if (account != null && token != null) {
             await _guardServerState(account, token);
+          }
+          if (account != null && token != null && noteId != null) {
             final target = (await _database.notes(account.cacheKey))
                 .where((note) => note.noteId == noteId)
                 .firstOrNull;
@@ -306,6 +308,12 @@ class SyncCoordinator {
   }
 
   Future<void> _uploadNote(Account account, String token, Note local) async {
+    if (await _database.hasUnuploadedVisualPlacement(
+      account.cacheKey,
+      local.noteId,
+    )) {
+      throw StateError('笔记含待上传的离线插入图片，请先在附件列表上传图片');
+    }
     if (local.usn > 0) {
       final remote = await _api.updateNote(
         server: account.server,
