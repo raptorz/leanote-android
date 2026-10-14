@@ -327,7 +327,7 @@ class SyncCoordinator {
       noteId: local.noteId,
     );
     if (!NoteCreationJournal.matches(attempt.note, snapshot.note)) {
-      throw StateError('新笔记创建结果与原请求不一致，本地修改已保留，请核对服务端内容');
+      throw StateError('新笔记创建结果与原请求不一致，本地修改已保留；请在笔记菜单选择“核对新建结果”');
     }
     remote = snapshot.note;
     await _database.markNoteUploaded(account.cacheKey, attempt.note, remote);

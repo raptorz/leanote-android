@@ -1,3 +1,4 @@
+import 'note_creation_dialog.dart';
 import 'notebook_conflict_dialog.dart';
 import '../l10n/app_strings.dart';
 import '../l10n/language_controller.dart';
@@ -821,6 +822,22 @@ class _WorkspacePageState extends State<WorkspacePage>
       MaterialPageRoute<void>(
         builder: (_) => NoteReaderPage(
           note: note,
+          onReviewCreation: note.usn != 0 || note.isTrash
+              ? null
+              : () async =>
+                    await showDialog<bool>(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (_) => NoteCreationDialog(
+                        load: () => widget.repository.reviewNoteCreation(
+                          widget.session,
+                          note.noteId,
+                        ),
+                        recover: (review) => widget.repository
+                            .recoverNoteCreation(widget.session, review),
+                      ),
+                    ) ==
+                    true,
           onExport: () =>
               NoteExporter(strings: AppStrings.snapshot(context)).export(note),
           onSystemShare: (origin) =>

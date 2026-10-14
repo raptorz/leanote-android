@@ -2580,8 +2580,8 @@
     "en": "The notebook has remote changes. Local edits are preserved. Choose “Review remote changes” in the notebook menu."
   },
   "m0646": {
-    "zh": "新笔记创建结果与原请求不一致，本地修改已保留，请核对服务端内容",
-    "en": "The created note differs from the original request. Local changes are kept; check the server content."
+    "zh": "新笔记创建结果与原请求不一致，本地修改已保留；请在笔记菜单选择“核对新建结果”",
+    "en": "The created note differs from the original request. Local changes are preserved. Choose Review note creation in the note menu."
   },
   "m0647": {
     "zh": "无法生成头像",
@@ -2970,5 +2970,61 @@
   "visualInsertImage": {
     "zh": "在选区后插入图片",
     "en": "Insert image after selection"
+  },
+  "noteCreationTitle": {
+    "zh": "核对新建结果",
+    "en": "Review note creation"
+  },
+  "noteCreationIntro": {
+    "zh": "适用于创建请求结果与本地内容不一致的笔记。联网读取远端版本并核对正文和属性；读取不会修改任何一端。",
+    "en": "For notes whose creation result differs from local content. Fetch the remote version to review its source and properties. Fetching changes neither version."
+  },
+  "noteCreationKeep": {
+    "zh": "保留本地并恢复同步",
+    "en": "Keep local and resume sync"
+  },
+  "noteCreationConfirm": {
+    "zh": "确认以本地正文和属性为准？下一次同步将使用已核对的远端版本更新同一篇笔记，覆盖远端正文和属性，并保留远端附件及本地待上传资源。现在只记录恢复选择，不立即上传。",
+    "en": "Use the local source and properties? The next sync will update the same note using the reviewed remote version, replacing its source and properties while retaining remote attachments and pending local resources. This records your choice without uploading now."
+  },
+  "noteCreationDetails": {
+    "zh": "笔记本：{0}\n版本：{1} · {2}\n标签：{3}\n{4}",
+    "en": "Notebook: {0}\nVersion: {1} · {2}\nTags: {3}\n{4}"
+  },
+  "noteCreationStarred": {
+    "zh": "已星标",
+    "en": "Starred"
+  },
+  "noteCreationUnstarred": {
+    "zh": "未星标",
+    "en": "Not starred"
+  },
+  "noteCreationSource": {
+    "zh": "查看完整原文",
+    "en": "View full source"
+  },
+  "noteCreationAccount": {
+    "zh": "账号已变化，请关闭后重新核对。",
+    "en": "Account changed. Close and review again."
+  },
+  "noteCreationLocalChanged": {
+    "zh": "本地笔记已变化或不再需要创建恢复，请重新核对。",
+    "en": "The local note changed or no longer needs creation recovery. Review again."
+  },
+  "noteCreationRemoteChanged": {
+    "zh": "远端笔记已变化，请重新读取并核对。",
+    "en": "The remote note changed. Fetch and review again."
+  },
+  "noteCreationUnavailable": {
+    "zh": "远端笔记不可用、已删除或在回收站中。本地内容已保留。",
+    "en": "The remote note is unavailable, deleted, or in trash. Local content is preserved."
+  },
+  "noteCreationTags": {
+    "zh": "服务端暂不支持清空全部标签。本地内容已保留，请先核对并调整两端标签后重试。",
+    "en": "The server cannot clear all tags. Local content is preserved. Review and adjust the tags before retrying."
+  },
+  "noteCreationFailed": {
+    "zh": "核对未完成，本地内容已保留：{0}",
+    "en": "Review failed. Local content is preserved: {0}"
   }
 }

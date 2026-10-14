@@ -1,3 +1,4 @@
+import '../domain/models/note_creation_review.dart';
 import '../domain/models/notebook_conflict.dart';
 
 import 'dart:typed_data';
@@ -1035,6 +1036,73 @@ class AuthRepository {
       if (next <= cursor) throw StateError('notebookSyncCursorStalled');
       cursor = next;
     }
+  }
+
+  Future<NoteCreationReview> reviewNoteCreation(
+    StoredSession session,
+    String id,
+  ) async {
+    late NoteCreationReview review;
+    await _sync.runMetadataUpdate(
+      () async {
+        final local = (await _database.dirtyNotes(session.account.cacheKey))
+            .where((n) => n.noteId == id)
+            .firstOrNull;
+        if (local == null ||
+            local.usn != 0 ||
+            local.isDeleted ||
+            local.isTrash ||
+            local.userId != session.account.userId) {
+          throw StateError('noteCreationLocalChanged');
+        }
+        final snapshot = await _api.getConflictSnapshot(
+          server: session.account.server,
+          token: session.token,
+          noteId: id,
+        );
+        final remote = snapshot.note;
+        if (remote.noteId != id ||
+            remote.userId != local.userId ||
+            remote.usn <= 0 ||
+            remote.isDeleted ||
+            remote.isTrash) {
+          throw StateError('noteCreationUnavailable');
+        }
+        review = NoteCreationReview(
+          accountId: session.account.cacheKey,
+          local: local,
+          remote: remote,
+        );
+      },
+      account: session.account,
+      token: session.token,
+    );
+    return review;
+  }
+
+  Future<void> recoverNoteCreation(
+    StoredSession session,
+    NoteCreationReview review,
+  ) async {
+    if (review.accountId != session.account.cacheKey ||
+        review.local.userId != session.account.userId) {
+      throw StateError('noteCreationAccount');
+    }
+    await _sync.runMetadataUpdate(
+      () async {
+        final fresh = await _api.getConflictSnapshot(
+          server: session.account.server,
+          token: session.token,
+          noteId: review.remote.noteId,
+        );
+        if (!sameReviewedNote(fresh.note, review.remote)) {
+          throw StateError('noteCreationRemoteChanged');
+        }
+        await _database.recoverNoteCreation(session.account.cacheKey, review);
+      },
+      account: session.account,
+      token: session.token,
+    );
   }
 
   Future<NotebookConflictSnapshot> reviewNotebookConflict(

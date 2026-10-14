@@ -1,3 +1,4 @@
+import '../../domain/models/note_creation_review.dart';
 import '../../domain/models/notebook_conflict.dart';
 
 import 'dart:convert';
@@ -1690,6 +1691,50 @@ class AppDatabase {
     );
     return rows.map(_noteFromRow).toList(growable: false);
   }
+
+  /// Only accept a reviewed creation base; content, resources and pending work
+  /// stay on the same note. No server write or account cursor advancement.
+  Future<void> recoverNoteCreation(
+    String accountId,
+    NoteCreationReview review,
+  ) => raw.transaction((txn) async {
+    if (review.accountId != accountId ||
+        review.local.usn != 0 ||
+        review.remote.usn <= 0 ||
+        review.local.noteId != review.remote.noteId ||
+        review.local.userId != review.remote.userId ||
+        review.remote.isDeleted ||
+        review.remote.isTrash ||
+        review.local.isDeleted ||
+        review.local.isTrash) {
+      throw StateError('noteCreationUnavailable');
+    }
+    final rows = await txn.query(
+      'notes',
+      where: 'account_id = ? AND server_id = ? AND is_dirty = 1 AND local_is_deleted = 0',
+      whereArgs: [accountId, review.local.noteId],
+    );
+    if (rows.length != 1 ||
+        !sameReviewedNote(_noteFromRow(rows.single), review.local)) {
+      throw StateError('noteCreationLocalChanged');
+    }
+    // API2 cannot express clearing all tags. Do not promise an exact overwrite
+    // that the existing server would silently fail to apply.
+    if (review.local.tags.isEmpty && review.remote.tags.isNotEmpty) {
+      throw StateError('noteCreationTags');
+    }
+    await txn.update(
+      'notes',
+      {'usn': review.remote.usn, 'local_is_new': 0},
+      where: 'account_id = ? AND server_id = ?',
+      whereArgs: [accountId, review.local.noteId],
+    );
+    await txn.delete(
+      'note_create_attempts',
+      where: 'account_id = ? AND note_id = ?',
+      whereArgs: [accountId, review.local.noteId],
+    );
+  });
 
   /// Atomically preserve a safe local body copy before accepting the remote note.
   /// Unsupported resource/deletion conflicts and concurrent edits remain dirty.

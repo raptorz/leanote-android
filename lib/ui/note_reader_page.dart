@@ -14,6 +14,7 @@ class NoteReaderPage extends StatefulWidget {
   const NoteReaderPage({
     required this.note,
     this.onEdit,
+    this.onReviewCreation,
     this.onToggleStar,
     this.onMove,
     this.onCopy,
@@ -33,6 +34,7 @@ class NoteReaderPage extends StatefulWidget {
   });
 
   final Note note;
+  final Future<bool> Function()? onReviewCreation;
   final Future<void> Function()? onEdit;
   final Future<void> Function()? onToggleStar;
   final Future<void> Function()? onMove;
@@ -169,6 +171,12 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
               key: _menuKey,
               onSelected: (value) async {
                 switch (value) {
+                  case 'reviewCreation':
+                    final recovered = await widget.onReviewCreation?.call();
+                    if (recovered == true && context.mounted) {
+                      Navigator.of(context).pop();
+                    }
+                    return;
                   case 'copy':
                     if (_copying) return;
                     setState(() => _copying = true);
@@ -219,6 +227,11 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
                 if (context.mounted) Navigator.of(context).pop();
               },
               itemBuilder: (_) => [
+                if (widget.onReviewCreation != null)
+                  PopupMenuItem(
+                    value: 'reviewCreation',
+                    child: Text(tr(context, 'noteCreationTitle')),
+                  ),
                 if (widget.onSystemShare != null)
                   PopupMenuItem(
                     value: 'systemShare',

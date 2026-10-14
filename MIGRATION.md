@@ -15,8 +15,8 @@
 ## 当前现场（2026-10-14）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`cd5a2ff` 笔记本远端修改核对与恢复；`73d7b00` 中英文界面与 Android 语言设置；`4738b19` 共享图片与附件；`ecc15e5` 历史图片 API2 下载与离线缓存；`fcfa25d` 富文本常用样式编辑和阅读；`df711b7` 搜索摘要与最新正文读取；`8e2d063` 离线 Markdown 数学公式与编辑工具；`d221858` 头像裁剪与 Android 拍照；`d65eba0` 上传前 USN 回退预检；`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
-- 2026-10-14 最新静态检查无问题，完整 Flutter 测试 685 项通过（性能基准和浏览器运行测试共 2 项默认跳过），图片策略及缓存专项 6 项通过，显式启用 Chromium 浏览器运行测试 1 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
+- 最近提交：`3b27127` 可视化图片缓存预览与插入；`cd5a2ff` 笔记本远端修改核对与恢复；`73d7b00` 中英文界面与 Android 语言设置；`4738b19` 共享图片与附件；`ecc15e5` 历史图片 API2 下载与离线缓存；`fcfa25d` 富文本常用样式编辑和阅读；`df711b7` 搜索摘要与最新正文读取；`8e2d063` 离线 Markdown 数学公式与编辑工具；`d221858` 头像裁剪与 Android 拍照；`d65eba0` 上传前 USN 回退预检；`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
+- 2026-10-14 最新静态检查无问题，完整 Flutter 测试 702 项通过（性能基准和浏览器运行测试共 2 项默认跳过），新建/恢复数据库专项 26 项及恢复界面专项 2 项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
 - 当前任务：持久下载、离线图片/附件暂存与 Android 资源分享已实现并验证，离线新建笔记本与不确定结果恢复已实现，继续同步一致性及其余功能缺口。iOS 与发布按最新要求暂缓，不作为当前功能迁移的执行前置条件。
 
@@ -29,7 +29,7 @@
 | 编号 / 功能 | Desktop 对应 | 服务端 API2 对应 | 旧 Android 对应 | Flutter 现状 / API2 | 剩余工作与验收条件 |
 |---|---|---|---|---|---|
 | M01 登录、退出、离线登录 | desktop-app/api/client_api.go Auth/Logout | Api2Controller.TokenLogin；api/ApiAuthController | ui/SignInActivity、service/AccountService | lib/repositories/auth_repository.dart、data/session；API2 | 核心已实现；test/data/login_flow_test.dart、cached_login_test.dart；会话过期/离线真机验证 |
-| M02 版本、USN、分页同步 | desktop-app/api/version.go、sync/pull.go、push.go | api/ApiUserController、ApiNoteController、ApiNotebookController、ApiTagController | background/NoteSyncService | lib/sync/sync_coordinator.dart；API2 | 部分；新笔记首次请求持久化及稳定版本回读已实现（schema v14），防止超时重试误确认后续编辑；上传前 USN 回退预检已实现；删除冲突、创建差异恢复及资源冲突尚未完整处理；全量/增量/并发修改必须不丢失数据 |
+| M02 版本、USN、分页同步 | desktop-app/api/version.go、sync/pull.go、push.go | api/ApiUserController、ApiNoteController、ApiNotebookController、ApiTagController | background/NoteSyncService | lib/sync/sync_coordinator.dart；API2 | 部分；新笔记首次请求持久化及稳定版本回读已实现（schema v14），防止超时重试误确认后续编辑；上传前 USN 回退预检已实现；新建结果差异的手动核对及保留本地恢复已实现；删除与资源冲突尚未完整处理；全量/增量/并发修改必须不丢失数据 |
 | M03 笔记离线增改、自动保存 | desktop-app/db/note_repo.go、sync/push.go | /api2/client/note/add、update | ui/edit/NoteEditActivity | data/database/app_database.dart、ui/note_editor_page.dart；API2 | 核心已实现；本地保存/后台切换测试已覆盖，输入法与杀进程验收待做 |
 | M04 Markdown 工具及阅读 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/markdown_editing.dart、markdown_note_body.dart；同步 API2 | 基础工具、GFM 表格/任务列表及离线行内/块级数学公式已实现；增加表格/任务/分隔线/公式工具；复杂扩展语法仍需逐项核对，原文不被预览改写 |
 | M05 富文本与表格 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/visual_html_editor.dart、safe_html_note_body.dart；同步 API2 | 部分；合并/拆分单元格及合并表格行列操作已实现；合并表格原生阅读布局已实现；常用颜色/高亮/字号/字体/对齐样式及原生阅读已实现；可视化图片缓存预览与在线选区插入已实现；高级布局样式及其它资源编辑未完；WebView 输入法/选区/撤销真机验证 |
@@ -344,3 +344,13 @@ Android 原生分享/拍照提示和桌面小组件使用同一选择，通过�
 新增选区后插入图片工具，上传前冻结编辑并持久保存最新正文，沿用现有 API2 上传及身份校验；成功后在选区末尾插入引用并立即保存，保留选中文字，支持撤销重做。图片预览与正文分离，表格操作、保存和撤销无需清理临时 DOM 属性。离线图片暂存继续使用现有原文编辑入口。
 
 验证：图片策略/缓存专项 6 项通过；完整 Flutter 测试 685 项通过、2 项条件测试默认跳过；静态检查无问题；Android debug APK 构建通过（7.2 秒）。`test/visual_editor_browser_test.dart` 可用 `VISUAL_EDITOR_BROWSER` 指定本机 Chromium 系浏览器，检查真实 JavaScript 的选区插入、撤销重做、外链隔离及正文完整性。本机使用已有 Vivaldi 运行该专项，1 项通过；这是开发测试工具，产品不调用或依赖 Vivaldi，未设置环境变量时跳过该测试。Android 产品使用系统 WebView，浏览器测试不能代替 WebView 的真机兼容性、输入法和生命周期验收；iOS 实现及发布仍暂缓。
+
+## M02 新建结果差异的手动恢复
+
+当创建回读与原请求不一致时，同步错误指向笔记菜单“核对新建结果”。界面显式联网读取、展示两端标题、笔记本、版本、格式、标签、星标及可展开的完整原文，不执行远端写入。用户确认保留本地后，再次读取稳定远端快照；确认期间账号、任一端内容或版本变化均拒绝旧选择。失败清除已核对状态，要求重新读取。
+
+恢复在同一 SQLite 事务中只接受远端基础 USN 并删除首次创建请求记录，保留本地正文、待同步标记、图片引用和附件原件，不改变账号同步游标。重启后使用同一 NoteId 走常规条件更新，不再次创建；远端附件沿用现有 API2 更新保留逻辑。沿用同步互斥及服务端 USN 回退预检；事务失败不产生半恢复状态。没有旧请求记录的历史草稿也能核对恢复。
+
+目前提供“保留本地并恢复同步”，不隐式采用远端或生成缺失资源的副本。远端已删除、回收站、身份不匹配和无效版本继续保留本地；本地空标签而远端非空时受 B02 限制，拒绝承诺服务端不能完成的清空操作。删除与完整资源冲突仍列为后续工作。iOS、发布及服务端未修改。
+
+本批验证：新建/恢复数据库专项 26 项、界面专项 2 项通过；完整回归 702 项通过、2 项条件测试默认跳过；静态检查无问题，Android debug APK 构建通过。新增覆盖重启后同 ID 条件更新、本地及远端变化、账号错配、删除/回收站/错误版本、事务回滚、空标签限制、同步互斥、附件原件保留、服务端回退，以及界面取消与失败后重新读取。
