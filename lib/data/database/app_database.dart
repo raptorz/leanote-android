@@ -1820,6 +1820,9 @@ class AppDatabase {
     Note local,
     Note remote, {
     required bool filesConfirmedEmpty,
+    NoteBundle? bundle,
+    Account? account,
+    String? expectedResources,
   }) => raw.transaction((txn) async {
     if (remote.noteId != local.noteId ||
         remote.userId != local.userId ||
@@ -1840,6 +1843,19 @@ class AppDatabase {
             _noteFingerprint(local)) {
       throw StateError('localChangesDuringConflict');
     }
+    if (bundle != null &&
+        (account == null ||
+            account.cacheKey != accountId ||
+            account.userId != local.userId ||
+            !sameReviewedNote(bundle.note, local) ||
+            expectedResources !=
+                await resourceFingerprint(
+                  accountId,
+                  local.noteId,
+                  executor: txn,
+                ))) {
+      throw StateError('localChangesDuringConflict');
+    }
     Note? copy;
     if (remote.content != local.content ||
         remote.isMarkdown != local.isMarkdown) {
@@ -1852,11 +1868,18 @@ class AppDatabase {
         whereArgs: [accountId, local.noteId],
         limit: 1,
       );
-      if (!filesConfirmedEmpty ||
-          local.isTrash ||
-          !canCopyConflictBody(local.content, isMarkdown: local.isMarkdown) ||
-          !canCopyConflictBody(remote.content, isMarkdown: remote.isMarkdown) ||
-          files.isNotEmpty) {
+      if (local.isTrash ||
+          (bundle == null &&
+              (!filesConfirmedEmpty ||
+                  !canCopyConflictBody(
+                    local.content,
+                    isMarkdown: local.isMarkdown,
+                  ) ||
+                  !canCopyConflictBody(
+                    remote.content,
+                    isMarkdown: remote.isMarkdown,
+                  ) ||
+                  files.isNotEmpty))) {
         throw StateError('unresolvedNoteConflict');
       }
       final now = DateTime.now().toUtc().toIso8601String();
@@ -1880,6 +1903,14 @@ class AppDatabase {
     }
     _insertNote(batch, accountId, remote);
     await batch.commit(noResult: true);
+    if (copy != null && bundle != null) {
+      for (final resource in bundle.resources) {
+        await AttachmentOutbox(
+          raw,
+          account!,
+        ).stageBundle(txn, copy.noteId, resource);
+      }
+    }
     // Do not advance the account cursor: other remote changes are still unread.
     return copy;
   });

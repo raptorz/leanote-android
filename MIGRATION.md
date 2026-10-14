@@ -16,7 +16,7 @@
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
 - 最近提交：`f7f97d2` 新笔记创建差异核对恢复；`3b27127` 可视化图片缓存预览与插入；`cd5a2ff` 笔记本远端修改核对与恢复；`73d7b00` 中英文界面与 Android 语言设置；`4738b19` 共享图片与附件；`ecc15e5` 历史图片 API2 下载与离线缓存；`fcfa25d` 富文本常用样式编辑和阅读；`df711b7` 搜索摘要与最新正文读取；`8e2d063` 离线 Markdown 数学公式与编辑工具；`d221858` 头像裁剪与 Android 拍照；`d65eba0` 上传前 USN 回退预检；`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
-- 2026-10-14 最新静态检查无问题，完整 Flutter 测试 724 项通过（性能基准和浏览器运行测试共 2 项默认跳过），资源归档/复制/上传专项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
+- 2026-10-14 最新静态检查无问题，完整 Flutter 测试 728 项通过（性能基准和浏览器运行测试共 2 项默认跳过），自动资源冲突副本、归档/复制/上传专项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
 - 当前任务：持久下载、离线图片/附件暂存与 Android 资源分享已实现并验证，离线新建笔记本与不确定结果恢复已实现，继续同步一致性及其余功能缺口。iOS 与发布按最新要求暂缓，不作为当前功能迁移的执行前置条件。
 
@@ -29,14 +29,14 @@
 | 编号 / 功能 | Desktop 对应 | 服务端 API2 对应 | 旧 Android 对应 | Flutter 现状 / API2 | 剩余工作与验收条件 |
 |---|---|---|---|---|---|
 | M01 登录、退出、离线登录 | desktop-app/api/client_api.go Auth/Logout | Api2Controller.TokenLogin；api/ApiAuthController | ui/SignInActivity、service/AccountService | lib/repositories/auth_repository.dart、data/session；API2 | 核心已实现；test/data/login_flow_test.dart、cached_login_test.dart；会话过期/离线真机验证 |
-| M02 版本、USN、分页同步 | desktop-app/api/version.go、sync/pull.go、push.go | api/ApiUserController、ApiNoteController、ApiNotebookController、ApiTagController | background/NoteSyncService | lib/sync/sync_coordinator.dart；API2 | 部分；新笔记首次请求持久化及稳定版本回读已实现（schema v14），防止超时重试误确认后续编辑；上传前 USN 回退预检已实现；新建结果差异的手动核对及保留本地恢复已实现；删除与资源冲突尚未完整处理；全量/增量/并发修改必须不丢失数据 |
+| M02 版本、USN、分页同步 | desktop-app/api/version.go、sync/pull.go、push.go | api/ApiUserController、ApiNoteController、ApiNotebookController、ApiTagController | background/NoteSyncService | lib/sync/sync_coordinator.dart；API2 | 部分；新笔记首次请求持久化及稳定版本回读已实现（schema v14），防止超时重试误确认后续编辑；上传前 USN 回退预检已实现；新建结果差异的手动核对及保留本地恢复已实现；带资源的正文冲突自动副本已实现；删除冲突及跨端验收仍待处理 |
 | M03 笔记离线增改、自动保存 | desktop-app/db/note_repo.go、sync/push.go | /api2/client/note/add、update | ui/edit/NoteEditActivity | data/database/app_database.dart、ui/note_editor_page.dart；API2 | 核心已实现；本地保存/后台切换测试已覆盖，输入法与杀进程验收待做 |
 | M04 Markdown 工具及阅读 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/markdown_editing.dart、markdown_note_body.dart；同步 API2 | 基础工具、GFM 表格/任务列表及离线行内/块级数学公式已实现；增加表格/任务/分隔线/公式工具；复杂扩展语法仍需逐项核对，原文不被预览改写 |
 | M05 富文本与表格 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/visual_html_editor.dart、safe_html_note_body.dart；同步 API2 | 部分；合并/拆分单元格及合并表格行列操作已实现；合并表格原生阅读布局已实现；常用颜色/高亮/字号/字体/对齐样式及原生阅读已实现；可视化图片缓存预览与在线选区插入已实现；高级布局样式及其它资源编辑未完；WebView 输入法/选区/撤销真机验证 |
 | M06 笔记本树及离线操作 | desktop-app/db/notebook_repo.go、api/client_api.go | /api2/client/notebook/add、update | service/NotebookService | ui/notebook_dialog.dart、move_notebook_dialog.dart；API2 | 离线新建、重命名/移动、父级优先同步和创建结果不确定时的手动核实恢复已实现（schema v13）；已有笔记本远端修改的核对、保留本地/采用远端及父级一致性处理已实现；远端删除仍受 B01 合同限制 |
 | M07 笔记本删除 | desktop-app/api/client_api.go DeleteNotebook | api/ApiNotebookController.DeleteNotebook → service/NotebookService.DeleteNotebookForce | service/NotebookService | 暂未接入 | 服务端合同阻塞：子级/笔记处理及 USN 删除标记；仅提出需求 |
 | M08 移动、星标、回收站 | desktop-app/db/note_repo.go、sync/push.go | ApiNoteController.UpdateNote/DeleteTrash | service/NoteService | ui/note_reader_page.dart、workspace_page.dart；API2 | 核心已实现；trash_delete_test.dart、pending_sync_test.dart；跨客户端回收站回归待验证 |
-| M09 完整复制与冲突副本 | desktop-app/webapi/local.go、sync/push.go | NoteController.CopyNote、ApiNoteController | service/NoteService | domain/models/conflict_copy.dart；API2 | 手动复制已支持原样复杂正文与图片/附件原件的持久克隆；资源冲突副本和删除冲突未完；不得丢资源或覆盖原笔记 |
+| M09 完整复制与冲突副本 | desktop-app/webapi/local.go、sync/push.go | NoteController.CopyNote、ApiNoteController | service/NoteService | domain/models/conflict_copy.dart；API2 | 手动复制与自动正文冲突副本已支持原样复杂正文与图片/附件原件的持久克隆；删除冲突仍待处理；不得丢资源或覆盖原笔记 |
 | M10 搜索、排序、所有笔记 | desktop-app/db/note_repo.go | 本地搜索，内容来自 API2 同步 | ui/SearchActivity | ui/note_search_page.dart、domain/models/note_sort.dart | 本地搜索、分页及排序已实现；结果仅加载独立摘要类型，打开时读取最新正文；2.5 万篇桌面磁盘基准 18–70ms，保留中文/任意子串匹配；手机数据量性能仍待验收 |
 | M11 标签编辑与管理 | desktop-app/api/client_api.go AddTag/DeleteTag | api/ApiTagController、ApiNoteController.UpdateNote | service/TagService | ui/tags_page.dart、note_tags_dialog.dart；API2 | 部分；新增未使用标签目录、在线创建及笔记编辑候选；全局删除/重命名未完成，删除 USN 合同 B06 与清空标签 B02 待服务端后续处理 |
 | M12 历史浏览恢复 | desktop-app/api/client_api.go GetHistories/GetHistoryContent | ApiNoteController.GetHistories/GetHistoryContent | service/NoteService | ui/note_history_page.dart；API2 | 正文及历史图片的下载/独立缓存/离线阅读、恢复后的缓存图片显示已实现（schema v15）；恢复保留正文图片引用，不伪造附件版本；附件/编辑器格式快照缺失见 B07；history_images_test.dart |
@@ -361,6 +361,8 @@ Android 原生分享/拍照提示和桌面小组件使用同一选择，通过�
 
 新增 `.gemsnote`（应用自身的 JSON 格式）导出/导入，保留标题、原文、格式、标签、星标和原件字节，逐项 SHA-256 校验。可导入当前账号或其它服务器的新笔记本，原件进入持久队列；上传确认后按原始来源和 FileId 原位替换正文中的图片/附件地址，不追加重复图片。支持重启后的原始来源图片本地预览，确认步骤仍复用现有上传身份验证和不确定结果恢复。外部非本账号资源链接只保留原文，不主动抓取网站。归档限制为原文 8 MiB、资源总计 32 MiB、最多 64 项，JSON 文件不超过 64 MiB；失败整笔回滚。桌面端目前只导出源码文件，本格式不声称与其互通。
 
-已核对 `Note.CopyNote` 服务端 API2 路由：个人复制只创建新 NoteId/正文，不克隆图片或附件；客户端因此使用 API2 读取原件、本地持久队列和已有上传流程。自动冲突副本、删除冲突尚需继续迁移；外链与未识别资源不伪装成已打包。共享编辑服务端竞态见 B03。
+已核对 `Note.CopyNote` 服务端 API2 路由：个人复制只创建新 NoteId/正文，不克隆图片或附件；客户端因此使用 API2 读取原件、本地持久队列和已有上传流程。正文冲突时先比对被审阅的远端版本与资源清单，取回本地正文对应的旧原件，再在单个事务中建立本地副本、暂存原件并采用远端原笔记；创建响应丢失后复用同一副本 ID。资源缺失、归档超限或事务失败时保留原本待同步笔记，不采用远端。副本在资源上传确认前仍引用原地址，上传后原位替换；外链与未识别资源不伪装成已打包。删除冲突尚需继续迁移；共享编辑服务端竞态见 B03。
 
 本批验证：资源归档格式、摘要篡改拒绝、来源隔离、复杂正文原位替换、跨服务器导入/重启预览、原件上传后 USN 接续、本地编辑保留、文件清单/版本/暂存任务竞态、事务失败回滚及 schema v17→v18 升级均有专项覆盖。完整 Flutter 测试 **724 项通过、2 项条件测试默认跳过**，静态检查无问题，Android debug APK 构建通过。Android 文件面板和真实 API2 服务器交互尚未真机验收；不能以本地模拟替代。
+
+自动资源冲突副本追加验证了远端版本采用、本地完整副本及原件暂存、创建响应丢失重试、暂存失败整笔回滚、旧原件缺失时保持本地待同步。完整 Flutter 测试 **728 项通过、2 项条件测试默认跳过**，静态检查无问题，Android debug APK 构建通过；真机与真实 API2 并发验收仍待完成。

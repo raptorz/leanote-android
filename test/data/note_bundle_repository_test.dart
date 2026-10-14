@@ -1,3 +1,5 @@
+import 'package:gemsnote/core/api/api_exception.dart';
+
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -23,8 +25,36 @@ class BundleApi extends Api2Client {
   Map<String, Uint8List> originals = {};
   int calls = 0;
   bool fail = false;
+  bool conflict = false, loseCreateResponse = false;
+  final created = <String, Note>{};
+  int createCalls = 0;
   Future<void> Function()? duringDownload;
   Future<void> Function()? duringUpload;
+  @override
+  Future<Note> updateNote({
+    required Uri server,
+    required String token,
+    required Note note,
+  }) async {
+    if (conflict) throw const ApiException('conflict');
+    return note.copyWith(usn: note.usn + 1);
+  }
+
+  @override
+  Future<Note> addNote({
+    required Uri server,
+    required String token,
+    required Note note,
+  }) async {
+    createCalls++;
+    final saved = created.putIfAbsent(
+      note.noteId,
+      () => note.copyWith(usn: 10),
+    );
+    if (loseCreateResponse) throw StateError('lost response');
+    return saved;
+  }
+
   @override
   Future<int> getSyncUsn({required Uri server, required String token}) async =>
       100;
@@ -53,7 +83,10 @@ class BundleApi extends Api2Client {
   }) async {
     calls++;
     if (fail) throw StateError('offline');
-    return (note: remote, filesConfirmedEmpty: files.isEmpty);
+    return (
+      note: created[noteId] ?? remote,
+      filesConfirmedEmpty: files.isEmpty,
+    );
   }
 
   @override
@@ -106,14 +139,14 @@ void main() {
   late Directory temp;
   late AppDatabase db;
   late AuthRepository repo;
+  late SyncCoordinator sync;
   late BundleApi api;
   late Note source;
-  void connect() => repo = AuthRepository(
-    api,
-    db,
-    MemorySessions(),
-    SyncCoordinator(api, db),
-  );
+  void connect() {
+    sync = SyncCoordinator(api, db);
+    repo = AuthRepository(api, db, MemorySessions(), sync);
+  }
+
   setUpAll(() {
     TestWidgetsFlutterBinding.ensureInitialized();
     sqfliteFfiInit();
@@ -422,6 +455,107 @@ void main() {
         api.originals[attachId],
       );
       expect(await db.notes(account.cacheKey), hasLength(1));
+    },
+  );
+  Future<void> prepareConflict() async {
+    await db.saveEditedText(
+      account.cacheKey,
+      source.noteId,
+      'local',
+      '${source.content}<p>my edit</p>',
+    );
+    api.remote = source.copyWith(
+      usn: 8,
+      title: 'remote',
+      content: '${source.content}<p>other edit</p>',
+    );
+    api.conflict = true;
+  }
+
+  test('sync creates one independent resource-complete copy and adopts remote source', () async {
+    await prepareConflict();
+    await sync.uploadPending(account: account, token: 'secret');
+    final notes = await db.notes(account.cacheKey);
+    expect(notes, hasLength(2));
+    final copied = notes.singleWhere((n) => n.noteId != source.noteId);
+    expect(copied.content, contains('my edit'));
+    expect(copied.content, contains('<table data-custom="keep">'));
+    expect(copied.usn, 10);
+    expect(
+      notes.singleWhere((n) => n.noteId == source.noteId).content,
+      contains('other edit'),
+    );
+    expect(
+      (await repo.pendingAttachments(session, noteId: copied.noteId)),
+      hasLength(2),
+    );
+    expect(
+      await repo.cachedInlineImage(
+        session,
+        copied.noteId,
+        Uri.parse('https://source.test/file/outputImage?fileId=$imageId'),
+      ),
+      api.originals[imageId],
+    );
+    expect(await db.lastSyncUsn(account.cacheKey), 7);
+    expect(api.createCalls, 1);
+  });
+  test('lost copy creation response replays one ID without making another conflict copy', () async {
+    await prepareConflict();
+    api.loseCreateResponse = true;
+    await expectLater(
+      sync.uploadPending(account: account, token: 'secret'),
+      throwsStateError,
+    );
+    final notes = await db.notes(account.cacheKey);
+    expect(notes, hasLength(2));
+    final copy = notes.singleWhere((n) => n.noteId != source.noteId);
+    expect(copy.usn, 0);
+    expect(
+      (await repo.pendingAttachments(session, noteId: copy.noteId)),
+      hasLength(2),
+    );
+    api.loseCreateResponse = false;
+    await sync.uploadPending(account: account, token: 'secret');
+    expect((await db.notes(account.cacheKey)), hasLength(2));
+    expect(
+      (await db.notes(account.cacheKey))
+          .singleWhere((n) => n.noteId == copy.noteId)
+          .usn,
+      10,
+    );
+    expect(api.created.length, 1);
+    expect(await db.pendingNoteIds(account.cacheKey), isEmpty);
+  });
+  test('resource staging failure rolls back conflict resolution and retains dirty source', () async {
+    await prepareConflict();
+    await db.raw.execute(
+      "CREATE TRIGGER fail_conflict_bundle BEFORE INSERT ON resource_bindings BEGIN SELECT RAISE(ABORT, 'disk full'); END",
+    );
+    await expectLater(
+      sync.uploadPending(account: account, token: 'secret'),
+      throwsA(isA<DatabaseException>()),
+    );
+    final notes = await db.notes(account.cacheKey);
+    expect(notes, hasLength(1));
+    expect(notes.single.content, contains('my edit'));
+    expect(notes.single.usn, 7);
+    expect(await repo.pendingAttachments(session), isEmpty);
+  });
+  test(
+    'missing old body resource leaves original dirty and creates no copy',
+    () async {
+      await prepareConflict();
+      api.files = [];
+      await expectLater(
+        sync.uploadPending(account: account, token: 'secret'),
+        throwsStateError,
+      );
+      expect(
+        (await db.notes(account.cacheKey)).single.content,
+        contains('my edit'),
+      );
+      expect(api.createCalls, 0);
     },
   );
 }

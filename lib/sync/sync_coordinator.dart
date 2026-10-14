@@ -1,3 +1,4 @@
+import '../domain/models/note_bundle.dart';
 import '../core/api/api2_client.dart';
 import '../core/api/api_exception.dart';
 import '../data/database/app_database.dart';
@@ -20,6 +21,14 @@ typedef SyncProgressCallback = void Function(SyncProgress progress);
 
 class SyncCoordinator {
   SyncCoordinator(this._api, this._database);
+
+  Future<({NoteBundle bundle, String fingerprint})> Function(
+    Account account,
+    String token,
+    Note local,
+    Note remote,
+  )?
+  resourceConflictBundle;
 
   final Api2Client _api;
   final AppDatabase _database;
@@ -392,11 +401,20 @@ class SyncCoordinator {
           token: token,
           noteId: local.noteId,
         );
+        final package =
+            (remote.note.content != local.content ||
+                    remote.note.isMarkdown != local.isMarkdown) &&
+                resourceConflictBundle != null
+            ? await resourceConflictBundle!(account, token, local, remote.note)
+            : null;
         final copy = await _database.resolveNoteConflict(
           account.cacheKey,
           local,
           remote.note,
           filesConfirmedEmpty: remote.filesConfirmedEmpty,
+          bundle: package?.bundle,
+          account: package == null ? null : account,
+          expectedResources: package?.fingerprint,
         );
         if (copy != null) {
           // Persist the copy first. Failed/lost uploads leave this same ID dirty

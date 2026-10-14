@@ -53,7 +53,20 @@ class PendingLogin {
 }
 
 class AuthRepository {
-  AuthRepository(this._api, this._database, this._sessions, this._sync);
+  AuthRepository(this._api, this._database, this._sessions, this._sync) {
+    _sync.resourceConflictBundle = (account, token, local, remote) async {
+      final fingerprint = await _database.resourceFingerprint(
+        account.cacheKey,
+        local.noteId,
+      );
+      final bundle = await _collectBundle(
+        StoredSession(account: account, token: token),
+        local,
+        expectedRemote: remote,
+      );
+      return (bundle: bundle, fingerprint: fingerprint);
+    };
+  }
 
   final Map<String, Future<void>> _presentationRefreshes = {};
   final Map<String, Future<List<SharedNote>>> _sharedRefreshes = {};
@@ -1613,7 +1626,11 @@ class AuthRepository {
     NoteBundle bundle,
   ) => _database.importBundle(session.account, notebookId, bundle);
 
-  Future<NoteBundle> _collectBundle(StoredSession session, Note source) async {
+  Future<NoteBundle> _collectBundle(
+    StoredSession session,
+    Note source, {
+    Note? expectedRemote,
+  }) async {
     if (source.userId != session.account.userId ||
         source.isDeleted ||
         source.isTrash) {
@@ -1629,8 +1646,10 @@ class AuthRepository {
           )
         : null;
     if (before != null &&
-        (before.note.userId != source.userId ||
-            before.note.usn != source.usn)) {
+        (expectedRemote == null
+            ? before.note.userId != source.userId ||
+                  before.note.usn != source.usn
+            : !sameReviewedNote(before.note, expectedRemote))) {
       throw StateError('笔记或资源已变化，请重新打开后重试。');
     }
     final cachedFiles = await _database.cachedNoteFiles(
@@ -1648,16 +1667,27 @@ class AuthRepository {
             userId: session.account.userId,
           )
         : <NoteFile>[];
-    if (cachedFiles.any(
-      (known) => !files.any(
-        (file) =>
-            file.id == known.id && file.isAttachment == known.isAttachment,
-      ),
-    )) {
+    if (expectedRemote == null &&
+        cachedFiles.any(
+          (known) => !files.any(
+            (file) =>
+                file.id == known.id && file.isAttachment == known.isAttachment,
+          ),
+        )) {
       throw StateError('笔记或资源已变化，请重新打开后重试。');
     }
+    final selectedFiles = [
+      ...files,
+      if (expectedRemote != null)
+        for (final known in cachedFiles)
+          if (!files.any(
+            (file) =>
+                file.id == known.id && file.isAttachment == known.isAttachment,
+          ))
+            known,
+    ];
     var total = 0;
-    for (final file in files) {
+    for (final file in selectedFiles) {
       Uint8List bytes;
       final original = staged
           .where(
@@ -1687,6 +1717,14 @@ class AuthRepository {
                   known,
                 );
         } on StateError {
+          if (expectedRemote != null &&
+              !files.any(
+                (current) =>
+                    current.id == file.id &&
+                    current.isAttachment == file.isAttachment,
+              )) {
+            throw StateError('缺少正文中的图片原件，请先下载图片后重试。');
+          }
           bytes = file.isAttachment
               ? await _api.noteAttachment(
                   server: session.account.server,
