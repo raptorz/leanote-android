@@ -69,6 +69,12 @@ class _ImportNoteDialogState extends State<ImportNoteDialog> {
             ),
             if (_note != null) ...[
               Text(_note!.title),
+              if (_note!.bundle != null)
+                Text(
+                  tr(context, 'bundleImportInfo', [
+                    _note!.bundle!.resources.length,
+                  ]),
+                ),
               Text(
                 tr(context, 'm0139', [
                   _note!.isMarkdown ? "Markdown" : "HTML",

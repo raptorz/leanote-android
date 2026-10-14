@@ -1,3 +1,4 @@
+import '../../domain/models/note_bundle.dart';
 import '../../domain/models/note_creation_review.dart';
 import '../../domain/models/notebook_conflict.dart';
 
@@ -34,7 +35,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 17;
+  static const schemaVersion = 18;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -85,6 +86,7 @@ class AppDatabase {
         if (oldVersion < 15) await db.execute(HistoryImageCache.schema);
         if (oldVersion < 16) await db.execute(SharedFileCache.schema);
         if (oldVersion < 17) await db.execute(_appPreferencesSchema);
+        if (oldVersion < 18) await db.execute(AttachmentOutbox.bindingSchema);
       },
     );
     return AppDatabase._(database);
@@ -1346,6 +1348,8 @@ class AppDatabase {
     required Note source,
     required String notebookId,
     required bool filesConfirmedEmpty,
+    NoteBundle? bundle,
+    String? expectedResources,
   }) => raw.transaction((txn) async {
     final rows = await txn.query(
       'notes',
@@ -1373,9 +1377,23 @@ class AppDatabase {
       whereArgs: [account.cacheKey, source.noteId],
       limit: 1,
     );
-    if ((source.usn > 0 && !filesConfirmedEmpty) ||
-        files.isNotEmpty ||
-        !canCopyConflictBody(source.content, isMarkdown: source.isMarkdown)) {
+    if (bundle != null &&
+        (!sameReviewedNote(bundle.note, source) ||
+            expectedResources !=
+                await resourceFingerprint(
+                  account.cacheKey,
+                  source.noteId,
+                  executor: txn,
+                ))) {
+      throw StateError('笔记或资源已变化，请重新打开后重试。');
+    }
+    if (bundle == null &&
+        ((source.usn > 0 && !filesConfirmedEmpty) ||
+            files.isNotEmpty ||
+            !canCopyConflictBody(
+              source.content,
+              isMarkdown: source.isMarkdown,
+            ))) {
       throw StateError('暂不支持复制含链接、图片、附件或复杂 HTML 的笔记');
     }
     final now = DateTime.now().toUtc().toIso8601String();
@@ -1396,7 +1414,66 @@ class AppDatabase {
       whereArgs: [account.cacheKey, copy.noteId],
     );
     await batch.commit(noResult: true);
+    for (final resource in bundle?.resources ?? <BundledResource>[]) {
+      await AttachmentOutbox(
+        raw,
+        account,
+      ).stageBundle(txn, copy.noteId, resource);
+    }
     return copy;
+  });
+
+  Future<String> resourceFingerprint(
+    String accountId,
+    String noteId, {
+    DatabaseExecutor? executor,
+  }) async => jsonEncode(
+    await (executor ?? raw).rawQuery(
+      """SELECT o.id, o.name, o.kind, o.state, o.remote_id, LENGTH(o.bytes) AS size, b.source_id, b.origin
+      FROM attachment_outbox o LEFT JOIN resource_bindings b ON b.task_id = o.id
+      WHERE o.account_id = ? AND o.note_id = ? ORDER BY o.id""",
+      [accountId, noteId],
+    ),
+  );
+
+  Future<Note> importBundle(
+    Account account,
+    String notebookId,
+    NoteBundle bundle,
+  ) => raw.transaction((txn) async {
+    final target = await txn.query(
+      'notebooks',
+      where: 'account_id = ? AND server_id = ?',
+      whereArgs: [account.cacheKey, notebookId],
+    );
+    if (target.isEmpty) throw StateError('目标笔记本不存在，请刷新后重试');
+    final now = DateTime.now().toUtc().toIso8601String();
+    final note = bundle.note.copyWith(
+      noteId: _objectId(),
+      notebookId: notebookId,
+      userId: account.userId,
+      usn: 0,
+      isTrash: false,
+      isDeleted: false,
+      createdTime: now,
+      updatedTime: now,
+    );
+    final batch = txn.batch();
+    _insertNote(batch, account.cacheKey, note);
+    batch.update(
+      'notes',
+      {'is_dirty': 1, 'local_is_new': 1},
+      where: 'account_id = ? AND server_id = ?',
+      whereArgs: [account.cacheKey, note.noteId],
+    );
+    await batch.commit(noResult: true);
+    for (final resource in bundle.resources) {
+      await AttachmentOutbox(
+        raw,
+        account,
+      ).stageBundle(txn, note.noteId, resource);
+    }
+    return note;
   });
 
   Future<void> saveNoteTags(
@@ -2070,6 +2147,7 @@ class AppDatabase {
     _cachePreferencesSchema,
     ...FileDownloadJournal.schema,
     AttachmentOutbox.schema,
+    AttachmentOutbox.bindingSchema,
     NotebookCreationJournal.schema,
     NoteCreationJournal.schema,
     HistoryImageCache.schema,

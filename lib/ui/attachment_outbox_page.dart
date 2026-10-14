@@ -230,10 +230,17 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
                                       : tr(context, 'm0070'),
                                 ),
                               ),
-                            if (item.isImage && item.state == 'uploaded')
+                            if (item.state == 'uploaded')
                               PopupMenuItem(
                                 value: 'insert',
-                                child: Text(tr(context, 'm0071')),
+                                child: Text(
+                                  tr(
+                                    context,
+                                    item.isImage
+                                        ? 'm0071'
+                                        : 'bundleApplyReferences',
+                                  ),
+                                ),
                               ),
                             PopupMenuItem(
                               value: 'files',

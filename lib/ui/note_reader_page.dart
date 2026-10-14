@@ -24,6 +24,7 @@ class NoteReaderPage extends StatefulWidget {
     this.onEditTags,
     this.onFiles,
     this.onExport,
+    this.onExportBundle,
     this.onSystemShare,
     this.loadCachedImage,
     this.downloadImage,
@@ -45,6 +46,7 @@ class NoteReaderPage extends StatefulWidget {
   final Future<bool> Function()? onEditTags;
   final Future<void> Function()? onFiles;
   final Future<bool> Function()? onExport;
+  final Future<bool> Function()? onExportBundle;
   final Future<void> Function(Rect origin)? onSystemShare;
   final CachedImageLoader? loadCachedImage;
   final Future<Uint8List> Function(Uri)? downloadImage;
@@ -85,19 +87,27 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
     }
   }
 
-  Future<void> _export() async {
-    if (_exporting || widget.onExport == null) return;
+  Future<void> _export({bool bundle = false}) async {
+    final export = bundle ? widget.onExportBundle : widget.onExport;
+    if (_exporting || export == null) return;
     setState(() => _exporting = true);
     try {
-      final saved = await widget.onExport!();
+      final saved = await export();
       if (mounted && saved) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(trNow(context, 'm0273'))));
       }
-    } on Object {
+    } on Object catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(trNow(context, 'm0274'))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              bundle
+                  ? trNow(context, 'bundleExportFailed', [error])
+                  : trNow(context, 'm0274'),
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -192,6 +202,9 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
                   case 'systemShare':
                     await _share();
                     return;
+                  case 'exportBundle':
+                    await _export(bundle: true);
+                    return;
                   case 'export':
                     await _export();
                     return;
@@ -239,6 +252,12 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
                     child: Text(
                       _sharing ? tr(context, 'm0281') : tr(context, 'm0282'),
                     ),
+                  ),
+                if (widget.onExportBundle != null)
+                  PopupMenuItem(
+                    value: 'exportBundle',
+                    enabled: !_exporting,
+                    child: Text(tr(context, 'bundleExport')),
                   ),
                 if (widget.onExport != null)
                   PopupMenuItem(

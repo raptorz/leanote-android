@@ -236,8 +236,8 @@ const messages = <String, (String, String)>{
   "m0135": ("导入失败：{0}", "Import failed: {0}"),
   "m0136": ("导入笔记原文", "Import note source"),
   "m0137": (
-    "支持 UTF-8 的 Markdown、TXT、HTML，最多 32 MiB。TXT 按 Markdown 保存；不导入关联图片或附件，不执行 HTML。确认后保存到当前笔记本，待后续同步上传。",
-    "Supports UTF-8 Markdown, TXT and HTML files up to 32 MiB. TXT is saved as Markdown. Linked images and attachments are not imported, and HTML is not executed. Confirm to save in the current notebook for later syncing.",
+    "支持 UTF-8 Markdown、TXT、HTML（最多 32 MiB）及 .gemsnote 资源归档（最多 64 MiB）。普通文本文件不附带资源，不执行 HTML。资源归档中的原件存入待上传队列；确认后保存到当前笔记本。",
+    "Supports UTF-8 Markdown, TXT and HTML (up to 32 MiB), and .gemsnote resource archives (up to 64 MiB). Text files do not include resources; HTML is not executed. Archived originals enter the upload queue. Confirm to save in the current notebook.",
   ),
   "m0138": ("选择文件", "Choose file"),
   "m0139": ("格式：{0}，{1} 个字符", "Format: {0}, {1} characters"),
@@ -1401,5 +1401,49 @@ const messages = <String, (String, String)>{
   "noteCreationFailed": (
     "核对未完成，本地内容已保留：{0}",
     "Review failed. Local content is preserved: {0}",
+  ),
+  "bundleExport": ("导出笔记与资源", "Export note with resources"),
+  "bundleApplyReferences": ("更新正文引用", "Update body references"),
+  "bundleImportInfo": (
+    "包含 {0} 个资源原件，将存入待上传队列。外部链接保持原文，不下载外部网站。",
+    "Includes {0} resource originals, saved to the upload queue. External links remain unchanged; external websites are not downloaded.",
+  ),
+  "noteBundleTooLarge": (
+    "资源归档超过限制：原文 8 MiB，资源共 32 MiB、最多 64 项。",
+    "Bundle exceeds limits: 8 MiB source, 32 MiB resources, up to 64 resources.",
+  ),
+  "noteBundleChanged": (
+    "笔记或资源已变化，请重新打开后重试。",
+    "The note or resources changed. Reopen and retry.",
+  ),
+  "noteBundleMissingResource": (
+    "缺少正文中的图片原件，请先下载图片后重试。",
+    "An original body image is missing. Download the image and retry.",
+  ),
+  "invalidNoteBundle": (
+    "笔记归档格式或版本无效。",
+    "Invalid note archive format or version.",
+  ),
+  "invalidBundleResource": (
+    "归档中的资源编号无效。",
+    "Invalid resource identifier in archive.",
+  ),
+  "invalidBundleOrigin": ("归档中的资源来源无效。", "Invalid resource origin in archive."),
+  "duplicateBundleResource": (
+    "归档包含重复资源。",
+    "Archive contains duplicate resources.",
+  ),
+  "bundleChecksumMismatch": (
+    "资源校验失败，归档可能已损坏。",
+    "Resource checksum failed; the archive may be damaged.",
+  ),
+  "bundleExportFailed": ("资源导出未完成：{0}", "Resource export failed: {0}"),
+  "bundleSupportedFiles": (
+    "仅支持 Markdown、TXT、HTML 或 .gemsnote 资源归档",
+    "Only Markdown, TXT, HTML or .gemsnote resource archives are supported",
+  ),
+  "bundleFileLimit": (
+    "文件超过允许大小：{0} 字节",
+    "File exceeds the allowed size: {0} bytes",
   ),
 };

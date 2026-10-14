@@ -820,7 +820,7 @@ class _WorkspacePageState extends State<WorkspacePage>
   Future<void> _openReader(Note note) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => NoteReaderPage(
+        builder: (readerContext) => NoteReaderPage(
           note: note,
           onReviewCreation: note.usn != 0 || note.isTrash
               ? null
@@ -838,6 +838,17 @@ class _WorkspacePageState extends State<WorkspacePage>
                       ),
                     ) ==
                     true,
+          onExportBundle: () async {
+            final exporter = NoteExporter(
+              strings: AppStrings.snapshot(context),
+            );
+            final bundle = await widget.repository.exportBundle(
+              widget.session,
+              note,
+            );
+            if (!readerContext.mounted) return false;
+            return exporter.exportBundle(bundle);
+          },
           onExport: () =>
               NoteExporter(strings: AppStrings.snapshot(context)).export(note),
           onSystemShare: (origin) =>
@@ -1247,6 +1258,13 @@ class _WorkspacePageState extends State<WorkspacePage>
             (item) => item.notebookId == targetId && !item.isDeleted,
           )) {
             throw StateError(missingNotebook);
+          }
+          if (source.bundle != null) {
+            return widget.repository.importBundle(
+              widget.session,
+              targetId,
+              source.bundle!,
+            );
           }
           return widget.repository.createNote(
             widget.session,

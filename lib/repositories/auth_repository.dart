@@ -1,3 +1,8 @@
+import '../data/database/note_creation_journal.dart';
+
+import 'dart:convert';
+
+import '../domain/models/note_bundle.dart';
 import '../domain/models/note_creation_review.dart';
 import '../domain/models/notebook_conflict.dart';
 
@@ -102,6 +107,8 @@ class AuthRepository {
     String noteId,
     Uri uri,
   ) async {
+    final bound = await _outbox(session).boundImage(noteId, uri);
+    if (bound != null) return bound;
     final id = cachedImageFileId(uri, session.account.server);
     if (id == null) return null;
     final files = await _database.cachedNoteFiles(
@@ -270,13 +277,26 @@ class AuthRepository {
           if (snapshot.note.userId != session.account.userId) {
             throw StateError('accountMismatch');
           }
-          await _database.mergeChanges(
-            account: session.account,
-            notebooks: [],
-            notes: [snapshot.note],
-            tags: [],
-            lastSyncUsn: await _database.lastSyncUsn(session.account.cacheKey),
-          );
+          if (NoteCreationJournal.matches(local, snapshot.note)) {
+            // Attachment membership may advance the USN while the user edits
+            // locally. A verified unchanged remote body can become the base
+            // without discarding those later edits.
+            await _database.markNoteUploaded(
+              session.account.cacheKey,
+              local,
+              snapshot.note,
+            );
+          } else {
+            await _database.mergeChanges(
+              account: session.account,
+              notebooks: [],
+              notes: [snapshot.note],
+              tags: [],
+              lastSyncUsn: await _database.lastSyncUsn(
+                session.account.cacheKey,
+              ),
+            );
+          }
           await noteFiles(session, noteId);
           refreshed = true;
         } on Object {
@@ -312,7 +332,48 @@ class AuthRepository {
 
   Future<void> insertStagedImage(StoredSession session, String id) async {
     if (_sync.isBusy) throw StateError('请等待当前同步或上传完成');
-    await _outbox(session).insertImage(id);
+    final outbox = _outbox(session);
+    final task = (await outbox.list())
+        .where((item) => item.id == id)
+        .firstOrNull;
+    if (task != null && !task.isImage && await outbox.hasBinding(id)) {
+      await _sync.runMetadataUpdate(
+        () async {
+          final local = await _database.searchableNote(
+            session.account.cacheKey,
+            task.noteId,
+          );
+          final remote = await _api.getConflictSnapshot(
+            server: session.account.server,
+            token: session.token,
+            noteId: task.noteId,
+          );
+          if (local == null ||
+              local.userId != session.account.userId ||
+              remote.note.userId != local.userId ||
+              remote.note.usn < local.usn ||
+              remote.note.isDeleted ||
+              remote.note.isTrash) {
+            throw StateError('笔记或资源已变化，请重新打开后重试。');
+          }
+          if (local.usn != remote.note.usn) {
+            if (!NoteCreationJournal.matches(local, remote.note)) {
+              throw StateError('请先同步此笔记，再更新附件引用');
+            }
+            await _database.markNoteUploaded(
+              session.account.cacheKey,
+              local,
+              remote.note,
+            );
+          }
+          await outbox.insertImage(id);
+        },
+        account: session.account,
+        token: session.token,
+      );
+    } else {
+      await outbox.insertImage(id);
+    }
   }
 
   Future<String> uploadStagedImage(
@@ -373,7 +434,7 @@ class AuthRepository {
       throw StateError('附件不是待上传状态，请先核实已有结果');
     }
     final file = await outbox.file(id);
-    return uploadAttachment(
+    final refreshed = await uploadAttachment(
       session,
       item.noteId,
       file,
@@ -382,6 +443,10 @@ class AuthRepository {
       beforeSend: () => outbox.markSending(id),
       confirmed: (remoteId) => outbox.confirm(id, remoteId),
     );
+    if (refreshed && await outbox.hasBinding(id)) {
+      await insertStagedImage(session, id);
+    }
+    return refreshed;
   }
 
   Future<Uint8List> noteImage(
@@ -1498,7 +1563,83 @@ class AuthRepository {
     if (source.userId != session.account.userId) {
       throw StateError('只能复制当前账号的个人笔记');
     }
-    // An empty local cache is not proof that the server has no attachments.
+    late Note copy;
+    await _sync.runMetadataUpdate(() async {
+      final fingerprint = await _database.resourceFingerprint(
+        session.account.cacheKey,
+        source.noteId,
+      );
+      final bundle = await _collectBundle(session, source);
+      copy = await _database.copyLocalNote(
+        account: session.account,
+        source: source,
+        notebookId: notebookId,
+        filesConfirmedEmpty: bundle.resources.isEmpty,
+        bundle: bundle,
+        expectedResources: fingerprint,
+      );
+    });
+    return copy;
+  }
+
+  Future<NoteBundle> exportBundle(StoredSession session, Note source) async {
+    late NoteBundle bundle;
+    await _sync.runMetadataUpdate(() async {
+      final fingerprint = await _database.resourceFingerprint(
+        session.account.cacheKey,
+        source.noteId,
+      );
+      bundle = await _collectBundle(session, source);
+      final current = await _database.searchableNote(
+        session.account.cacheKey,
+        source.noteId,
+      );
+      if (current == null ||
+          !sameReviewedNote(current, source) ||
+          fingerprint !=
+              await _database.resourceFingerprint(
+                session.account.cacheKey,
+                source.noteId,
+              )) {
+        throw StateError('笔记或资源已变化，请重新打开后重试。');
+      }
+    });
+    return bundle;
+  }
+
+  Future<Note> importBundle(
+    StoredSession session,
+    String notebookId,
+    NoteBundle bundle,
+  ) => _database.importBundle(session.account, notebookId, bundle);
+
+  Future<NoteBundle> _collectBundle(StoredSession session, Note source) async {
+    if (source.userId != session.account.userId ||
+        source.isDeleted ||
+        source.isTrash) {
+      throw StateError('笔记或资源已变化，请重新打开后重试。');
+    }
+    final staged = await _outbox(session).bundledResources(source.noteId);
+    final resources = <BundledResource>[];
+    final before = source.usn > 0
+        ? await _api.getConflictSnapshot(
+            server: session.account.server,
+            token: session.token,
+            noteId: source.noteId,
+          )
+        : null;
+    if (before != null &&
+        (before.note.userId != source.userId ||
+            before.note.usn != source.usn)) {
+      throw StateError('笔记或资源已变化，请重新打开后重试。');
+    }
+    final cachedFiles = await _database.cachedNoteFiles(
+      session.account.cacheKey,
+      source.noteId,
+    );
+    // Gathering a package must not rotate or remove the source's local cache.
+    // A server list that dropped a known resource at the same note USN is
+    // inconsistent with the snapshot we are packaging.
     final files = source.usn > 0
         ? await _api.noteFiles(
             server: session.account.server,
@@ -1507,13 +1648,154 @@ class AuthRepository {
             userId: session.account.userId,
           )
         : <NoteFile>[];
-    if (files.isNotEmpty) throw StateError('暂不支持复制带图片或附件的笔记');
-    return _database.copyLocalNote(
-      account: session.account,
-      source: source,
-      notebookId: notebookId,
-      filesConfirmedEmpty: true,
-    );
+    if (cachedFiles.any(
+      (known) => !files.any(
+        (file) =>
+            file.id == known.id && file.isAttachment == known.isAttachment,
+      ),
+    )) {
+      throw StateError('笔记或资源已变化，请重新打开后重试。');
+    }
+    var total = 0;
+    for (final file in files) {
+      Uint8List bytes;
+      final original = staged
+          .where(
+            (r) =>
+                r.sourceId == file.id &&
+                r.origin == session.account.server.origin &&
+                r.isImage != file.isAttachment,
+          )
+          .firstOrNull;
+      if (original != null) {
+        bytes = original.file.bytes;
+      } else if (cachedFiles.any(
+        (known) =>
+            known.id == file.id && known.isAttachment == file.isAttachment,
+      )) {
+        final known = cachedFiles.firstWhere((item) => item.id == file.id);
+        try {
+          bytes = file.isAttachment
+              ? await _database.cachedNoteAttachment(
+                  session.account.cacheKey,
+                  source.noteId,
+                  known,
+                )
+              : await _database.cachedNoteImage(
+                  session.account.cacheKey,
+                  source.noteId,
+                  known,
+                );
+        } on StateError {
+          bytes = file.isAttachment
+              ? await _api.noteAttachment(
+                  server: session.account.server,
+                  token: session.token,
+                  noteId: source.noteId,
+                  userId: session.account.userId,
+                  file: file,
+                )
+              : await _api.noteImage(
+                  server: session.account.server,
+                  token: session.token,
+                  noteId: source.noteId,
+                  userId: session.account.userId,
+                  file: file,
+                );
+        }
+      } else {
+        bytes = file.isAttachment
+            ? await _api.noteAttachment(
+                server: session.account.server,
+                token: session.token,
+                noteId: source.noteId,
+                userId: session.account.userId,
+                file: file,
+              )
+            : await _api.noteImage(
+                server: session.account.server,
+                token: session.token,
+                noteId: source.noteId,
+                userId: session.account.userId,
+                file: file,
+              );
+      }
+      total += bytes.length;
+      if (total > 32 * 1024 * 1024 || resources.length >= 64) {
+        throw StateError('资源归档超过限制：原文 8 MiB，资源共 32 MiB、最多 64 项。');
+      }
+      resources.add(
+        BundledResource(
+          file: AttachmentUpload(
+            name: file.title.isEmpty
+                ? '${file.id}.${file.isAttachment ? 'bin' : 'png'}'
+                : file.title,
+            bytes: bytes,
+          ),
+          isImage: !file.isAttachment,
+          sourceId: file.id,
+          origin: session.account.server.origin,
+        ),
+      );
+    }
+    for (final item in staged) {
+      if (item.sourceId.isEmpty ||
+          !resources.any(
+            (r) => r.sourceId == item.sourceId && r.origin == item.origin,
+          )) {
+        resources.add(item);
+      }
+    }
+    for (final id in bodyImageIds(
+      source.content,
+      isMarkdown: source.isMarkdown,
+      server: session.account.server,
+    )) {
+      if (resources.any(
+        (r) =>
+            r.sourceId == id &&
+            r.origin == session.account.server.origin &&
+            r.isImage,
+      )) {
+        continue;
+      }
+      final bytes = await cachedInlineImage(
+        session,
+        source.noteId,
+        Uri.parse('/api2/file/getImage?fileId=$id'),
+      );
+      if (bytes == null) throw StateError('缺少正文中的图片原件，请先下载图片后重试。');
+      resources.add(
+        BundledResource(
+          file: AttachmentUpload(name: '$id.png', bytes: bytes),
+          isImage: true,
+          sourceId: id,
+          origin: session.account.server.origin,
+        ),
+      );
+    }
+    if (before != null) {
+      final after = await _api.getConflictSnapshot(
+        server: session.account.server,
+        token: session.token,
+        noteId: source.noteId,
+      );
+      if (!sameReviewedNote(before.note, after.note)) {
+        throw StateError('笔记或资源已变化，请重新打开后重试。');
+      }
+      final freshFiles = await noteFiles(session, source.noteId);
+      String signature(List<NoteFile> values) {
+        final sorted = values.toList()..sort((a, b) => a.id.compareTo(b.id));
+        return jsonEncode(
+          sorted.map((f) => [f.id, f.isAttachment, f.title, f.type]).toList(),
+        );
+      }
+
+      if (signature(files) != signature(freshFiles)) {
+        throw StateError('笔记或资源已变化，请重新打开后重试。');
+      }
+    }
+    return NoteBundle(source, resources);
   }
 
   Future<void> saveEditedText(

@@ -1,3 +1,5 @@
+import '../domain/models/note_bundle.dart';
+
 import 'dart:ui' show Locale;
 
 import '../l10n/app_strings.dart';
@@ -73,6 +75,18 @@ class NoteExporter {
     if (title.isEmpty) title = fallback;
     return '$title$extension';
   }
+
+  Future<bool> exportBundle(NoteBundle bundle) async =>
+      await _save(
+        fileName: safeFileName(
+          bundle.note.title,
+          '.gemsnote',
+          fallback: strings.label('未命名笔记'),
+        ),
+        bytes: bundle.encode(),
+        mimeType: 'application/json',
+      ) !=
+      null;
 
   /// Exports exactly the displayed source; never render/execute HTML or fetch media.
   Future<bool> export(Note note) async {

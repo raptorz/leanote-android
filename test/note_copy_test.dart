@@ -183,18 +183,42 @@ void main() {
     );
     expect((await db.notes(account.cacheKey)).single.content, changed.content);
   });
-  test('repository checks server file membership, rejects attachments and network failure', () async {
+  test('repository checks stable server snapshot and refuses unavailable originals', () async {
     var mode = 'empty';
     var calls = 0;
     final api = Api2Client(
       httpClient: MockClient((request) async {
         calls++;
-        expect(request.url.path, '/api2/note/getNote');
+        expect(request.url.path, startsWith('/api2/'));
+        if (request.url.path == '/api2/note/getNoteContent') {
+          return http.Response(
+            jsonEncode({
+              'NoteId': source.noteId,
+              'UserId': 'u',
+              'Content': source.content,
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        if (request.url.path == '/api2/file/getAttach') {
+          return http.Response('unavailable', 503);
+        }
         if (mode == 'offline') return http.Response('offline', 503);
         return http.Response(
           jsonEncode({
             'NoteId': source.noteId,
             'UserId': 'u',
+            'NotebookId': source.notebookId,
+            'Title': source.title,
+            'Usn': source.usn,
+            'Tags': source.tags,
+            'IsMarkdown': true,
+            'IsStar': true,
+            'IsTrash': false,
+            'IsDeleted': false,
+            'CreatedTime': source.createdTime,
+            'UpdatedTime': source.updatedTime,
             'Files': mode == 'empty'
                 ? []
                 : [
@@ -207,6 +231,7 @@ void main() {
                   ],
           }),
           200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
         );
       }),
     );
@@ -228,8 +253,9 @@ void main() {
       repo.copyNote(session, source, 'target'),
       throwsA(isA<Object>()),
     );
-    expect(calls, 3);
+    expect(calls, greaterThan(3));
     expect((await db.notes(account.cacheKey)).length, 2);
+    final beforeLocalCopy = calls;
     final local = await db.createLocalNote(
       account: account,
       notebookId: 'old',
@@ -237,7 +263,7 @@ void main() {
       content: 'offline',
     );
     await repo.copyNote(session, local, 'target');
-    expect(calls, 3);
+    expect(calls, beforeLocalCopy);
   });
   testWidgets('copy cancellation keeps reader open and trash offers no copy', (
     tester,

@@ -1,3 +1,5 @@
+import '../../domain/models/note_bundle.dart';
+
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -49,6 +51,95 @@ class AttachmentOutbox {
     kind TEXT NOT NULL DEFAULT 'attachment',
     created_at INTEGER NOT NULL
   )''';
+
+  static const bindingSchema = """CREATE TABLE IF NOT EXISTS resource_bindings (
+    task_id TEXT PRIMARY KEY, source_id TEXT NOT NULL, origin TEXT NOT NULL,
+    FOREIGN KEY(task_id) REFERENCES attachment_outbox(id) ON DELETE CASCADE
+  )""";
+
+  Future<String> stageBundle(
+    DatabaseExecutor txn,
+    String noteId,
+    BundledResource resource,
+  ) async {
+    final id = await stageInTransaction(
+      txn,
+      noteId,
+      resource.file,
+      kind: resource.isImage ? 'image' : 'attachment',
+    );
+    if (resource.sourceId.isNotEmpty) {
+      await txn.insert('resource_bindings', {
+        'task_id': id,
+        'source_id': resource.sourceId,
+        'origin': resource.origin,
+      });
+    }
+    return id;
+  }
+
+  Future<List<BundledResource>> bundledResources(String noteId) async {
+    final rows = await database.rawQuery(
+      """SELECT o.*, b.source_id, b.origin FROM attachment_outbox o
+      LEFT JOIN resource_bindings b ON b.task_id = o.id
+      WHERE o.account_id = ? AND o.note_id = ? ORDER BY o.created_at, o.id""",
+      [account.cacheKey, noteId],
+    );
+    return rows
+        .map(
+          (r) => BundledResource(
+            file: AttachmentUpload(
+              name: r['name'] as String,
+              bytes: Uint8List.fromList(r['bytes'] as List<int>),
+            ),
+            isImage: r['kind'] == 'image',
+            sourceId:
+                (r['state'] == 'inserted' ||
+                        (r['kind'] == 'attachment' &&
+                            r['state'] == 'uploaded' &&
+                            r['source_id'] == null)) &&
+                    (r['remote_id'] as String).isNotEmpty
+                ? r['remote_id'] as String
+                : r['source_id'] as String? ?? '',
+            origin:
+                (r['state'] == 'inserted' ||
+                        (r['kind'] == 'attachment' &&
+                            r['state'] == 'uploaded' &&
+                            r['source_id'] == null)) &&
+                    (r['remote_id'] as String).isNotEmpty
+                ? account.server.origin
+                : r['origin'] as String? ?? '',
+          ),
+        )
+        .toList();
+  }
+
+  Future<bool> hasBinding(String id) async => (await database.rawQuery(
+    'SELECT b.task_id FROM resource_bindings b JOIN attachment_outbox o ON o.id = b.task_id WHERE o.account_id = ? AND o.id = ?',
+    [account.cacheKey, id],
+  )).isNotEmpty;
+
+  Future<Uint8List?> boundImage(String noteId, Uri uri) async {
+    final rows = await database.rawQuery(
+      """SELECT o.id, b.source_id, b.origin FROM resource_bindings b
+      JOIN attachment_outbox o ON o.id = b.task_id JOIN notes n ON n.account_id = o.account_id AND n.server_id = o.note_id
+      WHERE o.account_id = ? AND o.note_id = ? AND o.kind = 'image' AND o.state != 'inserted'
+      AND n.owner_server_id = ? AND n.local_is_deleted = 0 AND n.is_trash = 0""",
+      [account.cacheKey, noteId, account.userId],
+    );
+    for (final row in rows) {
+      final descriptor = BundledResource(
+        file: AttachmentUpload(name: 'image', bytes: Uint8List(1)),
+        isImage: true,
+        sourceId: row['source_id'] as String,
+        origin: row['origin'] as String,
+      );
+      if (matchesBundledResource(uri, descriptor)) {
+        return (await file(row['id'] as String)).bytes;
+      }
+    }
+    return null;
+  }
 
   Future<String> stage(String noteId, AttachmentUpload file) =>
       _stage(noteId, file, 'attachment');
@@ -187,8 +278,8 @@ class AttachmentOutbox {
   Future<void> insertImage(String id) => database.transaction((txn) async {
     final tasks = await txn.query(
       'attachment_outbox',
-      where: 'account_id = ? AND id = ? AND kind = ?',
-      whereArgs: [account.cacheKey, id, 'image'],
+      where: 'account_id = ? AND id = ?',
+      whereArgs: [account.cacheKey, id],
     );
     if (tasks.isEmpty) throw StateError('本地图片任务不存在');
     final task = tasks.single;
@@ -205,14 +296,36 @@ class AttachmentOutbox {
     );
     if (notes.isEmpty) throw StateError('原笔记不存在或已在回收站，图片原件仍保留');
     final note = notes.single;
+    final bindings = await txn.query(
+      'resource_bindings',
+      where: 'task_id = ?',
+      whereArgs: [id],
+    );
     final reference = '/api2/file/getImage?fileId=$remoteId';
     final markup = note['is_markdown'] == 1
         ? '\n![]($reference)\n'
         : '\n<img src="$reference" alt="">\n';
+    final content = bindings.isNotEmpty
+        ? rebindResource(
+            note['content'] as String,
+            BundledResource(
+              file: AttachmentUpload(
+                name: task['name'] as String,
+                bytes: Uint8List.fromList(task['bytes'] as List<int>),
+              ),
+              isImage: task['kind'] == 'image',
+              sourceId: bindings.single['source_id'] as String,
+              origin: bindings.single['origin'] as String,
+            ),
+            remoteId,
+          )
+        : task['kind'] == 'image'
+        ? '${note['content']}$markup'
+        : note['content'] as String;
     await txn.update(
       'notes',
       {
-        'content': '${note['content']}$markup',
+        'content': content,
         'is_dirty': 1,
         'updated_time': DateTime.now().toUtc().toIso8601String(),
       },

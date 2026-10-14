@@ -346,16 +346,15 @@ void main() {
       expect(await db.pendingNoteIds(session.account.cacheKey), {noteId});
     },
   );
-  test('edits during upload are preserved when refresh cannot merge', () async {
+  test('edits during upload retain dirty body and adopt verified attachment version', () async {
     api.duringUpload = () => db.saveLocalNote(
       session.account.cacheKey,
       original.copyWith(content: 'new edit'),
     );
-    expect(await upload(), isFalse);
-    expect(
-      (await db.notes(session.account.cacheKey)).single.content,
-      'new edit',
-    );
+    expect(await upload(), isTrue);
+    final after = (await db.notes(session.account.cacheKey)).single;
+    expect(after.content, 'new edit');
+    expect(after.usn, 6);
     expect(await db.pendingNoteIds(session.account.cacheKey), contains(noteId));
   });
   test('upload excludes sync, reset, duplicate upload and logout', () async {

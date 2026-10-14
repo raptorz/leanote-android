@@ -1,3 +1,5 @@
+import '../domain/models/note_bundle.dart';
+
 import 'dart:ui' show Locale;
 
 import '../l10n/app_strings.dart';
@@ -8,7 +10,8 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 
 class ImportedNote {
-  const ImportedNote(this.title, this.content, this.isMarkdown);
+  const ImportedNote(this.title, this.content, this.isMarkdown, {this.bundle});
+  final NoteBundle? bundle;
   final String title;
   final String content;
   final bool isMarkdown;
@@ -26,7 +29,7 @@ class NoteImporter {
       FilePicker.pickFile(
         dialogTitle: strings.label('导入笔记原文'),
         type: FileType.custom,
-        allowedExtensions: ['md', 'markdown', 'txt', 'html', 'htm'],
+        allowedExtensions: ['md', 'markdown', 'txt', 'html', 'htm', 'gemsnote'],
       );
 
   Future<ImportedNote?> pick() async {
@@ -35,18 +38,39 @@ class NoteImporter {
     final name = file.name.replaceAll('\\', '/').split('/').last;
     final dot = name.lastIndexOf('.');
     final extension = dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
-    if (!['md', 'markdown', 'txt', 'html', 'htm'].contains(extension)) {
-      throw const FormatException('仅支持 Markdown、TXT 或 HTML 文件');
+    if (![
+      'md',
+      'markdown',
+      'txt',
+      'html',
+      'htm',
+      'gemsnote',
+    ].contains(extension)) {
+      throw const FormatException('仅支持 Markdown、TXT、HTML 或 .gemsnote 资源归档');
     }
-    if ((file.lengthSync() ?? 0) > maxBytes) throw StateError('文件超过 32 MiB');
+    final limit = extension == 'gemsnote'
+        ? NoteBundle.maxArchiveBytes
+        : maxBytes;
+    if ((file.lengthSync() ?? 0) > limit) {
+      throw StateError('文件超过允许大小：$limit 字节');
+    }
     final bytes = BytesBuilder(copy: false);
     await for (final chunk in file.readAsByteStream().timeout(
       const Duration(seconds: 30),
     )) {
-      if (bytes.length + chunk.length > maxBytes) {
-        throw StateError('文件超过 32 MiB');
+      if (bytes.length + chunk.length > limit) {
+        throw StateError('文件超过允许大小：$limit 字节');
       }
       bytes.add(chunk);
+    }
+    if (extension == 'gemsnote') {
+      final bundle = NoteBundle.decode(bytes.takeBytes());
+      return ImportedNote(
+        bundle.note.title,
+        bundle.note.content,
+        bundle.note.isMarkdown,
+        bundle: bundle,
+      );
     }
     var content = utf8.decode(bytes.takeBytes());
     if (content.startsWith('\ufeff')) content = content.substring(1);
