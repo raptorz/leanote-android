@@ -6,9 +6,11 @@ import 'data/database/app_database.dart';
 import 'data/session/session_store.dart';
 import 'repositories/auth_repository.dart';
 import 'sync/sync_coordinator.dart';
+import 'services/android_background_cache.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AndroidBackgroundCache.initialize();
   final database = await AppDatabase.open();
   const sessions = SecureSessionStore();
   final api = Api2Client();

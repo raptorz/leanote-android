@@ -16,7 +16,7 @@
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
 - 最近提交：`15e1a7b` 远端删除恢复副本；`7faabad` 自动资源冲突副本；`a217677` 带资源复制与归档；`f7f97d2` 新笔记创建差异核对恢复；`3b27127` 可视化图片缓存预览与插入；`cd5a2ff` 笔记本远端修改核对与恢复；`73d7b00` 中英文界面与 Android 语言设置；`4738b19` 共享图片与附件；`ecc15e5` 历史图片 API2 下载与离线缓存；`fcfa25d` 富文本常用样式编辑和阅读；`df711b7` 搜索摘要与最新正文读取；`8e2d063` 离线 Markdown 数学公式与编辑工具；`d221858` 头像裁剪与 Android 拍照；`d65eba0` 上传前 USN 回退预检；`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
-- 2026-10-15 最新静态检查无问题，完整 Flutter 测试 750 项通过（性能基准和浏览器运行测试共 2 项默认跳过），自动同步偏好持久化及 schema v20 升级、Markdown 工具栏格式切换、离线富文本选区插图、本地/远端删除冲突、资源冲突副本及归档/复制/上传专项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
+- 2026-10-15 最新静态检查无问题，完整 Flutter 测试 752 项通过（性能基准和浏览器运行测试共 2 项默认跳过），Android 系统后台资源下载及跨隔离队列互斥、自动同步偏好持久化及 schema v20 升级、Markdown 工具栏格式切换、离线富文本选区插图、本地/远端删除冲突、资源冲突副本及归档/复制/上传专项通过，Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
 - 当前任务：持久下载、离线图片/附件暂存与 Android 资源分享已实现并验证，离线新建笔记本与不确定结果恢复已实现，继续同步一致性及其余功能缺口。iOS 与发布按最新要求暂缓，不作为当前功能迁移的执行前置条件。
 
@@ -44,7 +44,7 @@
 | M14 图片缓存、预览、保存 | desktop-app/service/file_service.go | api/ApiFileController.GetImage | ui/PictureViewerActivity、service/NoteFileService | ui/cached_markdown_image.dart、services/image_exporter.dart；API2 | 已有缓存隔离/原始字节保存测试；原生文件窗口待验收 |
 | M15 图片上传与正文插入 | desktop-app/webapi/proxy.go | /api2/file/pasteImage → File.PasteImage | ui/edit/NoteEditActivity | services/note_image_picker.dart、ui/note_image_upload_dialog.dart；API2 | 在线原文插入、离线图片暂存、持久上传状态与中断恢复已实现；原文暂存图片确认后事务追加；可视化编辑器在线/离线选区插入已实现（schema v19，本地引用在原件确认后原位替换）；新建笔记需先同步才能在可视化选区离线插入，WebView 真机验证未完 |
 | M16 附件上传下载、打开、分享 | desktop-app/service/file_service.go、webapi/proxy.go | Api2.UploadAttachment、ApiFile.GetAttach | service/NoteFileService | ui/note_files_page.dart、services/attachment_*；API2 | 在线上传、下载、离线保存/分享/打开已实现；附件离线暂存、持久上传状态及结果不确定时手动恢复已实现（schema v11）；原生 intent 验证未完，iOS 暂缓 |
-| M17 资源任务与缓存管理 | desktop-app/service/file_service.go | ApiNote.GetNote + ApiFile | background/NoteSyncService | services/account_file_cache.dart、file_cache_batch.dart、ui/file_cache_dialog.dart；API2 | 账号资源下载队列已持久化（schema v10），支持重启/暂停续传、逐文件失败恢复、失效快照拦截；64MiB 缓存与任务清理已实现；附件离线上传暂存已实现；图片离线暂存/上传恢复已实现；自动同步开关按账号持久化（schema v20），系统后台执行未完 |
+| M17 资源任务与缓存管理 | desktop-app/service/file_service.go | ApiNote.GetNote + ApiFile | background/NoteSyncService | services/account_file_cache.dart、android_background_cache.dart、ui/file_cache_dialog.dart；API2 | 账号资源下载队列已持久化（schema v10），支持重启/暂停续传、逐文件失败恢复、失效快照拦截；64MiB 缓存与任务清理已实现；Android WorkManager 资源下载按已保存偏好安排周期/一次性任务，跨隔离队列互斥；自动同步开关按账号持久化（schema v20），但笔记同步仍仅前台定时执行；系统后台行为待设备验收 |
 | M18 缓存偏好持久化 | desktop-app/db 配置、service/file_service.go | 无新增请求 | ui/SettingsActivity | app_database schema v8、workspace_page；本地 | 已提交 f524502；账号隔离、升级、读写失败/重试测试通过 |
 | M19 账号资料、头像、密码 | desktop-app/webapi/background_profile.go、proxy.go | Api2.UploadAvatar、User.UpdateUsername/UpdatePwd、web/emailChange | ui/SettingsActivity | ui/account_page.dart、avatar_upload_dialog.dart；API2 + 允许的公开头像 | 主要功能、头像裁剪、Android 相机与 PNG/JPEG/WebP/GIF/BMP 导入已实现；iOS 相机暂缓，原生相机方向/取消/进程恢复及帐号变更竞态真机验收待做 |
 | M20 默认编辑器、语言、关于 | desktop-app/webapi/about.go、应用配置 | 默认编辑器与语言本地；协议版本 API2 | ui/SettingsActivity、AboutActivity | default_editor_dialog.dart、about_dialog.dart；API2 | 编辑器/版本、Flutter 中英文与 system/zh/en 全设备语言设置已实现（schema v17）；Android 分享、拍照、小组件跟随选择；仍需系统语言切换、输入法及原生入口真机验收 |
@@ -387,4 +387,10 @@ Android 原生分享/拍照提示和桌面小组件使用同一选择，通过�
 
 ## 自动同步偏好持久化
 
-自动同步开关由短暂的页面状态改为账号隔离的本地偏好；schema v20 从 v19 升级保留已有资源缓存偏好，旧账号默认关闭自动同步。资源缓存与自动同步两个开关分别更新自己的字段，避免互相覆盖。重启或切换回账号后恢复设置，仍只在前台每分钟按原有条件执行同步；Android 系统后台任务尚未接入。专项覆盖跨账号、重开、快照替换、升级和页面重建。完整 Flutter 测试 **750 项通过、2 项条件测试默认跳过**，静态检查无问题，Android debug APK 构建通过。
+自动同步开关由短暂的页面状态改为账号隔离的本地偏好；schema v20 从 v19 升级保留已有资源缓存偏好，旧账号默认关闭自动同步。资源缓存与自动同步两个开关分别更新自己的字段，避免互相覆盖。重启或切换回账号后恢复设置，笔记同步仍只在前台每分钟按原有条件执行。专项覆盖跨账号、重开、快照替换、升级和页面重建。该批完整 Flutter 测试 **750 项通过、2 项条件测试默认跳过**，静态检查无问题，Android debug APK 构建通过。
+
+## M17 Android 系统后台资源下载
+
+开启自动缓存后，Android WorkManager 注册需联网的 15 分钟周期任务；应用转入后台时，先取消并等待前台下载队列收尾，再安排一次性续传。后台 isolate 重新读取当前活动账号和安全存储中的会话，确认自动缓存仍开启后，通过原持久队列与 API2 下载；账号切换、退出或关闭偏好会使后续文件停止处理。前后台队列通过 SQLite 中带过期时间的运行锁互斥，进程中断后可以重新取得锁；原有文件版本、账号归属、缓存配额及下载确认规则继续生效。WorkManager 的实际执行时间由 Android 决定，不能保证每 15 分钟精确运行。
+
+专项验证并发运行者只能取得一个锁、旧锁过期可恢复、已完成文件无需重下。完整 Flutter 测试 **752 项通过、2 项条件测试默认跳过**，静态检查无问题；最终依赖锁文件下 Android debug APK 构建成功，合并 manifest 包含 WorkManager JobService。按用户要求暂不做真机或模拟器验收。笔记上传/同步尚未交给 Android 系统后台任务，M02 仍需继续迁移。

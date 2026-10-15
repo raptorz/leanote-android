@@ -118,6 +118,69 @@ void main() {
     expect(await db.lastSyncUsn(account.cacheKey), 3);
   });
 
+  test(
+    'only one cache runner owns an account across concurrent queues',
+    () async {
+      final started = Completer<void>();
+      final release = Completer<void>();
+      final first = AccountFileCache(journal: journal).run(
+        ['n'],
+        listFiles: (_) => list(1),
+        download: (id, item) async {
+          started.complete();
+          await release.future;
+          await download(id, item);
+        },
+        onProgress: (_, _, _) {},
+      );
+      await started.future;
+      var duplicateLists = 0;
+      await expectLater(
+        AccountFileCache(journal: FileDownloadJournal(db.raw, account.cacheKey))
+            .run(
+              ['n'],
+              listFiles: (_) async {
+                duplicateLists++;
+                return [];
+              },
+              download: (_, _) async {},
+              onProgress: (_, _, _) {},
+            ),
+        throwsStateError,
+      );
+      expect(duplicateLists, 0);
+      release.complete();
+      await first;
+      await AccountFileCache(journal: journal).run(
+        ['n'],
+        listFiles: (_) async => throw StateError('reuses listing'),
+        download: (_, _) async => throw StateError('already cached'),
+        onProgress: (_, _, _) {},
+      );
+      expect((await journal.status()).isEmpty, true);
+    },
+  );
+
+  test('expired runner lease can recover after process interruption', () async {
+    final first = await journal.claimRun();
+    expect(first, isNotNull);
+    await reopen();
+    expect(await journal.claimRun(), isNull);
+    await db.raw.update(
+      'app_preferences',
+      {'value': '$first:0'},
+      where: 'name = ?',
+      whereArgs: ['cache_download_lease:${account.cacheKey}'],
+    );
+    final second = await journal.claimRun();
+    expect(second, isNotNull);
+    expect(second, isNot(first));
+    await journal.releaseRun(first!);
+    expect(await journal.claimRun(), isNull);
+    await journal.releaseRun(second!);
+    expect(await journal.claimRun(), isNotNull);
+  });
+
   test('pause drains active transfers and restart continues only unscheduled files', () async {
     final queue = AccountFileCache(journal: journal);
     final started = Completer<void>();

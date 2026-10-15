@@ -62,6 +62,61 @@ class FileDownloadJournal {
     (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0'),
   ).join();
 
+  String get _leaseKey => 'cache_download_lease:$accountId';
+  static const _leaseDuration = Duration(minutes: 5);
+
+  /// A SQLite transaction coordinates the UI and WorkManager isolates.
+  Future<String?> claimRun() => database.transaction((txn) async {
+    final rows = await txn.query(
+      'app_preferences',
+      columns: ['value'],
+      where: 'name = ?',
+      whereArgs: [_leaseKey],
+    );
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (rows.isNotEmpty) {
+      final expiry = int.tryParse(
+        (rows.single['value'] as String).split(':').last,
+      );
+      if (expiry != null && expiry > now) return null;
+    }
+    final owner = _id();
+    await txn.insert('app_preferences', {
+      'name': _leaseKey,
+      'value': '$owner:${now + _leaseDuration.inMilliseconds}',
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    return owner;
+  });
+
+  Future<bool> renewRun(String owner) => database.transaction((txn) async {
+    final rows = await txn.query(
+      'app_preferences',
+      columns: ['value'],
+      where: 'name = ?',
+      whereArgs: [_leaseKey],
+    );
+    if (rows.isEmpty ||
+        !(rows.single['value'] as String).startsWith('$owner:')) {
+      return false;
+    }
+    await txn.update(
+      'app_preferences',
+      {
+        'value':
+            '$owner:${DateTime.now().millisecondsSinceEpoch + _leaseDuration.inMilliseconds}',
+      },
+      where: 'name = ?',
+      whereArgs: [_leaseKey],
+    );
+    return true;
+  });
+
+  Future<void> releaseRun(String owner) => database.delete(
+    'app_preferences',
+    where: 'name = ? AND value LIKE ?',
+    whereArgs: [_leaseKey, '$owner:%'],
+  );
+
   Future<List<DownloadJob>> plan(List<String> noteIds) => database.transaction((
     txn,
   ) async {

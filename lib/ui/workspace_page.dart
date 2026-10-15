@@ -25,6 +25,7 @@ import '../services/home_widget.dart';
 import 'shared_text_dialog.dart';
 import '../services/note_sharer.dart';
 import '../services/account_file_cache.dart';
+import '../services/android_background_cache.dart';
 import 'note_editor_page.dart';
 import 'import_note_dialog.dart';
 import 'note_reader_page.dart';
@@ -248,6 +249,7 @@ class _WorkspacePageState extends State<WorkspacePage>
           _cachePreferenceLoaded = true;
         });
         unawaited(_restoreDownloadStatus());
+        unawaited(_configureBackgroundCache(enabled));
       }
     } on Object {
       // Leave caching off until a successful read; the account menu offers retry.
@@ -270,6 +272,7 @@ class _WorkspacePageState extends State<WorkspacePage>
       if (mounted && !_signedOut) {
         setState(() => _autoCacheFiles = enabled);
         if (!enabled) _fileQueue?.cancel();
+        unawaited(_configureBackgroundCache(enabled));
       }
     } on Object {
       if (mounted && !_signedOut) {
@@ -278,6 +281,28 @@ class _WorkspacePageState extends State<WorkspacePage>
       }
     } finally {
       if (mounted) setState(() => _cachePreferenceBusy = false);
+    }
+  }
+
+  Future<void> _configureBackgroundCache(bool enabled) async {
+    try {
+      await AndroidBackgroundCache.setEnabled(enabled);
+    } on Object catch (error) {
+      if (mounted && !_signedOut) {
+        setState(() => _fileStatus = trNow(context, 'm0484', [error]));
+      }
+    }
+  }
+
+  Future<void> _handoffBackgroundCache() async {
+    try {
+      await _fileTask;
+      if (!mounted || _foreground || _signedOut || !_autoCacheFiles) return;
+      await AndroidBackgroundCache.resumeOnce();
+    } on Object catch (error) {
+      if (mounted && !_signedOut) {
+        setState(() => _fileStatus = trNow(context, 'm0484', [error]));
+      }
     }
   }
 
@@ -553,7 +578,10 @@ class _WorkspacePageState extends State<WorkspacePage>
     unawaited(
       widget.homeWidget?.refresh(widget.session.account.cacheKey, _widgetNotes),
     );
-    if (!_foreground) _fileQueue?.cancel();
+    if (!_foreground) {
+      _fileQueue?.cancel();
+      if (_autoCacheFiles) unawaited(_handoffBackgroundCache());
+    }
     _scheduleAutoSync();
   }
 
@@ -1476,6 +1504,7 @@ class _WorkspacePageState extends State<WorkspacePage>
       );
       _signedOut = true;
       _autoSyncTimer?.cancel();
+      unawaited(_configureBackgroundCache(false));
       if (mounted) widget.onSignedOut();
     } on Object catch (error) {
       if (mounted) {

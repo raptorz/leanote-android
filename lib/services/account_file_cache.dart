@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../domain/models/note_file.dart';
 import '../data/database/file_download_journal.dart';
 import 'file_cache_batch.dart';
@@ -27,7 +29,26 @@ class AccountFileCache {
     _started = true;
     final journal = this.journal;
     if (journal != null) {
-      await _runPersistent(journal, noteIds, listFiles, download, onProgress);
+      final owner = await journal.claimRun();
+      if (owner == null) throw StateError('downloadQueueBusy');
+      var renewing = false;
+      final heartbeat = Timer.periodic(const Duration(minutes: 1), (_) async {
+        if (renewing) return;
+        renewing = true;
+        try {
+          if (!await journal.renewRun(owner)) cancel();
+        } on Object {
+          cancel();
+        } finally {
+          renewing = false;
+        }
+      });
+      try {
+        await _runPersistent(journal, noteIds, listFiles, download, onProgress);
+      } finally {
+        heartbeat.cancel();
+        await journal.releaseRun(owner);
+      }
       return;
     }
     var notes = 0;
