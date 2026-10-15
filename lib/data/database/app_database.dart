@@ -1626,13 +1626,13 @@ class AppDatabase {
   ) => raw.transaction((txn) async {
     final local = await txn.query(
       'notes',
-      columns: ['usn'],
+      columns: ['is_markdown'],
       where: 'account_id = ? AND server_id = ? AND owner_server_id = ? AND is_trash = 0 AND local_is_deleted = 0',
       whereArgs: [account.cacheKey, noteId, account.userId],
       limit: 1,
     );
-    if (local.length != 1 || (local.single['usn'] as int) <= 0) {
-      throw StateError('请先同步新建笔记，再离线插入图片');
+    if (local.length != 1 || local.single['is_markdown'] != 0) {
+      throw StateError('只能为当前富文本笔记离线插入图片');
     }
     final sourceId = _objectId();
     final taskId = await AttachmentOutbox(raw, account).stageBundle(
@@ -1653,6 +1653,20 @@ class AppDatabase {
     );
     return '/api2/file/getImage?fileId=$sourceId';
   });
+
+  Future<Set<String>> pendingVisualSourceIds(
+    String accountId,
+    String noteId,
+  ) async {
+    final rows = await raw.rawQuery(
+      '''SELECT b.source_id FROM resource_bindings b
+      JOIN attachment_outbox o ON o.id = b.task_id
+      WHERE o.account_id = ? AND o.note_id = ? AND o.kind = 'image'
+      AND o.state != 'inserted' AND b.local_placement = 1''',
+      [accountId, noteId],
+    );
+    return {for (final row in rows) row['source_id'] as String};
+  }
 
   Future<bool> hasUnuploadedVisualPlacement(
     String accountId,

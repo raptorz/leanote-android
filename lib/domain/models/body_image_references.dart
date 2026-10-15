@@ -41,6 +41,36 @@ Set<String> bodyImageIds(
   return ids;
 }
 
+/// A new note needs a server ID before its staged images can be uploaded.
+/// Create it with the staged img nodes omitted; the local body remains intact
+/// and is updated after the originals receive real FileIds.
+String bodyWithoutPendingVisualImages(
+  String body,
+  Uri server,
+  Set<String> pendingIds,
+) {
+  if (pendingIds.isEmpty) return body;
+  final fragment = html.parseFragment(body);
+  final removed = <String>{};
+  for (final image in fragment.querySelectorAll('img')) {
+    final source = image.attributes['src'];
+    final uri = source == null ? null : Uri.tryParse(source);
+    final id = uri == null ? null : cachedImageFileId(uri, server);
+    if (id != null && pendingIds.contains(id)) {
+      removed.add(id);
+      image.remove();
+    }
+  }
+  if (!removed.containsAll(pendingIds)) {
+    throw StateError('待上传图片引用无法从新笔记正文安全移除');
+  }
+  final safe = fragment.outerHtml;
+  if (pendingIds.any(safe.contains)) {
+    throw StateError('新笔记正文仍含待上传图片引用');
+  }
+  return safe;
+}
+
 /// Attachment URLs in source text must have matching originals before a note
 /// can be copied. A conservative scan also catches links in unsupported markup.
 Set<String> bodyAttachmentIds(String body, Uri server) {

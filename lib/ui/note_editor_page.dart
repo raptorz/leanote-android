@@ -223,7 +223,9 @@ class _NoteEditorPageState extends State<NoteEditorPage>
         await (widget.pickImage ??
             NoteImagePicker(strings: AppStrings.snapshot(context)).pick)();
     if (!mounted || image == null) return null;
-    final mode = widget.stageVisualImage == null
+    final mode = widget.note.usn <= 0 && widget.stageVisualImage != null
+        ? _VisualImageMode.offline
+        : widget.stageVisualImage == null
         ? _VisualImageMode.upload
         : widget.uploadImage == null
         ? _VisualImageMode.offline

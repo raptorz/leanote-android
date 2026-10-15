@@ -6,6 +6,7 @@ import '../data/database/notebook_creation_journal.dart';
 import '../data/database/note_creation_journal.dart';
 import '../domain/models/account.dart';
 import '../domain/models/note.dart';
+import '../domain/models/body_image_references.dart';
 import '../domain/models/notebook.dart';
 
 enum SyncStage { uploading, notebooks, notes, tags, saving }
@@ -315,10 +316,11 @@ class SyncCoordinator {
   }
 
   Future<void> _uploadNote(Account account, String token, Note local) async {
-    if (await _database.hasUnuploadedVisualPlacement(
+    final pendingVisual = await _database.hasUnuploadedVisualPlacement(
       account.cacheKey,
       local.noteId,
-    )) {
+    );
+    if (pendingVisual && local.usn > 0) {
       throw const PendingVisualImage();
     }
     if (local.usn > 0) {
@@ -330,10 +332,25 @@ class SyncCoordinator {
       await _database.markNoteUploaded(account.cacheKey, local, remote);
       return;
     }
+    var initial = local;
+    if (pendingVisual) {
+      final sourceIds = (await _database.pendingVisualSourceIds(
+        account.cacheKey,
+        local.noteId,
+      )).where(local.content.contains).toSet();
+      if (sourceIds.isEmpty) throw StateError('新笔记图片引用已变化，请重试同步');
+      initial = local.copyWith(
+        content: bodyWithoutPendingVisualImages(
+          local.content,
+          account.server,
+          sourceIds,
+        ),
+      );
+    }
     final attempt = await NoteCreationJournal(
       _database.raw,
       account.cacheKey,
-    ).prepare(local);
+    ).prepare(initial);
     var remote = await _api.addNote(
       server: account.server,
       token: token,
@@ -370,6 +387,12 @@ class SyncCoordinator {
           .where((note) => note.noteId == local.noteId)
           .firstOrNull;
       if (latest == null || latest.isDeleted) return;
+      if (await _database.hasUnuploadedVisualPlacement(
+        account.cacheKey,
+        local.noteId,
+      )) {
+        throw const PendingVisualImage();
+      }
       final updated = await _api.updateNote(
         server: account.server,
         token: token,

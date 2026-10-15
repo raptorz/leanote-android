@@ -311,21 +311,110 @@ void main() {
     expect(api.updatedIds, [source.noteId]);
     expect(await db.pendingNoteIds(account.cacheKey), isEmpty);
   });
-  test('offline visual image requires a confirmed remote note', () async {
+  test(
+    'new visual note creates without a temporary image then uploads in place',
+    () async {
+      final draft = await db.createLocalNote(
+        account: account,
+        notebookId: 'b',
+        isMarkdown: false,
+      );
+      final image = await NoteImageUpload.normalize(api.originals[imageId]!);
+      final reference = await repo.stageVisualImage(
+        session,
+        draft.noteId,
+        image,
+      );
+      final body = '<p>Before <img src="$reference" alt=""> after</p>';
+      await db.saveEditedText(account.cacheKey, draft.noteId, 'draft', body);
+      await expectLater(
+        sync.uploadPending(account: account, token: 'secret'),
+        throwsA(isA<PendingVisualImage>()),
+      );
+      expect(api.createCalls, 1);
+      expect(api.created[draft.noteId]!.content, contains('Before'));
+      expect(api.created[draft.noteId]!.content, contains('after'));
+      expect(api.created[draft.noteId]!.content, isNot(contains(reference)));
+      expect(api.updatedIds, isNot(contains(draft.noteId)));
+      expect(
+        (await db.searchableNote(account.cacheKey, draft.noteId))!.usn,
+        10,
+      );
+      expect(
+        (await db.searchableNote(account.cacheKey, draft.noteId))!.content,
+        body,
+      );
+      final task = (await repo.pendingAttachments(
+        session,
+        noteId: draft.noteId,
+      )).single;
+      await repo.uploadStagedImage(
+        session,
+        task.id,
+        identity: 'u',
+        password: 'pass',
+      );
+      expect(api.imageUploadCalls, 1);
+      await sync.uploadPending(account: account, token: 'secret');
+      expect(api.updatedIds, contains(draft.noteId));
+      expect(await db.pendingNoteIds(account.cacheKey), isEmpty);
+      expect(
+        (await db.searchableNote(account.cacheKey, draft.noteId))!.content,
+        body.replaceFirst(reference, '/api2/file/getImage?fileId=$newId'),
+      );
+    },
+  );
+  test('lost new-note response replays the sanitized first request', () async {
     final draft = await db.createLocalNote(
       account: account,
       notebookId: 'b',
       isMarkdown: false,
     );
     final image = await NoteImageUpload.normalize(api.originals[imageId]!);
+    final reference = await repo.stageVisualImage(session, draft.noteId, image);
+    await db.saveEditedText(
+      account.cacheKey,
+      draft.noteId,
+      'draft',
+      '<p>One <img src="$reference"> two</p>',
+    );
+    api.loseCreateResponse = true;
     await expectLater(
-      repo.stageVisualImage(session, draft.noteId, image),
+      sync.uploadPending(account: account, token: 'secret'),
       throwsStateError,
     );
-    expect(
-      await repo.pendingAttachments(session, noteId: draft.noteId),
-      isEmpty,
+    final firstBody = api.created[draft.noteId]!.content;
+    expect(firstBody, isNot(contains(reference)));
+    api.loseCreateResponse = false;
+    await expectLater(
+      sync.uploadPending(account: account, token: 'secret'),
+      throwsA(isA<PendingVisualImage>()),
     );
+    expect(api.createCalls, 2);
+    expect(api.created, hasLength(1));
+    expect(api.created[draft.noteId]!.content, firstBody);
+    expect((await db.searchableNote(account.cacheKey, draft.noteId))!.usn, 10);
+  });
+  test('unrecognized visual reference cannot enter new-note request', () async {
+    final draft = await db.createLocalNote(
+      account: account,
+      notebookId: 'b',
+      isMarkdown: false,
+    );
+    final image = await NoteImageUpload.normalize(api.originals[imageId]!);
+    final reference = await repo.stageVisualImage(session, draft.noteId, image);
+    await db.saveEditedText(
+      account.cacheKey,
+      draft.noteId,
+      'draft',
+      '<p>Broken placement: $reference</p>',
+    );
+    await expectLater(
+      sync.uploadPending(account: account, token: 'secret'),
+      throwsStateError,
+    );
+    expect(api.createCalls, 0);
+    expect(await db.pendingNoteIds(account.cacheKey), contains(draft.noteId));
   });
   test(
     'remote version change blocks visual upload before sending original',
