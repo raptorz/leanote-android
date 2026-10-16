@@ -323,6 +323,8 @@ const messages = <String, (String, String)>{
   "m0192": ("行内代码", "Inline code"),
   "m0193": ("标题", "Heading"),
   "headingLevel": ("{0} 级标题", "Heading {0}"),
+  "markdownFootnote": ("脚注", "Footnote"),
+  "markdownAnchor": ("文内链接", "Document link"),
   "m0194": ("无序列表", "Bulleted list"),
   "m0195": ("有序列表", "Numbered list"),
   "m0196": ("引用", "Quote"),

@@ -775,6 +775,14 @@
     "zh": "{0} 级标题",
     "en": "Heading {0}"
   },
+  "markdownFootnote": {
+    "zh": "脚注",
+    "en": "Footnote"
+  },
+  "markdownAnchor": {
+    "zh": "文内链接",
+    "en": "Document link"
+  },
   "m0194": {
     "zh": "无序列表",
     "en": "Bulleted list"

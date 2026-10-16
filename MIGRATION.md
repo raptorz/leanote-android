@@ -16,7 +16,7 @@
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
 - 最近提交：`b314db9` 完整标题级别；`d0ba490` Android 后台笔记同步；`15e1a7b` 远端删除恢复副本；`7faabad` 自动资源冲突副本；`a217677` 带资源复制与归档；`f7f97d2` 新笔记创建差异核对恢复；`3b27127` 可视化图片缓存预览与插入；`cd5a2ff` 笔记本远端修改核对与恢复；`73d7b00` 中英文界面与 Android 语言设置；`4738b19` 共享图片与附件；`ecc15e5` 历史图片 API2 下载与离线缓存；`fcfa25d` 富文本常用样式编辑和阅读；`df711b7` 搜索摘要与最新正文读取；`8e2d063` 离线 Markdown 数学公式与编辑工具；`d221858` 头像裁剪与 Android 拍照；`d65eba0` 上传前 USN 回退预检；`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
-- 2026-10-16 最新静态检查无问题，完整 Flutter 测试 762 项通过（性能基准和浏览器运行测试共 2 项默认跳过）；新增 Android WorkManager 后台笔记同步及跨隔离同步运行锁，专项覆盖并发拒绝、旧锁过期恢复；新建富文本笔记离线插图与分阶段同步、Android 系统后台资源下载、自动同步偏好持久化及 schema v20 升级等已覆盖。Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
+- 2026-10-16 最新静态检查无问题，完整 Flutter 测试 765 项通过（性能基准和浏览器运行测试共 2 项默认跳过）；Markdown Extra 定义列表、软换行、脚注/文内链接展开和标题/代码属性列表已覆盖；Android WorkManager 后台笔记同步及跨隔离同步运行锁、新建富文本笔记离线插图与分阶段同步等已覆盖。Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
 - 当前任务：持久下载、离线图片/附件暂存与 Android 资源分享已实现并验证，离线新建笔记本与不确定结果恢复已实现，继续同步一致性及其余功能缺口。iOS 与发布按最新要求暂缓，不作为当前功能迁移的执行前置条件。
 
@@ -31,7 +31,7 @@
 | M01 登录、退出、离线登录 | desktop-app/api/client_api.go Auth/Logout | Api2Controller.TokenLogin；api/ApiAuthController | ui/SignInActivity、service/AccountService | lib/repositories/auth_repository.dart、data/session；API2 | 核心已实现；test/data/login_flow_test.dart、cached_login_test.dart；会话过期/离线真机验证 |
 | M02 版本、USN、分页同步 | desktop-app/api/version.go、sync/pull.go、push.go | api/ApiUserController、ApiNoteController、ApiNotebookController、ApiTagController | background/NoteSyncService | lib/sync/sync_coordinator.dart；API2 | 部分；新笔记首次请求持久化及稳定版本回读已实现（schema v14），防止超时重试误确认后续编辑；上传前 USN 回退预检已实现；新建结果差异的手动核对及保留本地恢复已实现；带资源的正文冲突自动副本及远端删除后的本地恢复副本已实现；本地永久删除遭遇远端修改会取消删除、恢复最新版并提示用户重新决定；Android 后台笔记同步由 WorkManager 执行并与前台同步互斥；跨端及设备验收未完成 |
 | M03 笔记离线增改、自动保存 | desktop-app/db/note_repo.go、sync/push.go | /api2/client/note/add、update | ui/edit/NoteEditActivity | data/database/app_database.dart、ui/note_editor_page.dart；API2 | 核心已实现；本地保存/后台切换测试已覆盖，输入法与杀进程验收待做 |
-| M04 Markdown 工具及阅读 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/markdown_editing.dart、markdown_note_body.dart；同步 API2 | 基础工具、GFM 表格/任务列表及离线行内/块级数学公式已实现；表格/任务/分隔线/公式工具、一级至六级标题及恢复正文、引用/列表重复点击切换已实现；Markdown Extra 定义列表与软换行已实现；默认 GFM 解析含脚注，脚注定位与属性列表仍需补齐；原文不被预览改写 |
+| M04 Markdown 工具及阅读 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/markdown_editing.dart、markdown_note_body.dart；同步 API2 | 基础工具、GFM 表格/任务列表及离线行内/块级数学公式已实现；表格/任务/分隔线/公式工具、一级至六级标题及恢复正文、引用/列表重复点击切换已实现；旧版实际启用的 Markdown Extra 定义列表、软换行、脚注、标题/代码属性列表已实现；原文不被预览改写 |
 | M05 富文本与表格 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/visual_html_editor.dart、safe_html_note_body.dart；同步 API2 | 部分；合并/拆分单元格及合并表格行列操作已实现；合并表格原生阅读布局已实现；常用颜色/高亮/字号/字体/对齐样式及原生阅读已实现；一级至六级标题及正文选择已实现；可视化图片缓存预览与在线/离线选区插入已实现，含新建笔记先创建安全正文再上传原件；高级布局样式及其它资源编辑未完；WebView 输入法/选区/撤销真机验证 |
 | M06 笔记本树及离线操作 | desktop-app/db/notebook_repo.go、api/client_api.go | /api2/client/notebook/add、update | service/NotebookService | ui/notebook_dialog.dart、move_notebook_dialog.dart；API2 | 离线新建、重命名/移动、父级优先同步和创建结果不确定时的手动核实恢复已实现（schema v13）；已有笔记本远端修改的核对、保留本地/采用远端及父级一致性处理已实现；远端删除仍受 B01 合同限制 |
 | M07 笔记本删除 | desktop-app/api/client_api.go DeleteNotebook | api/ApiNotebookController.DeleteNotebook → service/NotebookService.DeleteNotebookForce | service/NotebookService | 暂未接入 | 服务端合同阻塞：子级/笔记处理及 USN 删除标记；仅提出需求 |
@@ -417,6 +417,14 @@ Android 原生分享/拍照提示和桌面小组件使用同一选择，通过�
 
 已核对旧 `markdownEditor/all.js` 的实际启用项：fenced_code_gfm、tables、def_list、attr_list、footnotes、strikethrough、newlines。当前 GFM 阅读器已覆盖围栏代码、表格、脚注解析与删除线，本批补齐定义列表和单换行保留。定义列表支持多个术语、多条释义、可选空行、缩进续行和嵌套段落/列表，使用现有原生块布局和同一组链接/账号图片回调；代码、标题、表格、引用定义和普通冒号不会误识别为术语。原笔记 Markdown 不做改写。
 
-专项测试通过；脚注引用目前仍进入通用链接对话框，属性列表尚未解释，这两项保持未完成。
+专项测试通过；脚注和属性列表已在后续批次补齐。
 
 完整 Flutter 测试 **762 项通过、2 项条件测试默认跳过**，静态检查无问题，Android debug APK 构建通过。未进行真机或模拟机测试。
+
+## M04 Markdown Extra 脚注、文内链接与属性列表
+
+脚注引用和 `#fragment` 文内链接会在当前阅读位置上方打开原生内容窗口，展示脚注或目标标题及其所属小节；脚注返回链接关闭窗口。解析范围严格限制在当前笔记 AST，缺失或非法编码的锚点不会发起网络请求，普通 HTTP/HTTPS 链接仍走已有确认对话框。展开内容继续使用原有账号图片缓存、数学公式和链接处理器。
+
+兼容旧 Markdown Extra 对 ATX/Setext 标题和围栏代码的 `{#id .class}` 属性列表语法。只接受旧版允许的 ID 和类名字符，不解释 CSS、事件属性或其它 HTML 属性；代码正文中的字面属性文本保持不变。专项覆盖多级标题小节、脚注内引用链接、非法锚点、代码与普通段落边界以及属性注入拒绝。
+
+完整 Flutter 测试 **765 项通过、2 项条件测试默认跳过**，静态检查无问题，Android debug APK 构建通过。按用户要求未进行真机或模拟机测试。
