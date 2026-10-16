@@ -70,6 +70,7 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
         widget.note.noteId,
         history.id,
         cachedOnly: _cachedOnly,
+        isMarkdown: history.isMarkdown,
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {

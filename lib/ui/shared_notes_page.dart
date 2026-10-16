@@ -28,6 +28,41 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
   String? _error;
   bool _cachedOnly = false;
   int _generation = 0;
+
+  Future<void> _copy(SharedNote note) async {
+    final books = (await widget.repository.notebooks(
+      widget.session.account.cacheKey,
+    )).where((book) => !book.isDeleted).toList(growable: false);
+    if (!mounted) return;
+    final target = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text(tr(context, 'm0664')),
+        children: books
+            .map(
+              (book) => SimpleDialogOption(
+                onPressed: () => Navigator.pop(context, book.notebookId),
+                child: Text(book.title),
+              ),
+            )
+            .toList(growable: false),
+      ),
+    );
+    if (target == null) return;
+    setState(() => _opening = note.note.noteId);
+    try {
+      await widget.repository.copySharedNote(widget.session, note, target);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(tr(context, 'm0665'))));
+      }
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = trNow(context, 'm0666', [error]));
+    } finally {
+      if (mounted) setState(() => _opening = null);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -197,7 +232,13 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
                               dimension: 20,
                               child: CircularProgressIndicator(),
                             )
-                          : null,
+                          : IconButton(
+                              tooltip: tr(context, 'm0664'),
+                              onPressed: _opening == null
+                                  ? () => _copy(shared)
+                                  : null,
+                              icon: const Icon(Icons.copy),
+                            ),
                       onTap: _opening == null ? () => _open(shared) : null,
                     );
                   },

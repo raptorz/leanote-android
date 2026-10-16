@@ -35,7 +35,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 20;
+  static const schemaVersion = 21;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -99,6 +99,16 @@ class AppDatabase {
           if (!columns.any((row) => row['name'] == 'auto_sync')) {
             await db.execute(
               'ALTER TABLE account_cache_preferences ADD COLUMN auto_sync INTEGER NOT NULL DEFAULT 0 CHECK (auto_sync IN (0, 1))',
+            );
+          }
+        }
+        if (oldVersion < 21) {
+          final columns = await db.rawQuery(
+            'PRAGMA table_info(note_histories)',
+          );
+          if (!columns.any((row) => row['name'] == 'is_markdown')) {
+            await db.execute(
+              'ALTER TABLE note_histories ADD COLUMN is_markdown INTEGER NOT NULL DEFAULT 0 CHECK (is_markdown IN (0, 1))',
             );
           }
         }
@@ -1770,10 +1780,12 @@ class AppDatabase {
       final unchanged =
           row != null &&
           row['updated_time'] == history.updatedTime &&
-          row['updated_user_id'] == history.updatedUserId;
+          row['updated_user_id'] == history.updatedUserId &&
+          row['is_markdown'] == (history.isMarkdown ? 1 : 0);
       final values = {
         'updated_time': history.updatedTime,
         'updated_user_id': history.updatedUserId,
+        'is_markdown': history.isMarkdown ? 1 : 0,
         'content': unchanged ? row['content'] : null,
       };
       if (row == null) {
@@ -1816,6 +1828,7 @@ class AppDatabase {
                 id: row['history_id'] as String,
                 updatedTime: row['updated_time'] as String,
                 updatedUserId: row['updated_user_id'] as String,
+                isMarkdown: row['is_markdown'] == 1,
               ),
             )
             .toList();
@@ -1872,8 +1885,9 @@ class AppDatabase {
   Future<void> restoreHistoryContent(
     String accountId,
     String noteId,
-    String content,
-  ) async {
+    String content, {
+    bool? isMarkdown,
+  }) async {
     // Patch only the body of the latest cached row; the reader may hold an old
     // snapshot whose metadata or USN changed while the history was downloaded.
     final changed = await raw.update(
@@ -1882,6 +1896,7 @@ class AppDatabase {
         'content': content,
         'updated_time': DateTime.now().toUtc().toIso8601String(),
         'is_dirty': 1,
+        if (isMarkdown != null) 'is_markdown': isMarkdown ? 1 : 0,
       },
       where: 'account_id = ? AND server_id = ? AND local_is_deleted = 0',
       whereArgs: [accountId, noteId],
@@ -2246,6 +2261,7 @@ class AppDatabase {
     updated_time TEXT NOT NULL,
     updated_user_id TEXT NOT NULL,
     content TEXT,
+    is_markdown INTEGER NOT NULL DEFAULT 0 CHECK (is_markdown IN (0, 1)),
     PRIMARY KEY (account_id, note_id, history_id),
     FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
   )''';

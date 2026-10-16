@@ -2663,6 +2663,18 @@
     "zh": "当前单元格未合并",
     "en": "The selected cell is not merged."
   },
+  "m0664": {
+    "zh": "复制到我的笔记本",
+    "en": "Copy to my notebook"
+  },
+  "m0665": {
+    "zh": "共享笔记已复制",
+    "en": "Shared note copied"
+  },
+  "m0666": {
+    "zh": "复制共享笔记失败：{0}",
+    "en": "Could not copy shared note: {0}"
+  },
   "errorSharedUpdated": {
     "zh": "共享笔记已更新，请刷新列表后重试",
     "en": "The shared note has changed. Refresh the list and retry."

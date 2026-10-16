@@ -133,4 +133,36 @@ void main() {
       }
     });
   }
+
+  test('shared note copy sends owner and destination through API2', () async {
+    final shared = SharedNote.fromJson(data);
+    final api = Api2Client(
+      httpClient: MockClient((request) async {
+        expect(request.url.path, '/api2/note/copySharedNote');
+        expect(request.url.queryParameters['token'], 'test');
+        expect(request.bodyFields['noteIds[0]'], id);
+        expect(request.bodyFields['fromUserId'], data['OwnerUserId']);
+        expect(request.bodyFields['notebookId'], '507f1f77bcf86cd799439099');
+        return http.Response(
+          jsonEncode({
+            'Ok': true,
+            'Item': [
+              {
+                'NoteId': '507f1f77bcf86cd799439088',
+                'NotebookId': '507f1f77bcf86cd799439099',
+                'UserId': '507f1f77bcf86cd799439077',
+              },
+            ],
+          }),
+          200,
+        );
+      }),
+    );
+    await api.copySharedNote(
+      server: server,
+      token: 'test',
+      shared: shared,
+      notebookId: '507f1f77bcf86cd799439099',
+    );
+  });
 }

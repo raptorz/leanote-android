@@ -664,6 +664,23 @@ class AuthRepository {
     }
   }
 
+  Future<void> copySharedNote(
+    StoredSession session,
+    SharedNote shared,
+    String notebookId,
+  ) async {
+    if (shared.note.userId == session.account.userId) {
+      throw StateError('sharedCopyOwner');
+    }
+    await _api.copySharedNote(
+      server: session.account.server,
+      token: session.token,
+      shared: shared,
+      notebookId: notebookId,
+    );
+    await synchronize(session);
+  }
+
   Future<Uint8List?> cachedSharedFile(
     StoredSession session,
     SharedNote note,
@@ -1010,6 +1027,7 @@ class AuthRepository {
     String noteId,
     String historyId, {
     bool cachedOnly = false,
+    bool? isMarkdown,
   }) async {
     final content = await historyContent(
       session,
@@ -1021,6 +1039,7 @@ class AuthRepository {
       session.account.cacheKey,
       noteId,
       content,
+      isMarkdown: isMarkdown,
     );
   }
 

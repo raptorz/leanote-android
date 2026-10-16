@@ -1203,6 +1203,9 @@ const messages = <String, (String, String)>{
     "Cannot merge: the cell below has a different width or table section.",
   ),
   "m0663": ("当前单元格未合并", "The selected cell is not merged."),
+  "m0664": ("复制到我的笔记本", "Copy to my notebook"),
+  "m0665": ("共享笔记已复制", "Shared note copied"),
+  "m0666": ("复制共享笔记失败：{0}", "Could not copy shared note: {0}"),
   "errorSharedUpdated": (
     "共享笔记已更新，请刷新列表后重试",
     "The shared note has changed. Refresh the list and retry.",

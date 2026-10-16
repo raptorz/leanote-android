@@ -61,6 +61,7 @@ void main() {
                     'HistoryId': id,
                     'UpdatedTime': '2026-01-01',
                     'UpdatedUserId': 'u',
+                    'IsMarkdown': true,
                   },
               ],
             }),
@@ -98,6 +99,19 @@ void main() {
       );
       await repo.restoreHistory(session, 'n', 'h1', cachedOnly: true);
       expect((await db.dirtyNotes(account.cacheKey)).single.content, '');
+      final history = (await repo.histories(
+        session,
+        'n',
+        cachedOnly: true,
+      )).first;
+      await repo.restoreHistory(
+        session,
+        'n',
+        history.id,
+        cachedOnly: true,
+        isMarkdown: history.isMarkdown,
+      );
+      expect((await db.dirtyNotes(account.cacheKey)).single.isMarkdown, isTrue);
       expect(await db.lastSyncUsn(account.cacheKey), 3);
       expect(calls, 2);
       await expectLater(

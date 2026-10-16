@@ -809,6 +809,33 @@ class Api2Client {
     return shared.note.copyWith(content: data['Content'] as String);
   }
 
+  Future<void> copySharedNote({
+    required Uri server,
+    required String token,
+    required SharedNote shared,
+    required String notebookId,
+  }) async {
+    final data = await _requestFormJson(
+      server: server,
+      path: '/api2/note/copySharedNote',
+      token: token,
+      fields: {
+        'noteIds[0]': shared.note.noteId,
+        'notebookId': notebookId,
+        'fromUserId': shared.note.userId,
+      },
+    );
+    if (data['Ok'] != true || data['Item'] is! List) {
+      throw const ApiException('copySharedFailed');
+    }
+    final items = data['Item'] as List;
+    if (items.length != 1 ||
+        _map(items.single)['UserId'] == shared.note.userId ||
+        _map(items.single)['NotebookId'] != notebookId) {
+      throw const ApiException('copySharedFailed');
+    }
+  }
+
   Future<Uint8List> sharedFile({
     required Uri server,
     required String token,
@@ -1331,6 +1358,7 @@ class Api2Client {
       'UpdatedTime': note.updatedTime,
     };
     if (!isNew) fields['Usn'] = '${note.usn}';
+    if (!isNew && note.tags.isEmpty) fields['ClearTags'] = 'true';
     for (var index = 0; index < note.tags.length; index++) {
       fields['Tags[$index]'] = note.tags[index];
     }
