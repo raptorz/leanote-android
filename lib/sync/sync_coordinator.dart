@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import '../domain/models/note_bundle.dart';
 import '../core/api/api2_client.dart';
 import '../core/api/api_exception.dart';
 import '../data/database/app_database.dart';
 import '../data/database/notebook_creation_journal.dart';
 import '../data/database/note_creation_journal.dart';
+import '../data/database/sync_run_lease.dart';
 import '../domain/models/account.dart';
 import '../domain/models/note.dart';
 import '../domain/models/body_image_references.dart';
@@ -50,6 +53,37 @@ class SyncCoordinator {
   bool get attachmentUploading => _attachmentUploading;
   bool get metadataUpdating => _metadataUpdating;
 
+  Future<void> _withRunLease(Future<void> Function() action) async {
+    final lease = SyncRunLease(_database.raw);
+    final owner = await lease.claim();
+    if (owner == null) throw StateError('syncInProgress');
+    var renewing = false;
+    var lost = false;
+    Future<void>? renewal;
+    final heartbeat = Timer.periodic(const Duration(minutes: 1), (_) async {
+      if (renewing) return;
+      renewing = true;
+      renewal = () async {
+        try {
+          if (!await lease.renew(owner)) lost = true;
+        } on Object {
+          lost = true;
+        } finally {
+          renewing = false;
+        }
+      }();
+      await renewal;
+    });
+    try {
+      await action();
+      if (lost) throw StateError('syncRunLeaseLost');
+    } finally {
+      heartbeat.cancel();
+      await renewal;
+      await lease.release(owner);
+    }
+  }
+
   /// Keep catalog writes separate from snapshot downloads and cursor changes.
   Future<void> runMetadataUpdate(
     Future<void> Function() action, {
@@ -59,7 +93,7 @@ class SyncCoordinator {
     if (_running != null) return Future.error(StateError('syncInProgress'));
     _metadataUpdating = true;
     return _running =
-        Future<void>(() async {
+        _withRunLease(() async {
           if (account != null && token != null) {
             await _guardServerState(account, token);
           }
@@ -79,7 +113,7 @@ class SyncCoordinator {
     if (_running != null) return Future.error(StateError('syncInProgress'));
     _attachmentUploading = true;
     return _running =
-        Future<void>(() async {
+        _withRunLease(() async {
           if (account != null && token != null) {
             await _guardServerState(account, token);
           }
@@ -132,11 +166,13 @@ class SyncCoordinator {
     if (_running != null) return Future.error(StateError('syncInProgress'));
     _fullSync = true;
     return _running =
-        _synchronize(
-          account: account,
-          token: token,
-          onProgress: onProgress,
-          full: true,
+        _withRunLease(
+          () => _synchronize(
+            account: account,
+            token: token,
+            onProgress: onProgress,
+            full: true,
+          ),
         ).whenComplete(() {
           _running = null;
           _fullSync = false;
@@ -161,10 +197,9 @@ class SyncCoordinator {
             synchronize(account: account, token: token, onProgress: onProgress),
       );
     }
-    return _running ??= _synchronize(
-      account: account,
-      token: token,
-      onProgress: onProgress,
+    return _running ??= _withRunLease(
+      () =>
+          _synchronize(account: account, token: token, onProgress: onProgress),
     ).whenComplete(() => _running = null);
   }
 
@@ -221,12 +256,12 @@ class SyncCoordinator {
     if (_resetting) return Future.error(StateError('resetInProgress'));
     if (_running != null) return _running!;
     _uploadingOnly = true;
-    return _running = _uploadChanges(account, token, onProgress).whenComplete(
-      () {
-        _running = null;
-        _uploadingOnly = false;
-      },
-    );
+    return _running =
+        _withRunLease(() => _uploadChanges(account, token, onProgress))
+            .whenComplete(() {
+              _running = null;
+              _uploadingOnly = false;
+            });
   }
 
   Future<void> _uploadNotebooks(
@@ -513,7 +548,7 @@ class SyncCoordinator {
     if (_running != null) return Future.error(StateError('syncInProgress'));
     _resetting = true;
     return _running =
-        (() async {
+        _withRunLease(() async {
           final expected = await _database.noteSnapshotFingerprint(
             account.cacheKey,
           );
@@ -523,7 +558,7 @@ class SyncCoordinator {
             onProgress: onProgress,
             expectedNoteSnapshot: expected,
           );
-        })().whenComplete(() {
+        }).whenComplete(() {
           _running = null;
           _resetting = false;
         });
@@ -535,10 +570,12 @@ class SyncCoordinator {
     SyncProgressCallback? onProgress,
   }) {
     if (_running != null) return Future.error(StateError('syncInProgress'));
-    return _running = _downloadSnapshot(
-      account: account,
-      token: token,
-      onProgress: onProgress,
+    return _running = _withRunLease(
+      () => _downloadSnapshot(
+        account: account,
+        token: token,
+        onProgress: onProgress,
+      ),
     ).whenComplete(() => _running = null);
   }
 

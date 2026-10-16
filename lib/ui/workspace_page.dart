@@ -581,6 +581,9 @@ class _WorkspacePageState extends State<WorkspacePage>
     if (!_foreground) {
       _fileQueue?.cancel();
       if (_autoCacheFiles) unawaited(_handoffBackgroundCache());
+      if (_autoSyncEnabled) unawaited(_handoffBackgroundSync());
+    } else {
+      unawaited(_configureBackgroundSync(false));
     }
     _scheduleAutoSync();
   }
@@ -593,6 +596,11 @@ class _WorkspacePageState extends State<WorkspacePage>
       if (mounted && !_signedOut) {
         setState(() => _autoSyncEnabled = enabled);
         _scheduleAutoSync();
+        if (enabled && !_foreground) {
+          unawaited(_handoffBackgroundSync());
+        } else {
+          unawaited(_configureBackgroundSync(false));
+        }
       }
     } on Object catch (error) {
       if (mounted) {
@@ -612,6 +620,11 @@ class _WorkspacePageState extends State<WorkspacePage>
       if (mounted && !_signedOut) {
         setState(() => _autoSyncEnabled = enabled);
         _scheduleAutoSync();
+        if (enabled && !_foreground) {
+          unawaited(_handoffBackgroundSync());
+        } else {
+          unawaited(_configureBackgroundSync(false));
+        }
       }
     } on Object catch (error) {
       if (mounted) {
@@ -619,6 +632,32 @@ class _WorkspacePageState extends State<WorkspacePage>
       }
     } finally {
       if (mounted) setState(() => _autoSyncPreferenceBusy = false);
+    }
+  }
+
+  Future<void> _configureBackgroundSync(bool enabled) async {
+    try {
+      await AndroidBackgroundSync.setEnabled(enabled);
+    } on Object catch (error) {
+      if (mounted && !_signedOut) {
+        setState(() => _syncError = trNow(context, 'm0506', [error]));
+      }
+    }
+  }
+
+  Future<void> _handoffBackgroundSync() async {
+    try {
+      if (!mounted || _foreground || _signedOut || !_autoSyncEnabled) return;
+      await AndroidBackgroundSync.setEnabled(true);
+      if (!mounted || _foreground || _signedOut || !_autoSyncEnabled) {
+        await AndroidBackgroundSync.setEnabled(false);
+        return;
+      }
+      await AndroidBackgroundSync.resumeOnce();
+    } on Object catch (error) {
+      if (mounted && !_signedOut) {
+        setState(() => _syncError = trNow(context, 'm0506', [error]));
+      }
     }
   }
 
@@ -1419,7 +1458,10 @@ class _WorkspacePageState extends State<WorkspacePage>
       } on Object {
         // Keep the original sync error visible; the next refresh can retry.
       }
-      if (mounted) {
+      if (mounted &&
+          !(automatic &&
+              error is StateError &&
+              error.message == 'syncInProgress')) {
         setState(() => _syncError = trNow(context, 'm0506', [error]));
         if (!automatic) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1505,6 +1547,7 @@ class _WorkspacePageState extends State<WorkspacePage>
       _signedOut = true;
       _autoSyncTimer?.cancel();
       unawaited(_configureBackgroundCache(false));
+      unawaited(_configureBackgroundSync(false));
       if (mounted) widget.onSignedOut();
     } on Object catch (error) {
       if (mounted) {

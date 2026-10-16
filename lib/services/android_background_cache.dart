@@ -13,15 +13,49 @@ import '../sync/sync_coordinator.dart';
 const _taskName = 'gemsnote.resourceCache';
 const _periodicName = 'gemsnote.resourceCache.periodic';
 const _resumeName = 'gemsnote.resourceCache.resume';
+const _syncTaskName = 'gemsnote.noteSync';
+const _syncPeriodicName = 'gemsnote.noteSync.periodic';
+const _syncResumeName = 'gemsnote.noteSync.resume';
 
 @pragma('vm:entry-point')
 void backgroundCacheDispatcher() {
   Workmanager().executeTask((taskName, _) async {
-    if (taskName != _taskName) return true;
+    if (taskName != _taskName && taskName != _syncTaskName) return true;
     WidgetsFlutterBinding.ensureInitialized();
     DartPluginRegistrant.ensureInitialized();
-    return runBackgroundResourceCache();
+    return taskName == _taskName
+        ? runBackgroundResourceCache()
+        : runBackgroundNoteSync();
   });
+}
+
+/// Rechecks the active account and its preference inside the worker isolate.
+/// SyncCoordinator takes a SQLite lease shared with the foreground engine.
+Future<bool> runBackgroundNoteSync() async {
+  final database = await AppDatabase.open();
+  try {
+    final api = Api2Client();
+    final repository = AuthRepository(
+      api,
+      database,
+      const SecureSessionStore(),
+      SyncCoordinator(api, database),
+    );
+    final session = await repository.restore();
+    if (session == null || !await repository.autoSync(session)) return true;
+    await repository.synchronize(session);
+    return true;
+  } on PendingVisualImage {
+    // The original image must be supplied from the editor before a later run.
+    return true;
+  } on StateError catch (error) {
+    if (error.message == 'syncInProgress') return true;
+    return false;
+  } on Object {
+    return false;
+  } finally {
+    await database.raw.close();
+  }
 }
 
 /// Runs only for the account that is still active when the task starts. The
@@ -112,6 +146,36 @@ class AndroidBackgroundCache {
     await Workmanager().registerOneOffTask(
       _resumeName,
       _taskName,
+      constraints: Constraints(networkType: NetworkType.connected),
+      existingWorkPolicy: ExistingWorkPolicy.keep,
+    );
+  }
+}
+
+class AndroidBackgroundSync {
+  const AndroidBackgroundSync._();
+
+  static Future<void> setEnabled(bool enabled) async {
+    if (!Platform.isAndroid) return;
+    if (enabled) {
+      await Workmanager().registerPeriodicTask(
+        _syncPeriodicName,
+        _syncTaskName,
+        frequency: const Duration(minutes: 15),
+        constraints: Constraints(networkType: NetworkType.connected),
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+      );
+    } else {
+      await Workmanager().cancelByUniqueName(_syncPeriodicName);
+      await Workmanager().cancelByUniqueName(_syncResumeName);
+    }
+  }
+
+  static Future<void> resumeOnce() async {
+    if (!Platform.isAndroid) return;
+    await Workmanager().registerOneOffTask(
+      _syncResumeName,
+      _syncTaskName,
       constraints: Constraints(networkType: NetworkType.connected),
       existingWorkPolicy: ExistingWorkPolicy.keep,
     );
