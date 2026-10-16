@@ -2,7 +2,7 @@
 
 珠玑笔记移动客户端，使用 Flutter 重构，同时支持 Android 和 iOS。客户端只使用已经定稿的 Gemsnote API2 v1.0.0；首次登录会从服务端建立新的 SQLite 离线缓存，不迁移旧 Android 客户端的本地数据库。
 
-当前迁移基础已经完成：
+移动端主体迁移已完成，笔记本删除和全局标签管理已接入 API2；在线历史正文与附件恢复已接入新的服务端快照合同：
 
 - 旧 Android 工程完整归档到 `legacy-android/`
 - 创建 Flutter Android/iOS 双平台工程
@@ -10,9 +10,11 @@
 - 笔记本、笔记正文和标签的首次全量下载
 - 按“服务端地址 + 用户 ID”隔离的 SQLite 离线缓存
 - token 安全存储和离线恢复登录状态
-- 移动端登录、笔记本和笔记列表基础界面
+- 完整离线笔记、笔记本、标签、搜索、历史、资源和冲突处理
+- Markdown 与富文本编辑、图片和附件、系统分享及 Android 后台同步
+- 共享内容统一只读，可将正文、图片和附件复制到本人笔记本后编辑
 
-迁移路线和当前边界见 [docs/MIGRATION.md](docs/MIGRATION.md)，开发环境与验证命令见 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)。
+当前完成度、验证证据和剩余设备/发布工作见 [docs/MIGRATION.md](docs/MIGRATION.md)，逐批实现记录见 [MIGRATION.md](MIGRATION.md)，开发环境与验证命令见 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)。
 
 Android 签名构建与版本 tag 自动发布见 [docs/RELEASE.md](docs/RELEASE.md)。普通分支 push/PR 只运行检查与测试；iOS 正式发布仍待实现。
 

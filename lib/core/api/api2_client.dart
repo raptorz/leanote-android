@@ -674,6 +674,26 @@ class Api2Client {
     return usn;
   }
 
+  Future<int> deleteTag({
+    required Uri server,
+    required String token,
+    required String name,
+    required int usn,
+  }) async {
+    final data = await _requestFormJson(
+      server: server,
+      path: '/api2/tag/deleteTag',
+      token: token,
+      fields: {'tag': name, 'usn': '$usn'},
+    );
+    if (data['Ok'] != true ||
+        data['Usn'] is! int ||
+        (data['Usn'] as int) <= usn) {
+      throw const ApiException('invalidResponse');
+    }
+    return data['Usn'] as int;
+  }
+
   Future<List<SharedNote>> sharedNotes({
     required Uri server,
     required String token,
@@ -979,6 +999,38 @@ class Api2Client {
     return (response['Item'] as List)
         .map((item) => NoteHistory.fromJson(_map(item)))
         .toList(growable: false);
+  }
+
+  Future<void> deleteNotebook({
+    required Uri server,
+    required String token,
+    required Notebook notebook,
+  }) async {
+    final data = await _requestFormJson(
+      server: server,
+      path: '/api2/client/notebook/delete',
+      token: token,
+      fields: {'notebookId': notebook.notebookId, 'usn': '${notebook.usn}'},
+    );
+    if (data['Ok'] != true) {
+      throw ApiException(data['Msg']?.toString() ?? 'deleteNotebookFailed');
+    }
+  }
+
+  Future<void> restoreHistorySnapshot({
+    required Uri server,
+    required String token,
+    required String noteId,
+    required String historyId,
+    required int usn,
+  }) async {
+    final data = await _requestFormJson(
+      server: server,
+      path: '/api2/note/restoreHistory',
+      token: token,
+      fields: {'noteId': noteId, 'historyId': historyId, 'usn': '$usn'},
+    );
+    if (data['Ok'] != true) throw const ApiException('invalidResponse');
   }
 
   Future<String> getHistoryContent({

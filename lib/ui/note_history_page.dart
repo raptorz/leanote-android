@@ -40,13 +40,15 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
     cachedOnly: _cachedOnly,
   );
 
-  Future<void> _restore(NoteHistory history) async {
+  Future<void> _restore(NoteHistory history, {bool withFiles = false}) async {
     if (_loading != null) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(trNow(context, 'm0248')),
-        content: Text(trNow(context, 'm0249')),
+        title: Text(trNow(context, withFiles ? 'historyRestoreFull' : 'm0248')),
+        content: Text(
+          trNow(context, withFiles ? 'historyRestoreFullConfirm' : 'm0249'),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -65,13 +67,21 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
       _error = null;
     });
     try {
-      await widget.repository.restoreHistory(
-        widget.session,
-        widget.note.noteId,
-        history.id,
-        cachedOnly: _cachedOnly,
-        isMarkdown: history.isMarkdown,
-      );
+      if (withFiles) {
+        await widget.repository.restoreHistorySnapshot(
+          widget.session,
+          widget.note.noteId,
+          history.id,
+        );
+      } else {
+        await widget.repository.restoreHistory(
+          widget.session,
+          widget.note.noteId,
+          history.id,
+          cachedOnly: _cachedOnly,
+          isMarkdown: history.isMarkdown,
+        );
+      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
       if (mounted) setState(() => _error = trNow(context, 'm0251', [error]));
@@ -218,8 +228,16 @@ class _NoteHistoryPageState extends State<NoteHistoryPage> {
                           )
                         : PopupMenuButton<String>(
                             enabled: _loading == null,
-                            onSelected: (_) => _restore(history),
+                            onSelected: (action) =>
+                                _restore(history, withFiles: action == 'full'),
                             itemBuilder: (_) => [
+                              if (!_cachedOnly && history.filesComplete)
+                                PopupMenuItem(
+                                  value: 'full',
+                                  child: Text(
+                                    tr(context, 'historyRestoreFull'),
+                                  ),
+                                ),
                               PopupMenuItem(
                                 value: 'restore',
                                 child: Text(tr(context, 'm0260')),

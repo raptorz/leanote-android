@@ -722,7 +722,7 @@ class AppDatabase {
           limit: 1,
         );
         if (pending.isNotEmpty || pendingBooks.isNotEmpty) {
-          throw StateError('unsyncedChanges');
+          throw StateError('请先同步待处理的笔记修改，再删除标签');
         }
       } else {
         final current = await _snapshotFingerprint(txn, account.cacheKey);
@@ -1156,6 +1156,63 @@ class AppDatabase {
       }, conflictAlgorithm: ConflictAlgorithm.replace);
     });
   }
+
+  Future<int> tagUsn(String accountId, String name) async {
+    final rows = await raw.query(
+      'tags',
+      columns: ['usn'],
+      where: 'account_id = ? AND name = ?',
+      whereArgs: [accountId, name],
+      limit: 1,
+    );
+    if (rows.length != 1) throw StateError('同步目录中没有此标签，请同步后重试');
+    return rows.single['usn'] as int;
+  }
+
+  Future<bool> hasTagReferences(String accountId, String name) async {
+    final rows = await raw.query(
+      'notes',
+      columns: ['tags_json'],
+      where: 'account_id = ? AND local_is_deleted = 0',
+      whereArgs: [accountId],
+    );
+    return rows.any(
+      (row) => (jsonDecode(row['tags_json'] as String) as List).contains(name),
+    );
+  }
+
+  Future<void> replaceTagInNotes(
+    String accountId,
+    String oldName,
+    String newName,
+  ) => raw.transaction((txn) async {
+    final rows = await txn.query(
+      'notes',
+      columns: ['server_id', 'tags_json'],
+      where: 'account_id = ? AND local_is_deleted = 0',
+      whereArgs: [accountId],
+    );
+    for (final row in rows) {
+      final tags = (jsonDecode(row['tags_json'] as String) as List)
+          .cast<String>();
+      if (!tags.contains(oldName)) continue;
+      final replaced = <String>[];
+      for (final tag in tags) {
+        final value = tag == oldName ? newName : tag;
+        if (value.isNotEmpty && !replaced.contains(value)) replaced.add(value);
+      }
+      await txn.update(
+        'notes',
+        {
+          'tags_json': jsonEncode(replaced),
+          'updated_time': DateTime.now().toUtc().toIso8601String(),
+          'is_dirty': 1,
+        },
+        where: 'account_id = ? AND server_id = ?',
+        whereArgs: [accountId, row['server_id']],
+      );
+    }
+  });
 
   Future<Map<String, int>> tagCounts(
     String accountId, {

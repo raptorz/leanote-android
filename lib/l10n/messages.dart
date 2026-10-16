@@ -1206,6 +1206,14 @@ const messages = <String, (String, String)>{
   "m0664": ("复制到我的笔记本", "Copy to my notebook"),
   "m0665": ("共享笔记已复制", "Shared note copied"),
   "m0666": ("复制共享笔记失败：{0}", "Could not copy shared note: {0}"),
+  "m0667": ("删除标签", "Delete tag"),
+  "m0668": ("从所有笔记中删除标签“{0}”？", "Remove tag “{0}” from every note?"),
+  "m0669": ("删除标签失败：{0}", "Could not delete tag: {0}"),
+  "m0670": ("重命名标签", "Rename tag"),
+  "m0671": ("重命名标签失败：{0}", "Could not rename tag: {0}"),
+  "m0672": ("删除笔记本", "Delete notebook"),
+  "m0673": ("删除空笔记本“{0}”？", "Delete empty notebook “{0}”?"),
+  "m0674": ("删除笔记本失败：{0}", "Could not delete notebook: {0}"),
   "errorSharedUpdated": (
     "共享笔记已更新，请刷新列表后重试",
     "The shared note has changed. Refresh the list and retry.",
@@ -1454,5 +1462,54 @@ const messages = <String, (String, String)>{
   "bundleFileLimit": (
     "文件超过允许大小：{0} 字节",
     "File exceeds the allowed size: {0} bytes",
+  ),
+  "notebookHasPendingChanges": (
+    "笔记本已有变化或待同步修改，请同步后重试",
+    "The notebook changed or has pending changes. Sync and retry.",
+  ),
+  "notebookHasChildren": (
+    "请先移动或删除子笔记本",
+    "Move or delete child notebooks first.",
+  ),
+  "notebookNotEmpty": (
+    "请先移走笔记本中的笔记并同步待处理修改",
+    "Move notes out of this notebook and sync pending changes first.",
+  ),
+  "unsyncedChanges": (
+    "请先同步待处理的笔记修改，再删除标签",
+    "Sync pending note changes before deleting a tag.",
+  ),
+  "tagRenameIncomplete": (
+    "部分笔记仍使用旧标签，请同步后重试重命名",
+    "Some notes still use the old tag. Sync and retry the rename.",
+  ),
+  "tagMissing": (
+    "同步目录中没有此标签，请同步后重试",
+    "This tag is missing from the synced catalog. Sync and retry.",
+  ),
+  "historyRestoreFull": ("恢复正文和附件", "Restore body and attachments"),
+  "historyRestoreFullConfirm": (
+    "联网恢复此版本的正文、编辑器格式和附件集合。请先同步笔记并处理待上传附件；当前版本会保存在历史中。",
+    "Restore this version’s body, editor format and attachments online. Sync note edits and finish pending uploads first. The current version will be saved in history.",
+  ),
+  "historyPendingNote": (
+    "请先同步笔记修改，再恢复完整历史版本",
+    "Sync note edits before restoring a complete version.",
+  ),
+  "historyPendingFiles": (
+    "请先处理待上传附件，再恢复完整历史版本",
+    "Finish pending attachment uploads before restoring a complete version.",
+  ),
+  "historyFileMissing": (
+    "历史文件已丢失，无法完整恢复此版本",
+    "A historical file is missing. Nothing was restored.",
+  ),
+  "historyFilesUnknown": (
+    "此历史版本缺少完整附件清单，仅支持恢复正文",
+    "This old version has no complete file manifest. Use body-only restore.",
+  ),
+  "historyRestoreFailed": (
+    "恢复失败，请刷新笔记并检查历史记录后重试",
+    "Restore failed. Refresh the note and check history before retrying.",
   ),
 };

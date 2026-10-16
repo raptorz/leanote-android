@@ -8,6 +8,58 @@ import 'package:http/testing.dart';
 
 void main() {
   final server = Uri.parse('https://notes.example.test/');
+  test(
+    'complete history restore sends stable ID and expected USN through API2',
+    () async {
+      final api = Api2Client(
+        httpClient: MockClient((request) async {
+          expect(request.method, 'POST');
+          expect(request.url.path, '/api2/note/restoreHistory');
+          expect(request.url.queryParameters['token'], 'test');
+          expect(request.bodyFields, {
+            'noteId': 'n',
+            'historyId': 'h',
+            'usn': '12',
+          });
+          expect(request.followRedirects, isFalse);
+          return http.Response('{"Ok":true}', 200);
+        }),
+      );
+      await api.restoreHistorySnapshot(
+        server: server,
+        token: 'test',
+        noteId: 'n',
+        historyId: 'h',
+        usn: 12,
+      );
+    },
+  );
+  for (final message in [
+    'conflict',
+    'historyFileMissing',
+    'historyFilesUnknown',
+    'noAuth',
+  ]) {
+    test('complete restore exposes server rejection: $message', () async {
+      final api = Api2Client(
+        httpClient: MockClient(
+          (_) async =>
+              http.Response(jsonEncode({'Ok': false, 'Msg': message}), 200),
+        ),
+      );
+      await expectLater(
+        api.restoreHistorySnapshot(
+          server: server,
+          token: 'test',
+          noteId: 'n',
+          historyId: 'h',
+          usn: 12,
+        ),
+        throwsA(isA<ApiException>()),
+      );
+    });
+  }
+
   test('history body uses stable id rather than list index', () async {
     final api = Api2Client(
       httpClient: MockClient((request) async {

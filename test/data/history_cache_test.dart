@@ -83,6 +83,30 @@ void main() {
   tearDown(() => db.raw.close());
 
   test(
+    'complete restore refuses dirty notes before sending mutation',
+    () async {
+      final api = Api2Client(
+        httpClient: MockClient((request) async {
+          expect(request.url.path, '/api2/user/getSyncState');
+          return http.Response('{"LastSyncUsn":3}', 200);
+        }),
+      );
+      final guarded = AuthRepository(
+        api,
+        db,
+        MemorySessions(),
+        SyncCoordinator(api, db),
+      );
+      await db.saveLocalNote(account.cacheKey, note);
+      await expectLater(
+        guarded.restoreHistorySnapshot(session, 'n', 'h1'),
+        throwsStateError,
+      );
+      expect((await db.dirtyNotes(account.cacheKey)).single.content, 'current');
+    },
+  );
+
+  test(
     'cached history reads and restores without network, including empty body',
     () async {
       await repo.histories(session, 'n');

@@ -1,24 +1,24 @@
 # Flutter 持续迁移进度
 
-本文件为长期目标的恢复入口。详细历史实现说明保留在 [docs/MIGRATION.md](docs/MIGRATION.md)，开发细节见 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)。不能把历史勾选项等同于整体验收。
+本文件为长期目标的恢复入口并保留逐批历史记录。面向读者的当前状态摘要见 [docs/MIGRATION.md](docs/MIGRATION.md)，开发细节见 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)。不能把历史勾选项等同于整体验收。
 
 ## 约束及范围
 
 - 主工作目录保持服务端仓库根目录。所有 Git 操作明确使用 `git -C mobile-app`；只提交此独立仓库的相关文件，不 push、不改写历史。
-- 服务端、desktop-app、legacy-android 仅作只读参考，不修改。主 Agent 顺序执行。
+- `legacy-android` 仅作只读参考。服务端和 desktop 的共享只读、同步合同修复已在用户明确授权后完成。
 - 业务通信必须为 API2。用户已明确允许公开头像直接访问；沿用同源、不携带凭据、不跟随重定向的下载策略。
 - 2026-10-13 最新范围：iOS 原生实现与验证暂缓，发布工作暂缓；继续完成其余功能迁移。已有 iOS 代码保留，共享 Flutter 功能仍继续实现。
-- 服务端修改不属于本次目标。确认缺口后记录具体需求，交由后续处理，不回退 Legacy API。
+- 服务端 B01/B02/B03/B06 已修复；B07 已补完整快照、附件原件保留和在线恢复接口；Flutter 继续只使用 API2，不回退 Legacy API。
 - 旧 Android 小组件保留为目标。深链、生物识别属于既有规划扩展，是否为旧功能对应项还需核对，不能冒充已迁移。
 - 注册、博客、演示账号、旧数据库迁移目前按原迁移方案排除；若发现与必要移动功能有依赖需重新记录。
 
 ## 当前现场（2026-10-16）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`b314db9` 完整标题级别；`d0ba490` Android 后台笔记同步；`15e1a7b` 远端删除恢复副本；`7faabad` 自动资源冲突副本；`a217677` 带资源复制与归档；`f7f97d2` 新笔记创建差异核对恢复；`3b27127` 可视化图片缓存预览与插入；`cd5a2ff` 笔记本远端修改核对与恢复；`73d7b00` 中英文界面与 Android 语言设置；`4738b19` 共享图片与附件；`ecc15e5` 历史图片 API2 下载与离线缓存；`fcfa25d` 富文本常用样式编辑和阅读；`df711b7` 搜索摘要与最新正文读取；`8e2d063` 离线 Markdown 数学公式与编辑工具；`d221858` 头像裁剪与 Android 拍照；`d65eba0` 上传前 USN 回退预检；`b375a1c` 合并表格原生阅读；`fc0eb45` Android 桌面小组件；`12ff07f` 合并表格编辑；`03335b1` 新笔记创建持久请求与回读确认；`d060ee6` 离线新建笔记本与不确定结果恢复；`c031653` Android 图片和二进制附件分享；`49e9837` 离线正文图片与插入恢复；`9ab005f` 离线附件暂存与上传恢复；`5ed4e4f` 持久资源下载队列；`1a6893b` Android 文本文件和多项分享；`1ee2d61` 标签目录与 API2 在线创建；`536de61` iOS 分享标题字节限制；`fddcb90` iOS 文本/网页分享扩展；`035ac4c` 已有笔记本离线重命名/移动；`5700811` 多账号离线切换；`515455e` API2 禁止自动重定向；`f524502` 缓存偏好持久化与本进度索引；`bb48e43` 附件系统打开；`67431bb` HTML 链接确认操作；`505d83c` Markdown 网页链接。
-- 2026-10-16 最新静态检查无问题，完整 Flutter 测试 765 项通过（性能基准和浏览器运行测试共 2 项默认跳过）；Markdown Extra 定义列表、软换行、脚注/文内链接展开和标题/代码属性列表已覆盖；Android WorkManager 后台笔记同步及跨隔离同步运行锁、新建富文本笔记离线插图与分阶段同步等已覆盖。Android debug APK 构建通过。旧批次验证记录保留在后文，不能当成最新运行结果。
+- 最近提交：`4612e3c` 共享只读复制、空标签合同和历史格式恢复。此前各功能批次的提交与验证记录保留在后文。
+- 2026-10-16 本轮完整 Flutter 测试 **780 项通过、2 项条件测试默认跳过**，静态检查无问题。Android debug APK 是此前批次构建通过，本轮没有重新构建，也未进行设备验收。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
-- 当前结论：在“不改服务端、iOS 与发布暂缓、设备测试暂缓”的范围内，Flutter/Android 可独立实现的功能迁移已完成。余项仅为 B01/B02/B03/B06/B07 服务端合同阻塞、真机/模拟机验收和明确暂缓项；后续恢复相应范围时继续。
+- 当前结论：主体迁移、笔记本删除和全局标签删除/重命名已实现；共享只读复制、空标签清除与历史格式恢复已接入。在线完整历史附件恢复已接入，旧快照/缺失原件明确拒绝；离线保留正文恢复。设备验收、iOS 原生扩展和发布按要求暂缓。
 
 ## 功能对照索引
 
@@ -33,14 +33,14 @@
 | M03 笔记离线增改、自动保存 | desktop-app/db/note_repo.go、sync/push.go | /api2/client/note/add、update | ui/edit/NoteEditActivity | data/database/app_database.dart、ui/note_editor_page.dart；API2 | 核心已实现；本地保存/后台切换测试已覆盖，输入法与杀进程验收待做 |
 | M04 Markdown 工具及阅读 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/markdown_editing.dart、markdown_note_body.dart；同步 API2 | 基础工具、GFM 表格/任务列表及离线行内/块级数学公式已实现；表格/任务/分隔线/公式工具、一级至六级标题及恢复正文、引用/列表重复点击切换已实现；旧版实际启用的 Markdown Extra 定义列表、软换行、脚注、标题/代码属性列表已实现；原文不被预览改写 |
 | M05 富文本与表格 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/visual_html_editor.dart、safe_html_note_body.dart；同步 API2 | 旧移动端功能已迁移；加粗/斜体/标题/引用/列表/链接/图片均已覆盖，并扩展常用颜色、字号、对齐、表格合并拆分与行列操作；图片支持缓存预览、在线/离线选区插入和点击缩放查看。旧端不存在图片尺寸编辑或高级 CSS 布局工具，不再列为功能缺口；WebView 输入法/选区/撤销待设备验收 |
-| M06 笔记本树及离线操作 | desktop-app/db/notebook_repo.go、api/client_api.go | /api2/client/notebook/add、update | service/NotebookService | ui/notebook_dialog.dart、move_notebook_dialog.dart；API2 | 离线新建、重命名/移动、父级优先同步和创建结果不确定时的手动核实恢复已实现（schema v13）；已有笔记本远端修改的核对、保留本地/采用远端及父级一致性处理已实现；远端删除仍受 B01 合同限制 |
-| M07 笔记本删除 | desktop-app/api/client_api.go DeleteNotebook | api/ApiNotebookController.DeleteNotebook → service/NotebookService.DeleteNotebookForce | service/NotebookService | 暂未接入 | 服务端合同阻塞：子级/笔记处理及 USN 删除标记；仅提出需求 |
+| M06 笔记本树及离线操作 | desktop-app/db/notebook_repo.go、api/client_api.go | /api2/client/notebook/add、update | service/NotebookService | ui/notebook_dialog.dart、move_notebook_dialog.dart；API2 | 离线新建、重命名/移动、父级优先同步和创建结果不确定时的手动核实恢复已实现（schema v13）；已有笔记本远端修改核对及父级一致性处理已实现 |
+| M07 笔记本删除 | desktop-app/api/client_api.go DeleteNotebook | api/ApiNotebookController.DeleteNotebook → service/NotebookService.DeleteNotebookForce | service/NotebookService | ui/workspace_page.dart；API2 | 已实现在线空笔记本删除，检查子笔记本、活动笔记、待同步修改与版本；同步消费 tombstone，响应丢失后下次同步收敛；真实跨端并发待验收 |
 | M08 移动、星标、回收站 | desktop-app/db/note_repo.go、sync/push.go | ApiNoteController.UpdateNote/DeleteTrash | service/NoteService | ui/note_reader_page.dart、workspace_page.dart；API2 | 核心已实现；trash_delete_test.dart、pending_sync_test.dart；跨客户端回收站回归待验证 |
 | M09 完整复制与冲突副本 | desktop-app/webapi/local.go、sync/push.go | NoteController.CopyNote、ApiNoteController | service/NoteService | domain/models/conflict_copy.dart；API2 | 手动复制、自动正文冲突副本和远端永久删除后的本地恢复副本已支持原样复杂正文与图片/附件原件的持久克隆；本地永久删除遭遇远端修改会恢复最新版供重新决定；真机与真实 API2 并发验收未完成 |
 | M10 搜索、排序、所有笔记 | desktop-app/db/note_repo.go | 本地搜索，内容来自 API2 同步 | ui/SearchActivity | ui/note_search_page.dart、domain/models/note_sort.dart | 本地搜索、分页及排序已实现；结果仅加载独立摘要类型，打开时读取最新正文；2.5 万篇桌面磁盘基准 18–70ms，保留中文/任意子串匹配；手机数据量性能仍待验收 |
-| M11 标签编辑与管理 | desktop-app/api/client_api.go AddTag/DeleteTag | api/ApiTagController、ApiNoteController.UpdateNote | service/TagService | ui/tags_page.dart、note_tags_dialog.dart；API2 | 部分；新增未使用标签目录、在线创建及笔记编辑候选；全局删除/重命名未完成，删除 USN 合同 B06 与清空标签 B02 待服务端后续处理 |
-| M12 历史浏览恢复 | desktop-app/api/client_api.go GetHistories/GetHistoryContent | ApiNoteController.GetHistories/GetHistoryContent | service/NoteService | ui/note_history_page.dart；API2 | 正文及历史图片的下载/独立缓存/离线阅读、恢复后的缓存图片显示已实现（schema v15）；恢复保留正文图片引用，不伪造附件版本；附件/编辑器格式快照缺失见 B07；history_images_test.dart |
-| M13 共享笔记 | desktop-app/sharedsync/sharedsync.go、api/shared_api.go | api/ApiSharedController | 旧版无完整等价 | ui/shared_notes_page.dart、data/database shared cache；API2 | 旧移动端无完整等价；安全只读列表/正文、图片/附件摘要校验、离线缓存、预览/保存/打开/分享及权限撤销清理已实现（schema v16）。共享编辑/权限管理受 B03 服务端原子写入与授权合同阻塞，本次不接入 |
+| M11 标签编辑与管理 | desktop-app/api/client_api.go AddTag/DeleteTag | api/ApiTagController、ApiNoteController.UpdateNote | service/TagService | ui/tags_page.dart、note_tags_dialog.dart；API2 | 新增目录、在线创建、编辑候选和清空全部标签已实现；服务端全局删除 USN/笔记联动已修复，Flutter 全局删除/重命名已接入，重命名为可重试的多请求流程 |
+| M12 历史浏览恢复 | desktop-app/api/client_api.go GetHistories/GetHistoryContent | ApiNoteController.GetHistories/GetHistoryContent | service/NoteService | ui/note_history_page.dart；API2 | 正文、历史图片、离线阅读和 Markdown/富文本格式恢复已实现（schema v21）；新服务端保留历史附件并标记完整快照，客户端已接入在线完整恢复；旧版本清单未知或原件缺失时只支持正文恢复 |
+| M13 共享笔记 | desktop-app/sharedsync/sharedsync.go、api/shared_api.go | api/ApiSharedController | 旧版无完整等价 | ui/shared_notes_page.dart、data/database shared cache；API2 | 安全只读列表/正文、图片/附件缓存、预览/保存/打开/分享及权限撤销清理已实现（schema v16）；共享统一只读，可经服务端复制正文和资源到本人笔记本后编辑 |
 | M14 图片缓存、预览、保存 | desktop-app/service/file_service.go | api/ApiFileController.GetImage | ui/PictureViewerActivity、service/NoteFileService | ui/cached_markdown_image.dart、services/image_exporter.dart；API2 | 已有缓存隔离/原始字节保存测试；原生文件窗口待验收 |
 | M15 图片上传与正文插入 | desktop-app/webapi/proxy.go | /api2/file/pasteImage → File.PasteImage | ui/edit/NoteEditActivity | services/note_image_picker.dart、ui/note_image_upload_dialog.dart；API2 | 在线原文插入、离线图片暂存、持久上传状态与中断恢复已实现；原文暂存图片确认后事务追加；可视化编辑器在线/离线选区插入已实现（schema v19，本地引用在原件确认后原位替换）；新建富文本笔记可离线插入，再安全创建笔记并上传图片，WebView 真机验证未完 |
 | M16 附件上传下载、打开、分享 | desktop-app/service/file_service.go、webapi/proxy.go | Api2.UploadAttachment、ApiFile.GetAttach | service/NoteFileService | ui/note_files_page.dart、services/attachment_*；API2 | 在线上传、下载、离线保存/分享/打开已实现；附件离线暂存、持久上传状态及结果不确定时手动恢复已实现（schema v11）；原生 intent 验证未完，iOS 暂缓 |
@@ -61,22 +61,22 @@
 `domain/models/note_image_reference.dart` 识别旧 `/api/file/getImage` 只用于提取 ID 并读本地缓存，不能因此删除历史正文兼容，也不能据此宣称存在旧 API 调用。
 公开头像下载是用户明确允许的例外，不是业务 API 回退。
 
-- B01：笔记本删除：`ApiNotebook.DeleteNotebook` 调用 `DeleteNotebookForce`。需要明确非空笔记本处理、树结构一致性、幂等和 USN tombstone，跨端增量同步后必须一致。
-- B02：清空标签：`ApiNoteController.UpdateNote` 仅在 `Has("Tags[0]")` 时更新；需要明确表达空集合且不会创建空标签的合同，以及向后兼容策略。
-- B03：共享编辑/权限管理：`/api2/web/document` 会返回 Writable，但 `/api2/web/save` 在更新元数据版本后，以未带版本条件的第二次写入更新正文；跨客户端并发时可能覆盖正文，且两次写入之间失败会产生部分保存。需要服务端原子版本写入并确认授权边界；客户端暂不接入共享编辑，不能把 readonly shared snapshot 当作写权限。
+- B01（服务端已修复）：笔记本删除校验所有权、删除状态、子笔记本和有效笔记，并写入 USN tombstone。Flutter 已接入删除确认、状态检查和 tombstone 同步。
+- B02（已闭环）：API2 使用 `ClearTags` 明确表达空集合；desktop 和 mobile 均已接入。
+- B03（已闭环）：共享权限统一只读，服务端拒绝共享者写入并忽略旧的可编辑权限；Web、desktop 和 mobile 均提供复制到本人笔记本后编辑的流程。
 - B04：上传依赖 API2 浏览器 session；已实现一次性会话登录/身份校验/注销，未回退 Legacy。离线队列需要明确凭据获取与重试幂等。
 
-- B06：`TagService.DeleteTagApi` 返回递增的 `toUsn`，却向数据库写入传入的旧 `usn`；`GeSyncTags` 使用 `Usn > afterUsn`，已同步客户端可能永远收不到删除。该 API 也不调用 `UpdateNoteToDeleteTag`，与旧 Web 全局删除行为不同。后续需明确是目录隐藏还是从所有笔记移除，并修正递增 USN、并发条件更新和删除重放；客户端暂不接入全局删除，也不能以删除重建冒充重命名。
+- B06（服务端已修复）：标签删除写入递增 USN，并从引用它的笔记中移除标签。Flutter 全局删除和重命名交互已接入。
 
-- B07：`app/info/NoteInfo.go::EachHistory` 只有 HistoryId、UpdatedUserId、UpdatedTime、Content；`ApiNote.GetHistoryContent` 无历史附件列表或 IsMarkdown。客户端无法判定旧版本的附件集合/编辑器格式，也不能复活已删除文件。后续需增加不可变资源清单、格式版本及历史资源保留/回收策略；现有客户端只恢复正文及原图片引用，保留当前元数据。
+- B07（服务端合同已扩展）：历史元数据现包含 `IsMarkdown` 和文件清单；mobile 已恢复编辑器格式，已补服务端原件保留和在线完整恢复；升级前已丢失的文件仍不可找回。
 
-以上服务端需求只记录，不修改服务端。
+当前服务端合同修复提交为服务端 `838d358`；desktop 对应提交为 `2f9e748`，mobile 对应提交为 `4612e3c`。
 
 ## 恢复与验收规则
 
 每轮先读本文件与 `git -C mobile-app status --short`，核对当前源码。每项独立功能审查 diff、静态检查、相关测试，定期全量测试和 Android 构建；失败如实记录并修复。不得将未验证的平台行为记为完成。
 提交前明确暂存路径并检查 cached diff。提交 hash 在下一次功能更新时记入本文件，避免为写自身 hash 反复追加提交。
-当前授权范围内的客户端功能迁移已完成。服务端合同阻塞、设备验收、iOS 原生实现和发布仍保持可追踪；它们没有被客户端单元测试冒充完成。
+主体迁移以及笔记本删除、全局标签删除/重命名已实现；在线历史附件集合恢复已接入支持完整快照的服务端。设备验收、iOS 原生实现和发布继续保持可追踪；它们没有被客户端单元测试冒充完成。
 
 ## 本轮验证补充
 
@@ -448,3 +448,22 @@ Android 原生分享/拍照提示和桌面小组件使用同一选择，通过�
 服务端现已修复笔记本同步删除、空标签清除、全局标签删除的 USN/笔记联动，以及历史版本的编辑器格式和文件清单元数据。共享权限统一为只读，服务端忽略旧客户端传入的可编辑权限并拒绝共享者写入；只有原作者能修改原文。移动端共享列表增加“复制到我的笔记本”，由服务端在确认共享读取权限后复制正文、图片和附件，再同步为当前账号的独立笔记。笔记更新通过 API2 的 `ClearTags` 明确清空标签，历史恢复同时恢复 Markdown/富文本格式；本地历史缓存 schema 升至 v21。
 
 完整测试运行到 **765 项通过、2 项条件测试跳过**，唯一失败为新增文案尚未生成；生成并回归后，本地化、共享复制、历史缓存专项测试及静态分析全部通过。服务端与 desktop 的完整 Go 测试、Web 生产构建均通过。
+
+
+## 2026-10-16 目录删除与标签管理收尾
+
+- API2 接入 `/api2/client/notebook/delete` 和 `/api2/tag/deleteTag`。删除使用缓存 USN，检查业务响应，不把返回 USN 直接作为下载游标。笔记本删除通过同步 tombstone 收敛；响应丢失时保留缓存，下一次同步确认结果。
+- 笔记本删除前在同步互斥区内重新检查本地版本、待同步修改、子笔记本和活动笔记。工作区提供确认与失败提示。
+- 标签页增加删除/重命名菜单与中英文文案。重命名包含回收站笔记，事务替换并去重，保留标题、正文等字段；上传失败的替换保留在 dirty 队列，可重试。全部引用上传后再删除旧目录项。API2 没有原子重命名，该多请求流程不保证跨设备并发原子性。
+- B07 重新核对：`app/service/AttachService.go` 的 `DeleteAttach` 删除附件数据库记录并执行 `os.Remove`；历史 Files 元数据不足以恢复原件。当前范围禁止改服务端，因此完整附件恢复未实现，不能将这项标为完成。后续服务端需保留被历史引用的文件、提供受授权的历史文件 API2 读取，并区分缺失清单与已知空清单；移动端再接入可恢复的附件集合提交。
+- 本轮只修改 mobile-app，未修改服务端、desktop 或 legacy-android；未执行设备、iOS 或发布验收。
+- 验证：完整 Flutter 测试 774 项通过、2 项跳过；专项新增覆盖删除响应丢失、非空/dirty 拒绝、活动/回收站标签联动、重命名失败重试及菜单确认/取消。
+
+
+## 2026-10-16 三端历史附件恢复
+
+用户明确授权服务端/Web、desktop、mobile 一并修复并各自提交。本轮接入 `/api2/note/restoreHistory`：按稳定 historyId 和当前 USN 请求原作者的完整快照恢复，拒绝 dirty 笔记和未处理上传；成功后正常同步更新正文、格式、附件集合。在线菜单仅对 FilesComplete=true 的版本显示“恢复正文和附件”；原有正文恢复保留，离线不调用完整恢复 API。
+
+服务端保留删除附件的原件、恢复前版本和内部附件记录，提供完整清单标记；Web 与 desktop 同步接入。旧快照缺少完整标记或原件已经丢失时明确失败，不能将它们当作无附件版本。设备、iOS 原生和发布继续暂缓。本轮替代上一个记录中 B07 尚受阻的结论。
+
+本批验证：Flutter 全量 **780 项通过、2 项跳过**，静态检查通过；服务端与 desktop 完整 Go 回归通过，Web 14 项测试和生产构建通过。未进行真机/模拟器、iOS 构建或发布。

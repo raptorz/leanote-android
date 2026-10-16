@@ -4,11 +4,13 @@ class NoteHistory {
     required this.updatedTime,
     required this.updatedUserId,
     this.isMarkdown = false,
+    this.filesComplete = false,
   });
   final String id;
   final String updatedTime;
   final String updatedUserId;
   final bool isMarkdown;
+  final bool filesComplete;
 
   factory NoteHistory.fromJson(Map<String, Object?> json) {
     final id = json['HistoryId'];
@@ -20,6 +22,7 @@ class NoteHistory {
       updatedTime: json['UpdatedTime']?.toString() ?? '',
       updatedUserId: json['UpdatedUserId']?.toString() ?? '',
       isMarkdown: json['IsMarkdown'] == true,
+      filesComplete: json['FilesComplete'] == true,
     );
   }
 }

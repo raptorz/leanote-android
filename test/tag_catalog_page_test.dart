@@ -27,6 +27,22 @@ class CatalogRepository implements AuthRepository {
   }
 
   @override
+  Future<void> deleteTag(StoredSession session, String value) async {
+    if (fail) throw StateError('offline');
+    catalog.remove(value);
+  }
+
+  @override
+  Future<void> renameTag(
+    StoredSession session,
+    String oldName,
+    String newName,
+  ) async {
+    if (fail) throw StateError('offline');
+    catalog[newName] = catalog.remove(oldName)!;
+  }
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -41,6 +57,55 @@ void main() {
     ),
     token: 't',
   );
+
+  testWidgets('tag menu rename and confirmed delete refresh the catalog', (
+    tester,
+  ) async {
+    final repo = CatalogRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TagsPage(
+          repository: repo,
+          accountId: session.account.cacheKey,
+          session: session,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('显示未使用标签'));
+    await tester.pumpAndSettle();
+    Future<void> menu(String tag) async {
+      await tester.tap(
+        find.descendant(
+          of: find.widgetWithText(ListTile, tag),
+          matching: find.byType(PopupMenuButton<String>),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await menu('unused');
+    await tester.tap(find.text('重命名标签'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'renamed');
+    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(ListTile, 'renamed'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, 'unused'), findsNothing);
+    await menu('renamed');
+    await tester.tap(find.text('删除标签'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '取消'));
+    await tester.pumpAndSettle();
+    expect(repo.catalog, contains('renamed'));
+    await menu('renamed');
+    await tester.tap(find.text('删除标签'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '删除标签'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(ListTile, 'renamed'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'unused catalog is optional, searchable and refreshed after creation',

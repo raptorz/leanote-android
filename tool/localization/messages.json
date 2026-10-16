@@ -2675,6 +2675,38 @@
     "zh": "复制共享笔记失败：{0}",
     "en": "Could not copy shared note: {0}"
   },
+  "m0667": {
+    "zh": "删除标签",
+    "en": "Delete tag"
+  },
+  "m0668": {
+    "zh": "从所有笔记中删除标签“{0}”？",
+    "en": "Remove tag “{0}” from every note?"
+  },
+  "m0669": {
+    "zh": "删除标签失败：{0}",
+    "en": "Could not delete tag: {0}"
+  },
+  "m0670": {
+    "zh": "重命名标签",
+    "en": "Rename tag"
+  },
+  "m0671": {
+    "zh": "重命名标签失败：{0}",
+    "en": "Could not rename tag: {0}"
+  },
+  "m0672": {
+    "zh": "删除笔记本",
+    "en": "Delete notebook"
+  },
+  "m0673": {
+    "zh": "删除空笔记本“{0}”？",
+    "en": "Delete empty notebook “{0}”?"
+  },
+  "m0674": {
+    "zh": "删除笔记本失败：{0}",
+    "en": "Could not delete notebook: {0}"
+  },
   "errorSharedUpdated": {
     "zh": "共享笔记已更新，请刷新列表后重试",
     "en": "The shared note has changed. Refresh the list and retry."
@@ -3118,5 +3150,57 @@
   "bundleFileLimit": {
     "zh": "文件超过允许大小：{0} 字节",
     "en": "File exceeds the allowed size: {0} bytes"
+  },
+  "notebookHasPendingChanges": {
+    "zh": "笔记本已有变化或待同步修改，请同步后重试",
+    "en": "The notebook changed or has pending changes. Sync and retry."
+  },
+  "notebookHasChildren": {
+    "zh": "请先移动或删除子笔记本",
+    "en": "Move or delete child notebooks first."
+  },
+  "notebookNotEmpty": {
+    "zh": "请先移走笔记本中的笔记并同步待处理修改",
+    "en": "Move notes out of this notebook and sync pending changes first."
+  },
+  "unsyncedChanges": {
+    "zh": "请先同步待处理的笔记修改，再删除标签",
+    "en": "Sync pending note changes before deleting a tag."
+  },
+  "tagRenameIncomplete": {
+    "zh": "部分笔记仍使用旧标签，请同步后重试重命名",
+    "en": "Some notes still use the old tag. Sync and retry the rename."
+  },
+  "tagMissing": {
+    "zh": "同步目录中没有此标签，请同步后重试",
+    "en": "This tag is missing from the synced catalog. Sync and retry."
+  },
+  "historyRestoreFull": {
+    "zh": "恢复正文和附件",
+    "en": "Restore body and attachments"
+  },
+  "historyRestoreFullConfirm": {
+    "zh": "联网恢复此版本的正文、编辑器格式和附件集合。请先同步笔记并处理待上传附件；当前版本会保存在历史中。",
+    "en": "Restore this version’s body, editor format and attachments online. Sync note edits and finish pending uploads first. The current version will be saved in history."
+  },
+  "historyPendingNote": {
+    "zh": "请先同步笔记修改，再恢复完整历史版本",
+    "en": "Sync note edits before restoring a complete version."
+  },
+  "historyPendingFiles": {
+    "zh": "请先处理待上传附件，再恢复完整历史版本",
+    "en": "Finish pending attachment uploads before restoring a complete version."
+  },
+  "historyFileMissing": {
+    "zh": "历史文件已丢失，无法完整恢复此版本",
+    "en": "A historical file is missing. Nothing was restored."
+  },
+  "historyFilesUnknown": {
+    "zh": "此历史版本缺少完整附件清单，仅支持恢复正文",
+    "en": "This old version has no complete file manifest. Use body-only restore."
+  },
+  "historyRestoreFailed": {
+    "zh": "恢复失败，请刷新笔记并检查历史记录后重试",
+    "en": "Restore failed. Refresh the note and check history before retrying."
   }
 }

@@ -1587,6 +1587,56 @@ class _WorkspacePageState extends State<WorkspacePage>
     await _refreshPending();
   }
 
+  Future<void> _deleteNotebook(Notebook notebook) async {
+    if (_accountOpen || _syncing || _loggingOut || _signedOut) return;
+    _accountOpen = true;
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(trNow(context, 'm0672')),
+          content: Text(trNow(context, 'm0673', [notebook.title])),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(trNow(context, 'm0026')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(trNow(context, 'm0672')),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+      setState(() => _syncing = true);
+      try {
+        await widget.repository.deleteNotebook(widget.session, notebook);
+        if (!mounted) return;
+        if (_selectedNotebook?.notebookId == notebook.notebookId) {
+          _selectedNotebook = null;
+          _notes = [];
+        }
+        setState(() {
+          _expandedNotebooks.remove(notebook.notebookId);
+          _notebooks = widget.repository.notebooks(
+            widget.session.account.cacheKey,
+          );
+        });
+        await _refreshPending();
+      } on Object catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(trNow(context, 'm0674', [error]))),
+          );
+        }
+      }
+    } finally {
+      _accountOpen = false;
+      if (mounted) setState(() => _syncing = false);
+    }
+  }
+
   Future<void> _recoverNotebook(Notebook notebook) async {
     if (_accountOpen || _syncing || _loggingOut || _signedOut) return;
     _accountOpen = true;
@@ -1881,6 +1931,7 @@ class _WorkspacePageState extends State<WorkspacePage>
                           _editNotebook(parentId: notebook.notebookId);
                         }
                         if (action == 'move') _moveNotebook(notebook);
+                        if (action == 'delete') _deleteNotebook(notebook);
                         if (action == 'recoverCreation' ||
                             action == 'reviewConflict') {
                           _recoverNotebook(notebook);
@@ -1898,6 +1949,10 @@ class _WorkspacePageState extends State<WorkspacePage>
                         PopupMenuItem(
                           value: 'move',
                           child: Text(tr(context, 'm0168')),
+                        ),
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Text(tr(context, 'm0672')),
                         ),
                         if (notebook.usn > 0 && notebook.isDirty)
                           PopupMenuItem(

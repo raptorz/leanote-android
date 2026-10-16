@@ -123,31 +123,30 @@ iOS 编译仍需 macOS/Xcode，桌面遮罩及安装后的显示需真机验证�
 完全同步由 `SyncCoordinator.synchronizeFull` 实现，不新增或修改 API2 接口。
 与增量同步使用相同的固定检查点、分页和 dirty 防覆盖逻辑；服务端 USN 倒退仍拒绝合并。
 未出现在快照中的本地记录不会自动删除或重传，明确的远程删除标记仍生效。
-无资源 Markdown/基本 HTML 正文及格式冲突支持本地副本（详见下节），其他正文冲突报错保留本地。完全同步替换命中的笔记行时，
+正文及资源冲突支持保留完整本地副本（详见下节）。完全同步替换命中的笔记行时，
 其关联文件缓存沿用既有合并清理规则；不保证所有文件缓存保留。
 
 ### 正文冲突副本
 
-`getConflictSnapshot` 在正文读取前后核对远程 USN，并保留两次 `Files` 均明确为空的判定；
-字段缺失或 null 不能证明没有资源。`resolveNoteConflict` 在事务内再次核对完整本地快照，
-避免覆盖在途编辑。正文或格式不同，仅在两端均非回收站、文件列表确认空、
-本地无文件记录且两端正文分别通过 `canCopyConflictBody` 检查时自动复制。
-Markdown 不能含 `[`/`<`；HTML 仅允许无属性的基本排版标签，拒绝资源、链接、
-注释、解析错误及过深嵌套。两端格式可以不同，副本保留本地格式，不做格式转换。
-这是保守的安全范围，不是完整资源解析；部分无资源文本也可能被拒绝。
+`getConflictSnapshot` 在正文读取前后核对远程 USN 和完整文件清单；字段缺失或 null
+不能证明没有资源。`resolveNoteConflict` 在事务内再次核对完整本地快照，避免覆盖在途编辑。
+资源副本读取当前缓存、历史恢复缓存和待上传原件，校验正文引用与资源指纹后，在同一事务
+创建独立 NoteId、正文和持久上传任务。任何必需原件缺失、资源变化或正文并发编辑都会拒绝
+旧快照并保留原 dirty 笔记，不生成只有失效链接的不完整副本。
 
 本地副本保留原始内容、标题（追加“本地冲突副本”）、标签、笔记本及星标，
 新 ID、USN 0、dirty/new 标志与原笔记采用服务端版本在同一事务落库。
 之后用既有 API2 新建笔记接口上传副本；失败保留相同 ID 待重试，不再为原笔记创建副本。
 新副本创建/修改时间表示副本生成时间，不改写服务端原笔记的时间。
-正文及格式相同时的元数据冲突仍不创建副本；图片/附件、删除以及超出上述安全范围的冲突继续保留本地并报错。
+正文及格式相同时的元数据冲突仍不创建副本。远端永久删除时只从本地缓存和待上传任务恢复
+原件；资源齐全才创建恢复副本，缺失时保留原待同步记录并提示用户处理。
 
 ## Markdown 阅读
 
 Markdown 阅读使用 [flutter_markdown_plus](https://pub.dev/packages/flutter_markdown_plus)
 原生组件，并保留可复制的原文模式。个人笔记图片由账号隔离的缓存组件处理；
 未缓存时由用户手动点击、经 API2 校验后下载，不启用渲染器默认的网络/本地文件加载。
-共享、历史中的图片仍为占位；编辑预览只读取当前账号、当前笔记的已有缓存，不下载。Markdown 链接先展示地址，允许复制或确认外部打开 HTTP/HTTPS 地址；不自动导航。
+共享和历史图片使用各自按账号隔离的受控缓存；未缓存时只允许用户明确下载合法 API2 资源，不使用正文 URL 自动联网。编辑预览只读取当前账号、当前笔记的已有缓存。Markdown 链接先展示地址，允许复制或确认外部打开 HTTP/HTTPS 地址；不自动导航。
 此实现不支持 Markdown 中内嵌 HTML 的浏览器渲染。
 
 ## 富文本阅读
@@ -158,7 +157,7 @@ Markdown 阅读使用 [flutter_markdown_plus](https://pub.dev/packages/flutter_m
 个人笔记额外接入现有账号隔离图片缓存：前 100 张 `img` 图片按原文顺序穿插在文字之间，
 各自独占一行且宽度不超过正文，不还原 CSS 浮动或文字环绕。缓存缺失时仅对合法同源 API2 文件引用提供手动下载。
 图片集合跳过脚本、iframe 等被省略内容，不使用 `srcset`、CSS 图片或外部资源自动加载。
-返回文件页后更新缓存显示；编辑预览可读取已有图片缓存，但不传入下载能力；共享、历史继续显示占位。
+返回文件页后更新缓存显示；编辑预览可读取已有图片缓存，但不传入下载能力。共享和历史页面使用独立缓存、版本及权限校验，不能读取个人笔记缓存冒充对应资源。
 
 ## 编辑撤销与重做
 
@@ -263,12 +262,10 @@ flutter test test/editor_image_test.dart test/data/note_image_repository_test.da
 ## Android 分享接收
 
 依据 [Android 分享接收文档](https://developer.android.com/training/sharing/receive)，
-Manifest 只注册 `ACTION_SEND` / `text/plain`，Activity 使用 `singleTask`，
-冷启动和 `onNewIntent` 统一处理 `EXTRA_TEXT` / `EXTRA_SUBJECT`。
-不读取 `EXTRA_STREAM`、ClipData URI 或 HTML 内容，也不使用调用方提供的笔记 ID。
-原生生成稳定 24 位十六进制 ID，将最多 8 条、每条不超过 UTF-8 256 KiB 的文本
-保存到应用私有 `shared_text_inbox` SharedPreferences；处理后清除启动 Intent，
-避免 Activity 重建重复入队。队列满、超限、无效内容或落盘失败通过 Toast 提示。
+Manifest 注册 `ACTION_SEND` / `ACTION_SEND_MULTIPLE`，Activity 使用 `singleTask`，
+冷启动和 `onNewIntent` 统一处理文本、图片、文件与多项分享。文本单项最多
+UTF-8 256 KiB，二进制单文件最多 32 MiB；每批和持久收件箱最多 8 项。
+文件只读取来源明确授权的 `content://` URI，原件写入应用私有目录；批次中任一项失败时整批不入队。
 
 `gemsnote/shared_text` MethodChannel 提供 peek、claim、acknowledge 和 changed 通知。
 Flutter 在工作区启动/恢复前台时读取队列，事件仅更新工具栏标记，不打断正在编辑的笔记。
@@ -276,7 +273,9 @@ Flutter 在工作区启动/恢复前台时读取队列，事件仅更新工具�
 先 claim 绑定服务器/用户缓存键，再在 SQLite 事务中验证目标笔记本、创建 dirty/new
 Markdown 笔记。重复 ID 返回原笔记，不覆盖后续编辑；最后 acknowledge 清除原生条目。
 确认忽略只清除队列，不写笔记。正文始终作为文本处理，不访问分享中的 URL。
-当前不支持 iOS 分享扩展及 Android 图片、文件、多项接收。
+Android 图片、文件和多项接收已经实现；完整安全边界和 JVM 验证见
+[ANDROID_SHARING.md](ANDROID_SHARING.md)。iOS 已实现单项文本和 HTTP(S) 网页 Share Extension，
+图片、文件和多项接收仍待迁移，见 [IOS_SHARING.md](IOS_SHARING.md)。
 
 回归命令：
 
@@ -396,7 +395,9 @@ v7 升级只建表，保留正文、默认编辑器和排序偏好。
 “开始资源缓存”；菜单提示可能使用移动数据。读取失败关闭自动缓存并提供
 重试入口，读写期间禁用切换和手动开始，保存失败保留原值并提示。
 关闭成功后取消队列后续任务，在途请求不强制中断。持久化只保存偏好，
-不保存任务进度，不增加系统后台执行能力。
+下载任务和运行锁持久保存。Android 开启自动缓存后使用 WorkManager 安排一次性续传和
+15 分钟周期任务；前后台执行共用 SQLite 过期锁，避免两个 Flutter engine 同时处理同一账号。
+iOS 尚未接入等价的系统后台调度。
 
 验证：`flutter test test/data/default_editor_test.dart test/account_file_cache_page_test.dart`，
 覆盖 v7 升级、账号隔离、重启/退出/快照替换、失败重试、保存等待期间禁用操作，
@@ -435,3 +436,12 @@ API2 冲突后读取 afterUsn=原 USN 的笔记本增量，只有远端字段与
 mergeChanges 在事务中拒绝覆盖 dirty 笔记本，cacheNotebook 同样检查；快照重置的
 noteSnapshotFingerprint（历史命名保留）现在包含笔记和笔记本两张表，避免确认后
 等待下载时的新笔记本修改被抹除。schema 升级只添加默认 0 的列，保留 IDs、dirty 笔记和游标。
+
+
+## 目录删除、标签重命名与历史资源限制
+
+空笔记本删除使用 `/api2/client/notebook/delete`，标签删除使用 `/api2/tag/deleteTag`，均通过 `runMetadataUpdate` 互斥并检查服务端同步状态。删除完成后正常增量同步，不直接推进同步游标；删除响应丢失可由后续同步恢复。
+
+标签重命名由 API2 创建目标标签、事务替换本机笔记标签、正常上传/下载和删除旧目录项组成，覆盖回收站笔记，合并已有目标标签并去重。失败保留已暂存的 dirty 修改；同步后重试原重命名可继续。此流程不是服务端原子操作，跨设备同时改标签存在竞态，后续可用专用原子 API2 重命名接口改进。
+
+完整历史恢复已接入 `/api2/note/restoreHistory`：只在联网且快照 FilesComplete=true 时提供，按当前缓存 USN 提交；同步互斥区内拒绝目标笔记 dirty、未同步新建及待处理附件上传。服务端验证原作者、版本与原件并恢复，客户端随后正常同步。正文恢复保持独立并支持离线。旧历史缺少完整清单或原件已丢失时不能执行完整恢复。

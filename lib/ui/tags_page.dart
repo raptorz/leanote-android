@@ -26,6 +26,7 @@ class _TagsPageState extends State<TagsPage> {
   late Future<Map<String, int>> _tags;
   final _filter = TextEditingController();
   bool _includeUnused = false;
+  String? _changing;
 
   Future<Map<String, int>> _loadTags() => _includeUnused
       ? widget.repository.availableTags(widget.accountId)
@@ -47,6 +48,93 @@ class _TagsPageState extends State<TagsPage> {
         _filter.clear();
         _tags = _loadTags();
       });
+    }
+  }
+
+  Future<void> _deleteTag(String name) async {
+    final session = widget.session;
+    if (session == null ||
+        session.account.cacheKey != widget.accountId ||
+        _changing != null) {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(trNow(context, 'm0667')),
+        content: Text(trNow(context, 'm0668', [name])),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(trNow(context, 'm0026')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(trNow(context, 'm0667')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _changing = name);
+    try {
+      await widget.repository.deleteTag(session, name);
+      if (mounted) setState(() => _tags = _loadTags());
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(trNow(context, 'm0669', [error]))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _changing = null);
+    }
+  }
+
+  Future<void> _renameTag(String name) async {
+    final session = widget.session;
+    if (session == null ||
+        session.account.cacheKey != widget.accountId ||
+        _changing != null) {
+      return;
+    }
+    var editedName = name;
+    final replacement = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(trNow(context, 'm0670')),
+        content: TextFormField(
+          initialValue: name,
+          onChanged: (value) => editedName = value,
+          autofocus: true,
+          maxLength: 200,
+          decoration: InputDecoration(labelText: trNow(context, 'm0103')),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(trNow(context, 'm0026')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, editedName),
+            child: Text(trNow(context, 'm0025')),
+          ),
+        ],
+      ),
+    );
+    if (replacement == null || !mounted) return;
+    setState(() => _changing = name);
+    try {
+      await widget.repository.renameTag(session, name, replacement);
+      if (mounted) setState(() => _tags = _loadTags());
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(trNow(context, 'm0671', [error]))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _changing = null);
     }
   }
 
@@ -153,7 +241,35 @@ class _TagsPageState extends State<TagsPage> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          trailing: Text('${tag.value}'),
+                          trailing: _changing == tag.key
+                              ? const SizedBox.square(
+                                  dimension: 20,
+                                  child: CircularProgressIndicator(),
+                                )
+                              : widget.session == null
+                              ? Text('${tag.value}')
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text('${tag.value}'),
+                                    PopupMenuButton<String>(
+                                      enabled: _changing == null,
+                                      onSelected: (action) => action == 'rename'
+                                          ? _renameTag(tag.key)
+                                          : _deleteTag(tag.key),
+                                      itemBuilder: (context) => [
+                                        PopupMenuItem(
+                                          value: 'rename',
+                                          child: Text(tr(context, 'm0670')),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 'delete',
+                                          child: Text(tr(context, 'm0667')),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                           onTap: () => Navigator.of(context).pop(tag.key),
                         );
                       },

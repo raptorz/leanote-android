@@ -865,7 +865,7 @@ class AuthRepository {
     );
     if ((await pendingNoteIds(session.account.cacheKey)).isNotEmpty ||
         (await _database.dirtyNotebooks(session.account.cacheKey)).isNotEmpty) {
-      throw StateError('unsyncedChanges');
+      throw StateError('请先同步待处理的笔记修改，再删除标签');
     }
   }
 
@@ -881,7 +881,7 @@ class AuthRepository {
         ((await pendingNoteIds(session.account.cacheKey)).isNotEmpty ||
             (await _database.dirtyNotebooks(session.account.cacheKey))
                 .isNotEmpty)) {
-      throw StateError('unsyncedChanges');
+      throw StateError('请先同步待处理的笔记修改，再删除标签');
     }
     // Local logout retains the account cache and never waits on the network.
     await _sessions.delete(session.account.cacheKey);
@@ -1020,6 +1020,48 @@ class AuthRepository {
         })().whenComplete(() {
           _historyDownloads.remove(key);
         });
+  }
+
+  Future<void> restoreHistorySnapshot(
+    StoredSession session,
+    String noteId,
+    String historyId,
+  ) async {
+    await _sync.runMetadataUpdate(
+      () async {
+        final items = (await _database.notes(session.account.cacheKey))
+            .where((note) => note.noteId == noteId)
+            .toList();
+        if (items.length != 1 ||
+            (await _database.pendingNoteIds(session.account.cacheKey))
+                .contains(noteId) ||
+            items.single.usn <= 0 ||
+            items.single.userId != session.account.userId) {
+          throw StateError('请先同步笔记修改，再恢复完整历史版本');
+        }
+        final pending = await AttachmentOutbox(
+          _database.raw,
+          session.account,
+        ).list(noteId: noteId);
+        if (pending.any(
+          (item) => item.state != 'uploaded' && item.state != 'inserted',
+        )) {
+          throw StateError('请先处理待上传附件，再恢复完整历史版本');
+        }
+        await _api.restoreHistorySnapshot(
+          server: session.account.server,
+          token: session.token,
+          noteId: noteId,
+          historyId: historyId,
+          usn: items.single.usn,
+        );
+      },
+      account: session.account,
+      token: session.token,
+    );
+    // Pull the authoritative body, format and resource membership; do not
+    // manufacture a local file set from an incomplete history manifest.
+    await synchronize(session);
   }
 
   Future<void> restoreHistory(
@@ -1448,6 +1490,43 @@ class AuthRepository {
     parentId: parentId,
   );
 
+  Future<void> deleteNotebook(StoredSession session, Notebook notebook) async {
+    await _sync.runMetadataUpdate(
+      () async {
+        final books = await notebooks(session.account.cacheKey);
+        final matches = books.where(
+          (book) => book.notebookId == notebook.notebookId,
+        );
+        if (matches.length != 1 ||
+            matches.single.isDirty ||
+            matches.single.usn <= 0 ||
+            matches.single.usn != notebook.usn) {
+          throw StateError('笔记本已有变化或待同步修改，请同步后重试');
+        }
+        if (books.any((book) => book.parentNotebookId == notebook.notebookId)) {
+          throw StateError('请先移动或删除子笔记本');
+        }
+        if ((await notes(
+              session.account.cacheKey,
+              notebookId: notebook.notebookId,
+            )).isNotEmpty ||
+            (await _database.dirtyNotes(session.account.cacheKey)).isNotEmpty) {
+          throw StateError('请先移走笔记本中的笔记并同步待处理修改');
+        }
+        await _api.deleteNotebook(
+          server: session.account.server,
+          token: session.token,
+          notebook: matches.single,
+        );
+      },
+      account: session.account,
+      token: session.token,
+    );
+    // Consume the server tombstone through normal sync. A lost response leaves
+    // the cache intact and the next sync safely completes the deletion.
+    await synchronize(session);
+  }
+
   Future<void> saveNotebook(
     StoredSession session, {
     required String title,
@@ -1459,7 +1538,7 @@ class AuthRepository {
     if (existing != null &&
         (await _database.dirtyNotebooks(session.account.cacheKey))
             .any((n) => n.notebookId == existing.notebookId)) {
-      throw StateError('notebookHasPendingChanges');
+      throw StateError('笔记本已有变化或待同步修改，请同步后重试');
     }
     await _sync.runMetadataUpdate(
       () async {
@@ -1488,7 +1567,7 @@ class AuthRepository {
     }
     final source = current.firstWhere((n) => n.notebookId == notebookId);
     if (source.parentNotebookId == parentId) return;
-    if (source.isDirty) throw StateError('notebookHasPendingChanges');
+    if (source.isDirty) throw StateError('笔记本已有变化或待同步修改，请同步后重试');
     await _sync.runMetadataUpdate(
       () async {
         final moved = await _api.saveNotebook(
@@ -1528,11 +1607,7 @@ class AuthRepository {
 
   Future<void> createTag(StoredSession session, String value) async {
     final name = value.trim();
-    if (name.isEmpty ||
-        name.runes.length > 200 ||
-        RegExp(r'[\x00-\x1f\x7f]').hasMatch(name)) {
-      throw const FormatException('标签名称需为 1–200 个字符，且不能包含换行或控制字符');
-    }
+    _validateTagName(name);
     await _sync.runMetadataUpdate(
       () async {
         final usn = await _api.createTag(
@@ -1546,6 +1621,92 @@ class AuthRepository {
       account: session.account,
       token: session.token,
     );
+  }
+
+  static void _validateTagName(String name) {
+    if (name.isEmpty ||
+        name.runes.length > 200 ||
+        RegExp(r'[\x00-\x1f\x7f]').hasMatch(name)) {
+      throw const FormatException('标签名称需为 1–200 个字符，且不能包含换行或控制字符');
+    }
+  }
+
+  Future<void> deleteTag(StoredSession session, String value) async {
+    final name = value.trim();
+    _validateTagName(name);
+    await _sync.runMetadataUpdate(
+      () async {
+        if ((await _database.dirtyNotes(session.account.cacheKey)).isNotEmpty) {
+          throw StateError('请先同步待处理的笔记修改，再删除标签');
+        }
+        final usn = await _database.tagUsn(session.account.cacheKey, name);
+        await _api.deleteTag(
+          server: session.account.server,
+          token: session.token,
+          name: name,
+          usn: usn,
+        );
+      },
+      account: session.account,
+      token: session.token,
+    );
+    await synchronize(session);
+  }
+
+  Future<void> renameTag(
+    StoredSession session,
+    String oldValue,
+    String newValue,
+  ) async {
+    final oldName = oldValue.trim(), newName = newValue.trim();
+    _validateTagName(oldName);
+    _validateTagName(newName);
+    if (oldName == newName) return;
+    // API2 has no atomic rename. Upload earlier work and pull all changes before
+    // staging the replacements. Failed uploads remain in the normal dirty queue;
+    // repeating this operation safely finishes the remaining replacements.
+    await synchronize(session);
+    late int oldUsn;
+    await _sync.runMetadataUpdate(
+      () async {
+        oldUsn = await _database.tagUsn(session.account.cacheKey, oldName);
+        final usn = await _api.createTag(
+          server: session.account.server,
+          token: session.token,
+          userId: session.account.userId,
+          name: newName,
+        );
+        await _database.cacheTag(session.account.cacheKey, newName, usn);
+        await _database.replaceTagInNotes(
+          session.account.cacheKey,
+          oldName,
+          newName,
+        );
+      },
+      account: session.account,
+      token: session.token,
+    );
+    await synchronize(session);
+    await _sync.runMetadataUpdate(
+      () async {
+        if ((await _database.dirtyNotes(session.account.cacheKey)).isNotEmpty ||
+            await _database.hasTagReferences(
+              session.account.cacheKey,
+              oldName,
+            )) {
+          throw StateError('部分笔记仍使用旧标签，请同步后重试重命名');
+        }
+        await _api.deleteTag(
+          server: session.account.server,
+          token: session.token,
+          name: oldName,
+          usn: oldUsn,
+        );
+      },
+      account: session.account,
+      token: session.token,
+    );
+    await synchronize(session);
   }
 
   Future<List<Note>> notesForTag(String accountId, String tag) =>
