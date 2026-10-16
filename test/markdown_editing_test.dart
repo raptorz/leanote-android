@@ -3,6 +3,41 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/ui/markdown_editing.dart';
 
 void main() {
+  test('heading levels replace existing levels and toggle back to body', () {
+    const source = TextEditingValue(
+      text: '# one\n### two\nlast',
+      selection: TextSelection(baseOffset: 14, extentOffset: 0),
+    );
+    for (var level = 1; level <= 6; level++) {
+      final result = setMarkdownHeading(source, level);
+      expect(result.text, '${'#' * level} one\n${'#' * level} two\nlast');
+      expect(setMarkdownHeading(result, level).text, 'one\ntwo\nlast');
+      expect(setMarkdownHeading(result, 0).text, 'one\ntwo\nlast');
+    }
+  });
+  test('heading removal respects ATX syntax and keeps literal hashes', () {
+    const source = TextEditingValue(
+      text: '  ## title ##\n#hashtag\n####### literal\n## hash#',
+    );
+    final all = source.copyWith(
+      selection: TextSelection(baseOffset: 0, extentOffset: source.text.length),
+    );
+    expect(
+      setMarkdownHeading(all, 0).text,
+      '  title\n#hashtag\n####### literal\nhash#',
+    );
+    expect(() => setMarkdownHeading(all, 7), throwsRangeError);
+    expect(setMarkdownHeading(const TextEditingValue(), 6).text, '###### ');
+    final caret = setMarkdownHeading(
+      const TextEditingValue(
+        text: '## hello ##',
+        selection: TextSelection.collapsed(offset: 5),
+      ),
+      0,
+    );
+    expect(caret.text, 'hello');
+    expect(caret.selection.baseOffset, 2);
+  });
   test('inline formatting preserves surrounding text and selected body', () {
     final result = wrapMarkdown(
       const TextEditingValue(

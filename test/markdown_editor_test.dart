@@ -5,6 +5,44 @@ import 'package:gemsnote/domain/models/note.dart';
 import 'package:gemsnote/ui/note_editor_page.dart';
 
 void main() {
+  testWidgets('heading menu changes level and restores body with autosave', (
+    tester,
+  ) async {
+    final saved = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NoteEditorPage(
+          note: Note.fromJson({
+            'NoteId': 'n',
+            'Title': 'Title',
+            'Content': '# Hello\nAfter',
+            'IsMarkdown': true,
+          }),
+          saveText: (_, content) async => saved.add(content),
+        ),
+      ),
+    );
+    final body = tester
+        .widget<TextField>(find.byType(TextField).last)
+        .controller!;
+    body.selection = const TextSelection.collapsed(offset: 4);
+    Future<void> choose(String label) async {
+      await tester.ensureVisible(find.byTooltip('标题'));
+      await tester.tap(find.byTooltip('标题'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 700));
+    }
+
+    await choose('6 级标题');
+    expect(body.text, '###### Hello\nAfter');
+    expect(saved.last, body.text);
+    await choose('正文');
+    expect(body.text, 'Hello\nAfter');
+    expect(saved.last, body.text);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('format selected text, preview and autosave the original', (
     tester,
   ) async {

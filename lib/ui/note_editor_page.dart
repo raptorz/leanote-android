@@ -496,10 +496,29 @@ class _NoteEditorPageState extends State<NoteEditorPage>
                         Icons.code,
                         (value) => wrapMarkdown(value, '`'),
                       ),
-                      _formatButton(
-                        tr(context, 'm0193'),
-                        Icons.title,
-                        (value) => toggleMarkdownPrefixLines(value, '# '),
+                      PopupMenuButton<int>(
+                        tooltip: tr(context, 'm0193'),
+                        icon: const Icon(Icons.title),
+                        enabled: !_busy,
+                        itemBuilder: (_) => [
+                          PopupMenuItem(
+                            value: 0,
+                            child: Text(tr(context, 'm0456')),
+                          ),
+                          for (var level = 1; level <= 6; level++)
+                            PopupMenuItem(
+                              value: level,
+                              child: Text(tr(context, 'headingLevel', [level])),
+                            ),
+                        ],
+                        onSelected: (level) {
+                          if (_busy) return;
+                          _content.value = setMarkdownHeading(
+                            _content.value,
+                            level,
+                          );
+                          _contentFocus.requestFocus();
+                        },
                       ),
                       _formatButton(
                         tr(context, 'm0194'),

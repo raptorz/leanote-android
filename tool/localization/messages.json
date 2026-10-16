@@ -771,6 +771,10 @@
     "zh": "标题",
     "en": "Heading"
   },
+  "headingLevel": {
+    "zh": "{0} 级标题",
+    "en": "Heading {0}"
+  },
   "m0194": {
     "zh": "无序列表",
     "en": "Bulleted list"

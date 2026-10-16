@@ -128,6 +128,49 @@ TextEditingValue toggleMarkdownNumberedLines(TextEditingValue value) =>
       ];
     });
 
+/// Replaces an ATX heading level instead of stacking heading markers.
+/// Selecting the same level again returns the selected lines to body text.
+TextEditingValue setMarkdownHeading(TextEditingValue value, int level) {
+  if (level < 0 || level > 6) throw RangeError.range(level, 0, 6, 'level');
+  final marker = RegExp(r'^( {0,3})(#{1,6})(?:[ \t]+|$)');
+  int? prefixDelta;
+  var firstLineLength = 0;
+  final edited = _editLines(value, (lines) {
+    final matches = [for (final line in lines) marker.firstMatch(line)];
+    final remove =
+        level == 0 ||
+        matches.every((match) => match != null && match[2]!.length == level);
+    final result = <String>[];
+    for (var i = 0; i < lines.length; i++) {
+      final match = matches[i];
+      if (match == null) {
+        result.add(remove ? lines[i] : '${'#' * level} ${lines[i]}');
+        continue;
+      }
+      var body = lines[i].substring(match.end);
+      if (remove) {
+        body = body.replaceFirst(RegExp(r'(^|[ \t]+)#+[ \t]*$'), '');
+      }
+      final prefix = '${match[1]}${remove ? '' : '${'#' * level} '}';
+      result.add('$prefix$body');
+      if (i == 0) prefixDelta = prefix.length - match.end;
+    }
+    firstLineLength = result.first.length;
+    return result;
+  });
+  final selection = _selection(value);
+  if (!selection.isCollapsed || prefixDelta == null) return edited;
+  final start = value.text.substring(0, selection.start).lastIndexOf('\n') + 1;
+  return edited.copyWith(
+    selection: TextSelection.collapsed(
+      offset: (selection.start + prefixDelta!).clamp(
+        start,
+        start + firstLineLength,
+      ),
+    ),
+  );
+}
+
 TextEditingValue _editLines(
   TextEditingValue value,
   List<String> Function(List<String>) transform,

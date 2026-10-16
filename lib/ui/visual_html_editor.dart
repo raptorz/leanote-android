@@ -698,7 +698,11 @@ class _VisualHtmlEditorState extends State<VisualHtmlEditor> {
                   Icons.format_clear,
                   'removeFormat',
                 ),
-                _button(tr(context, 'm0193'), Icons.title, 'formatBlock', 'h2'),
+                _styleMenu(tr(context, 'm0193'), Icons.title, 'formatBlock', {
+                  tr(context, 'm0456'): 'p',
+                  for (var level = 1; level <= 6; level++)
+                    tr(context, 'headingLevel', [level]): 'h$level',
+                }),
                 _button(tr(context, 'm0456'), Icons.notes, 'formatBlock', 'p'),
                 _button(
                   tr(context, 'm0196'),
