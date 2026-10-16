@@ -133,6 +133,14 @@ void main() {
       final image = tester.widget<Image>(find.byType(Image));
       expect((image.image as ResizeImage).imageProvider, isA<MemoryImage>());
       expect(image.semanticLabel, 'photo');
+      await tester.tap(find.byTooltip('查看图片'));
+      await tester.pumpAndSettle();
+      expect(find.byType(InteractiveViewer), findsOneWidget);
+      expect(find.text('photo'), findsOneWidget);
+      expect(find.byTooltip('关闭'), findsOneWidget);
+      await tester.tap(find.byTooltip('关闭'));
+      await tester.pumpAndSettle();
+      expect(find.byType(InteractiveViewer), findsNothing);
     },
   );
   for (final failure in ['missing', 'error', 'corrupt']) {

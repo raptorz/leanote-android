@@ -96,6 +96,39 @@ class _CachedMarkdownImageState extends State<CachedMarkdownImage> {
       ],
     ),
   );
+
+  Future<void> _preview(Uint8List bytes) => showDialog<void>(
+    context: context,
+    builder: (dialogContext) => Dialog.fullscreen(
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            widget.alt == null || widget.alt!.isEmpty
+                ? tr(dialogContext, 'm0369')
+                : widget.alt!,
+          ),
+          leading: IconButton(
+            tooltip: tr(dialogContext, 'm0010'),
+            onPressed: () => Navigator.pop(dialogContext),
+            icon: const Icon(Icons.close),
+          ),
+        ),
+        body: Center(
+          child: InteractiveViewer(
+            minScale: 0.5,
+            maxScale: 5,
+            child: Image.memory(
+              bytes,
+              semanticLabel: widget.alt,
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) => Text(tr(dialogContext, 'm0247')),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) => FutureBuilder<Uint8List?>(
     future: _bytes,
@@ -105,18 +138,28 @@ class _CachedMarkdownImageState extends State<CachedMarkdownImage> {
           snapshot.data == null) {
         return _placeholder();
       }
-      return Image(
-        image: ResizeImage(
-          MemoryImage(snapshot.data!),
-          width: 2048,
-          height: 2048,
-          policy: ResizeImagePolicy.fit,
+      return Semantics(
+        button: true,
+        label: tr(context, 'm0369'),
+        child: Tooltip(
+          message: tr(context, 'm0369'),
+          child: GestureDetector(
+            onTap: () => _preview(snapshot.data!),
+            child: Image(
+              image: ResizeImage(
+                MemoryImage(snapshot.data!),
+                width: 2048,
+                height: 2048,
+                policy: ResizeImagePolicy.fit,
+              ),
+              semanticLabel: widget.alt,
+              frameBuilder: (_, child, frame, _) =>
+                  frame == null ? _placeholder() : child,
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) => _placeholder(),
+            ),
+          ),
         ),
-        semanticLabel: widget.alt,
-        frameBuilder: (_, child, frame, _) =>
-            frame == null ? _placeholder() : child,
-        fit: BoxFit.contain,
-        errorBuilder: (_, _, _) => _placeholder(),
       );
     },
   );

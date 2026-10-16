@@ -32,7 +32,7 @@
 | M02 版本、USN、分页同步 | desktop-app/api/version.go、sync/pull.go、push.go | api/ApiUserController、ApiNoteController、ApiNotebookController、ApiTagController | background/NoteSyncService | lib/sync/sync_coordinator.dart；API2 | 部分；新笔记首次请求持久化及稳定版本回读已实现（schema v14），防止超时重试误确认后续编辑；上传前 USN 回退预检已实现；新建结果差异的手动核对及保留本地恢复已实现；带资源的正文冲突自动副本及远端删除后的本地恢复副本已实现；本地永久删除遭遇远端修改会取消删除、恢复最新版并提示用户重新决定；Android 后台笔记同步由 WorkManager 执行并与前台同步互斥；跨端及设备验收未完成 |
 | M03 笔记离线增改、自动保存 | desktop-app/db/note_repo.go、sync/push.go | /api2/client/note/add、update | ui/edit/NoteEditActivity | data/database/app_database.dart、ui/note_editor_page.dart；API2 | 核心已实现；本地保存/后台切换测试已覆盖，输入法与杀进程验收待做 |
 | M04 Markdown 工具及阅读 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/markdown_editing.dart、markdown_note_body.dart；同步 API2 | 基础工具、GFM 表格/任务列表及离线行内/块级数学公式已实现；表格/任务/分隔线/公式工具、一级至六级标题及恢复正文、引用/列表重复点击切换已实现；旧版实际启用的 Markdown Extra 定义列表、软换行、脚注、标题/代码属性列表已实现；原文不被预览改写 |
-| M05 富文本与表格 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/visual_html_editor.dart、safe_html_note_body.dart；同步 API2 | 部分；合并/拆分单元格及合并表格行列操作已实现；合并表格原生阅读布局已实现；常用颜色/高亮/字号/字体/对齐样式及原生阅读已实现；一级至六级标题及正文选择已实现；可视化图片缓存预览与在线/离线选区插入已实现，含新建笔记先创建安全正文再上传原件；高级布局样式及其它资源编辑未完；WebView 输入法/选区/撤销真机验证 |
+| M05 富文本与表格 | desktop-app/webapi/local.go、共享前端编辑器 | ApiNoteController 正文 | ui/edit/EditorFragment | ui/visual_html_editor.dart、safe_html_note_body.dart；同步 API2 | 旧移动端功能已迁移；加粗/斜体/标题/引用/列表/链接/图片均已覆盖，并扩展常用颜色、字号、对齐、表格合并拆分与行列操作；图片支持缓存预览、在线/离线选区插入和点击缩放查看。旧端不存在图片尺寸编辑或高级 CSS 布局工具，不再列为功能缺口；WebView 输入法/选区/撤销待设备验收 |
 | M06 笔记本树及离线操作 | desktop-app/db/notebook_repo.go、api/client_api.go | /api2/client/notebook/add、update | service/NotebookService | ui/notebook_dialog.dart、move_notebook_dialog.dart；API2 | 离线新建、重命名/移动、父级优先同步和创建结果不确定时的手动核实恢复已实现（schema v13）；已有笔记本远端修改的核对、保留本地/采用远端及父级一致性处理已实现；远端删除仍受 B01 合同限制 |
 | M07 笔记本删除 | desktop-app/api/client_api.go DeleteNotebook | api/ApiNotebookController.DeleteNotebook → service/NotebookService.DeleteNotebookForce | service/NotebookService | 暂未接入 | 服务端合同阻塞：子级/笔记处理及 USN 删除标记；仅提出需求 |
 | M08 移动、星标、回收站 | desktop-app/db/note_repo.go、sync/push.go | ApiNoteController.UpdateNote/DeleteTrash | service/NoteService | ui/note_reader_page.dart、workspace_page.dart；API2 | 核心已实现；trash_delete_test.dart、pending_sync_test.dart；跨客户端回收站回归待验证 |
@@ -428,3 +428,11 @@ Android 原生分享/拍照提示和桌面小组件使用同一选择，通过�
 兼容旧 Markdown Extra 对 ATX/Setext 标题和围栏代码的 `{#id .class}` 属性列表语法。只接受旧版允许的 ID 和类名字符，不解释 CSS、事件属性或其它 HTML 属性；代码正文中的字面属性文本保持不变。专项覆盖多级标题小节、脚注内引用链接、非法锚点、代码与普通段落边界以及属性注入拒绝。
 
 完整 Flutter 测试 **765 项通过、2 项条件测试默认跳过**，静态检查无问题，Android debug APK 构建通过。按用户要求未进行真机或模拟机测试。
+
+## M05 正文图片缩放查看与功能边界复核
+
+已按旧 Android `EditorFragment.onClickedImage` 核对富文本图片交互：旧端点击正文图片后打开图片查看页。本批为 Markdown、富文本安全阅读、编辑预览、共享和历史页共用的缓存图片组件增加全屏查看器，支持双指缩放和平移；只使用已经读取或明确下载到账号缓存的字节，不新增网络入口。关闭后回到原阅读位置，缺失或损坏图片仍显示原占位和手动下载操作。
+
+同时逐项核对旧富文本工具栏：加粗、斜体、H1–H6、正文、引用、有序/无序列表、链接插入/移除和图片插入均已迁移，Flutter 端还支持撤销重做、下划线、删除线、颜色、字号、对齐和表格操作。旧移动端没有图片尺寸编辑或高级 CSS 布局工具，因此移除这两个没有旧功能依据的迁移缺口；复杂 HTML 继续通过无损源码模式编辑。设备上的 WebView 输入法、选区和撤销行为仍按用户要求暂缓验证。
+
+正文缓存图片专项、完整 Flutter 测试 **765 项通过、2 项条件测试默认跳过**，静态检查无问题，Android debug APK 构建通过。按用户要求未进行真机或模拟机测试。
