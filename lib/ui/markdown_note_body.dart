@@ -7,6 +7,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'cached_markdown_image.dart';
 import 'note_link_dialog.dart';
 import 'markdown_math.dart';
+import 'markdown_definition_list.dart';
 import '../services/note_link_opener.dart';
 
 Future<void> copyNoteText(BuildContext context, String text) async {
@@ -44,7 +45,8 @@ class MarkdownNoteBody extends StatelessWidget {
   Widget build(BuildContext context) => Markdown(
     data: content,
     inlineSyntaxes: [MathInlineSyntax()],
-    blockSyntaxes: const [MathBlockSyntax()],
+    blockSyntaxes: const [MathBlockSyntax(), DefinitionListSyntax()],
+    softLineBreak: true,
     builders: {
       'gemsnote-math': MathElementBuilder(),
       'gemsnote-math-block': MathElementBuilder(block: true),
