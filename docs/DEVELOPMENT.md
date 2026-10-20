@@ -107,8 +107,11 @@ Podfile 和配置引用，`pod install` 成功，`open_filex` 通过 CocoaPods �
 DEVELOPER_DIR=/Volumes/LC128G/Applications/Xcode.app/Contents/Developer \
   bash scripts/with_xcode.sh ~/opt/flutter/bin/flutter pub get
 DEVELOPER_DIR=/Volumes/LC128G/Applications/Xcode.app/Contents/Developer \
-  bash scripts/with_xcode.sh ~/opt/flutter/bin/flutter build ios --simulator --debug --no-codesign
+  bash scripts/with_xcode.sh ~/opt/flutter/bin/flutter build ios --simulator --debug
 ```
+
+模拟器分享验收使用默认签名构建，不加 `--no-codesign`；无签名构建可用于编译检查，
+但本机实测无法访问 App Group，分享保存会明确报错。
 
 `pub get` 也必须使用同一 Xcode 环境，否则可能生成空的 Swift Package
 插件列表，而后续 `--no-pub` 构建只报告插件模块缺失。不要手工编辑
@@ -149,7 +152,7 @@ xcrun swiftc ios/Shared/SharedTextStore.swift ios/SharedTests/SharedTextStoreTes
 
 ```sh
 flutter pub get --enforce-lockfile
-flutter build ios --simulator --debug --no-codesign --no-pub
+flutter build ios --simulator --debug --no-pub
 ditto -c -k --keepParent build/ios/iphonesimulator/Runner.app build/gemsnote-ios-simulator.zip
 ```
 

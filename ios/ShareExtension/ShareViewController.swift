@@ -1,8 +1,10 @@
-import Social
 import UIKit
 import UniformTypeIdentifiers
 
-final class ShareViewController: SLComposeServiceViewController {
+final class ShareViewController: UIViewController {
+  private let textView = UITextView()
+  private var saveButton: UIBarButtonItem!
+  private var cancelButton: UIBarButtonItem!
   private let recordID = String(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased().prefix(24))
   private var ready = false
   private var saving = false
@@ -14,14 +16,44 @@ final class ShareViewController: SLComposeServiceViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    title = NativeLanguage.text("保存到 Gemsnote", "Save to Gemsnote")
-    placeholder = NativeLanguage.text("保存后，请打开 Gemsnote 选择账号和笔记本完成导入",
+    view.backgroundColor = .systemBackground
+    let bar = UINavigationBar()
+    let item = UINavigationItem(title: NativeLanguage.text("保存到 Gemsnote", "Save to Gemsnote"))
+    saveButton = UIBarButtonItem(title: NativeLanguage.text("保存", "Save"),
+      style: .done, target: self, action: #selector(didSelectPost))
+    cancelButton = UIBarButtonItem(title: NativeLanguage.text("取消", "Cancel"),
+      style: .plain, target: self, action: #selector(didSelectCancel))
+    item.rightBarButtonItem = saveButton
+    item.leftBarButtonItem = cancelButton
+    bar.items = [item]
+    let hint = UILabel()
+    hint.text = NativeLanguage.text("保存后，请打开 Gemsnote 选择账号和笔记本完成导入",
       "After saving, open Gemsnote and choose an account and notebook to import.")
-    navigationItem.rightBarButtonItem?.title = NativeLanguage.text("保存", "Save")
-    navigationItem.leftBarButtonItem?.title = NativeLanguage.text("取消", "Cancel")
-    navigationItem.prompt = NativeLanguage.text("保存后打开 Gemsnote 完成导入",
-      "Open Gemsnote after saving to finish importing")
+    hint.numberOfLines = 0
+    hint.font = .preferredFont(forTextStyle: .footnote)
+    hint.adjustsFontForContentSizeCategory = true
+    hint.textColor = .secondaryLabel
     textView.isEditable = false
+    textView.font = .preferredFont(forTextStyle: .body)
+    textView.adjustsFontForContentSizeCategory = true
+    for child in [bar, hint, textView] {
+      child.translatesAutoresizingMaskIntoConstraints = false
+      view.addSubview(child)
+    }
+    let safe = view.safeAreaLayoutGuide
+    NSLayoutConstraint.activate([
+      bar.topAnchor.constraint(equalTo: safe.topAnchor),
+      bar.leadingAnchor.constraint(equalTo: safe.leadingAnchor),
+      bar.trailingAnchor.constraint(equalTo: safe.trailingAnchor),
+      hint.topAnchor.constraint(equalTo: bar.bottomAnchor, constant: 12),
+      hint.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: 16),
+      hint.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -16),
+      textView.topAnchor.constraint(equalTo: hint.bottomAnchor, constant: 12),
+      textView.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: 12),
+      textView.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -12),
+      textView.bottomAnchor.constraint(equalTo: safe.bottomAnchor, constant: -12),
+    ])
+    validateContent()
     loadInput()
   }
 
@@ -33,17 +65,23 @@ final class ShareViewController: SLComposeServiceViewController {
     }
   }
 
-  override func didSelectCancel() {
+  @objc private func didSelectCancel() {
     guard !saving else { return }
     loadGeneration += 1
-    super.didSelectCancel()
+    extensionContext?.cancelRequest(withError: NSError(domain: NSCocoaErrorDomain, code: NSUserCancelledError))
   }
 
-  override func isContentValid() -> Bool {
+  private func validateContent() {
+    saveButton.isEnabled = isContentValid()
+    cancelButton.isEnabled = !saving
+    isModalInPresentation = saving
+  }
+
+  private func isContentValid() -> Bool {
     ready && !saving && !entries.isEmpty
   }
 
-  override func didSelectPost() {
+  @objc private func didSelectPost() {
     guard isContentValid() else { return }
     saving = true
     textView.isEditable = false
