@@ -14,6 +14,8 @@
 
 ## 当前现场（2026-10-20）
 
+- 上批 `350d600` 补强真实响应丢失证据。本批完成 iOS 主应用到 Share Extension 的显式语言跨进程验收：通过真实语言菜单英文→中文→英文，每轮终止并重启主应用后再打开独立来源应用的分享扩展，精确检查保存、取消和导入提示；专项 **1 项通过（63 秒）**，连同 Safari、混合资源及失败批次共 **4 项 UI 测试通过（122 秒）**。宿主确认原 App Group 语言偏好恢复，三次取消未新增记录，原有 PNG/bin/GIF 逐字节和文本正文验证仍通过，只清理本轮五条成功夹具及其来源文件。首次执行发现旧测试仅定位英文 Gemsnote，中文系统实际显示“珠玑笔记”，已修正正式中英文名称定位并重跑，未修改生产原生逻辑；失败的初次测试不计通过。最终普通 iOS Debug 模拟器构建通过（58.9 秒），含 `c30ecb6` API2 请求头修复。Shell/Ruby 语法及 diff 检查通过，本批测试/文档改动未重复全套 Flutter/Android 构建。UI 日志 `/private/tmp/gemsnote-ios-language-ui.log`，产物 `/var/folders/6h/jjvzsttd0ms0j80_cfqgvt8c0000gn/T/gemsnote-share-ui.vMo5GJ`，构建日志 `/private/tmp/gemsnote-api2-ios-build.log`。未验证系统语言变化、真机、后台长期唤醒；PostgreSQL 历史更新阻塞仍待服务端处理。下一步继续已登录设备生命周期及其他原生入口；发布仍暂缓。
+
 - 上批 `05449ce` 完成目录管理真实联调。补强创建响应丢失证据：在原客户端重试前，先由第二个独立 SQLite 客户端同步并确认远端已有同一 ID 和完整正文，再验证原客户端重试后不重复创建。全新临时 PostgreSQL 专项 **1 项通过**，日志 `/private/tmp/gemsnote-api2-loss-confirmed.log`，退出后临时服务自动停止。本批仅补断言和文档，不重复已有全套回归。
 
 - 上批 `c30ecb6` 修复 Cookie 会话请求头并建立真实 API2 测试。本批继续 M06/M07/M11 目录管理：全新 PostgreSQL 临时库专项 **1 项通过**，使用生产客户端、同步器和 SQLite 验证父子目录创建/重命名、含子目录删除拒绝（精确业务原因）、旧 USN 删除拒绝（conflict）、空子目录及父目录删除后通过正常增量同步移除；创建标签并分别用于活动笔记和回收站笔记，删除标签后收到 tombstone、两类笔记标签清空且 USN 前进，正文与回收站状态保留。最终静态分析无问题（3.8 秒），`git diff --check` 通过；仅测试和文档改动，未重复全套 Flutter/平台构建。真实 API2 当前累计三项已分别通过、一项历史更新失败；普通回归的联网条件跳过由三项增加为四项，不将它们算入已通过数量。最终日志 `/private/tmp/gemsnote-api2-catalog-final.log`，临时目录 `/private/tmp/gemsnote-api2-live.Bp4GIQ`，脚本已停止临时服务。服务端历史字段映射阻塞仍未修复；下一步继续其他不依赖历史更新的入口和生命周期验收。

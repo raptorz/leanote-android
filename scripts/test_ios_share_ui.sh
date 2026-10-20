@@ -22,14 +22,23 @@ if ! "$ruby_bin" -e 'require "xcodeproj"' >/dev/null 2>&1; then
     ruby_bin="$(brew --prefix ruby)/bin/ruby"
   fi
 fi
-"$ruby_bin" "$sources/create_project.rb" "$work_dir"
-
 xcrun simctl bootstatus "$device_id" -b
 xcrun simctl install "$device_id" "$mobile_root/build/ios/iphonesimulator/Runner.app"
 if ! group_dir="$(xcrun simctl get_app_container "$device_id" com.github.gemsnote group.com.github.gemsnote)"; then
   echo "Build the simulator app WITHOUT --no-codesign to enable App Group access." >&2
   exit 1
 fi
+GEMSNOTE_RESTORE_LANGUAGE="$(python3 - "$group_dir" <<'PY'
+import pathlib, plistlib, sys
+path = pathlib.Path(sys.argv[1]) / 'Library/Preferences/group.com.github.gemsnote.plist'
+value = plistlib.loads(path.read_bytes()).get('gemsnote.language', 'system') if path.exists() else 'system'
+if value not in ('system', 'zh', 'en'):
+    raise SystemExit('Invalid existing native language preference')
+print(value)
+PY
+)"
+export GEMSNOTE_RESTORE_LANGUAGE
+"$ruby_bin" "$sources/create_project.rb" "$work_dir"
 
 python3 -m http.server 8765 --bind 127.0.0.1 --directory "$sources/fixture" \
   > "$work_dir/fixture-server.log" 2>&1 &
@@ -52,6 +61,15 @@ if ! xcodebuild test -project "$work_dir/SharingUI.xcodeproj" -scheme SharingUIT
   echo "UI test artifacts: $work_dir" >&2
   exit 1
 fi
+
+python3 - "$group_dir" "$GEMSNOTE_RESTORE_LANGUAGE" <<'PY'
+import pathlib, plistlib, sys
+path = pathlib.Path(sys.argv[1]) / 'Library/Preferences/group.com.github.gemsnote.plist'
+value = plistlib.loads(path.read_bytes()).get('gemsnote.language', 'system') if path.exists() else 'system'
+if value != sys.argv[2]:
+    raise SystemExit('Language test did not restore the original native preference')
+print('PASS original native language preference restored')
+PY
 
 xcrun swiftc -swift-version 5 "$mobile_root/ios/Shared/SharedTextStore.swift" \
   "$sources/VerifyInbox.swift" -o "$work_dir/verify-inbox"

@@ -33,4 +33,10 @@ scheme.add_build_target(fixture)
 scheme.add_build_target(target)
 scheme.add_test_target(target)
 scheme.test_action.build_configuration = 'Debug'
+restore_language = ENV.fetch('GEMSNOTE_RESTORE_LANGUAGE', 'system')
+abort 'Invalid restore language' unless %w[system zh en].include?(restore_language)
+scheme.test_action.should_use_launch_scheme_args_env = false
+scheme.test_action.environment_variables = Xcodeproj::XCScheme::EnvironmentVariables.new([
+  { key: 'GEMSNOTE_RESTORE_LANGUAGE', value: restore_language, enabled: true }
+])
 scheme.save_as(project.path, 'SharingUITests')

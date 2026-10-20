@@ -3,6 +3,67 @@ import XCTest
 /// Runs against the installed debug app and the simulator's Safari.
 /// No login credentials or production account are required.
 final class SharingUITests: XCTestCase {
+  private func chooseLanguage(_ language: String, app: XCUIApplication) {
+    app.activate()
+    let menu = app.buttons.matching(NSPredicate(format:
+      "label IN {'应用语言', 'App language'}")).firstMatch
+    XCTAssertTrue(menu.waitForExistence(timeout: 20), app.debugDescription)
+    menu.tap()
+    let labels: [String: String] = [
+      "en": "label == 'English'",
+      "zh": "label IN {'简体中文', '简体中文 (Chinese)'}",
+      "system": "label IN {'跟随系统', 'Follow system'}",
+    ]
+    let option = app.descendants(matching: .any)
+      .matching(NSPredicate(format: labels[language]!)).firstMatch
+    XCTAssertTrue(option.waitForExistence(timeout: 10), app.debugDescription)
+    option.tap()
+    expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: option)
+    waitForExpectations(timeout: 10)
+  }
+
+  func testLanguageChangesReachShareExtension() throws {
+    continueAfterFailure = false
+    let original = ProcessInfo.processInfo.environment["GEMSNOTE_RESTORE_LANGUAGE"] ?? ""
+    XCTAssertTrue(["system", "zh", "en"].contains(original))
+    let app = XCUIApplication(bundleIdentifier: "com.github.gemsnote")
+    app.launch()
+    defer { chooseLanguage(original, app: app) }
+    let source = XCUIApplication(bundleIdentifier: "com.github.gemsnote.SharingFixture")
+    for language in ["en", "zh", "en"] {
+      chooseLanguage(language, app: app)
+      // Relaunch the main process, then open a separately hosted extension.
+      app.terminate()
+      app.launch()
+      let expectedMenu = language == "zh" ? "应用语言" : "App language"
+      XCTAssertTrue(app.buttons[expectedMenu].waitForExistence(timeout: 20))
+      let id = UUID().uuidString.lowercased()
+      print("SHARE_LANGUAGE_ID=\(id)")
+      source.launchArguments = ["-fixture-id", id, "-invalid-file", "NO"]
+      source.launch()
+      let share = source.buttons["Share image and file"]
+      XCTAssertTrue(share.waitForExistence(timeout: 20))
+      share.tap()
+      let gemsnote = source.staticTexts.matching(NSPredicate(format: "label IN {'Gemsnote', '珠玑笔记'}")).firstMatch
+      XCTAssertTrue(gemsnote.waitForExistence(timeout: 20), source.debugDescription)
+      gemsnote.tap()
+      let save = source.buttons[language == "zh" ? "保存" : "Save"]
+      let cancel = source.buttons[language == "zh" ? "取消" : "Cancel"]
+      XCTAssertTrue(save.waitForExistence(timeout: 20), source.debugDescription)
+      XCTAssertTrue(cancel.exists)
+      expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: save)
+      waitForExpectations(timeout: 20)
+      let hint = language == "zh"
+        ? "保存后，请打开 Gemsnote 选择账号和笔记本完成导入"
+        : "After saving, open Gemsnote and choose an account and notebook to import."
+      XCTAssertTrue(source.staticTexts[hint].exists, source.debugDescription)
+      cancel.tap()
+      expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: cancel)
+      waitForExpectations(timeout: 20)
+      source.terminate()
+    }
+  }
+
   func testImageAndFileBatch() throws {
     continueAfterFailure = false
     let id = UUID().uuidString.lowercased()
@@ -13,7 +74,7 @@ final class SharingUITests: XCTestCase {
     let share = source.buttons["Share image and file"]
     XCTAssertTrue(share.waitForExistence(timeout: 20))
     share.tap()
-    let gemsnote = source.staticTexts["Gemsnote"].firstMatch
+    let gemsnote = source.staticTexts.matching(NSPredicate(format: "label IN {'Gemsnote', '珠玑笔记'}")).firstMatch
     XCTAssertTrue(gemsnote.waitForExistence(timeout: 20), source.debugDescription)
     gemsnote.tap()
     let save = source.buttons.matching(NSPredicate(format: "label IN {'保存', 'Save'}")).firstMatch
@@ -42,7 +103,7 @@ final class SharingUITests: XCTestCase {
     let share = source.buttons["Share image and file"]
     XCTAssertTrue(share.waitForExistence(timeout: 20))
     share.tap()
-    let gemsnote = source.staticTexts["Gemsnote"].firstMatch
+    let gemsnote = source.staticTexts.matching(NSPredicate(format: "label IN {'Gemsnote', '珠玑笔记'}")).firstMatch
     XCTAssertTrue(gemsnote.waitForExistence(timeout: 20), source.debugDescription)
     gemsnote.tap()
     let alert = source.alerts.firstMatch
@@ -84,7 +145,7 @@ final class SharingUITests: XCTestCase {
     if !share.waitForExistence(timeout: 5) { more.tap() }
     XCTAssertTrue(share.waitForExistence(timeout: 10), safari.debugDescription)
     share.tap()
-    let gemsnote = safari.staticTexts["Gemsnote"].firstMatch
+    let gemsnote = safari.staticTexts.matching(NSPredicate(format: "label IN {'Gemsnote', '珠玑笔记'}")).firstMatch
     XCTAssertTrue(gemsnote.waitForExistence(timeout: 20), safari.debugDescription)
     gemsnote.tap()
     let cancel = safari.buttons.matching(NSPredicate(format: "label IN {'取消', 'Cancel'}")).firstMatch

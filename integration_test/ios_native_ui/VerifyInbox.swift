@@ -69,6 +69,23 @@ struct VerifyInbox {
     let invalidDirectory = URL(fileURLWithPath: CommandLine.arguments[3])
       .appendingPathComponent("tmp").appendingPathComponent(invalidID)
     let store = SharedTextStore(directory: directory)
+    let languageExpression = try NSRegularExpression(pattern: #"(?m)^SHARE_LANGUAGE_ID=([0-9a-f-]{36})$"#)
+    let languageMatches = languageExpression.matches(in: log, range: NSRange(log.startIndex..., in: log))
+    guard languageMatches.count == 3 else {
+      throw SharedTextStore.Failure("Missing three cross-process language checks")
+    }
+    for match in languageMatches {
+      guard let range = Range(match.range(at: 1), in: log) else {
+        throw SharedTextStore.Failure("Invalid language fixture ID")
+      }
+      let id = String(log[range])
+      guard !records.contains(where: { ($0.resourceName ?? "").contains(id) || $0.text.contains(id) }) else {
+        throw SharedTextStore.Failure("Cancelled language check persisted a record")
+      }
+      let files = URL(fileURLWithPath: CommandLine.arguments[3])
+        .appendingPathComponent("tmp").appendingPathComponent(id)
+      try FileManager.default.removeItem(at: files)
+    }
     for fixture in verified { try store.acknowledge(id: fixture.id) }
     try FileManager.default.removeItem(at: originalDirectory)
     try FileManager.default.removeItem(at: invalidDirectory)
