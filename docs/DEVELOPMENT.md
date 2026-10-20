@@ -369,6 +369,26 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
 不登录、不访问网络、不写账号数据库，不代表工作区导入落库、云文件 provider 或 iOS 验收。
 运行后需重新构建并覆盖安装普通 APK，避免设备留在集成测试入口。
 
+### iOS 系统文件选择器验证
+
+```sh
+DEVELOPER_DIR=/Volumes/LC128G/Applications/Xcode.app/Contents/Developer \
+  bash mobile-app/scripts/with_xcode.sh \
+  bash mobile-app/scripts/test_ios_file_picker.sh <已启动的模拟器 UUID>
+```
+
+脚本构建测试专用 Flutter 入口（仍调用生产 NoteExporter/NoteImporter），并创建独立
+PickerFiles 测试应用作为“我的 iPhone”中的本地文件夹。通过 XCUITest 操作真实文件面板，
+逐项保存并导入 Markdown、HTML、含二进制资源的 `.gemsnote`，验证正文、格式、元数据和
+附件原件；保存/导入取消也必须返回。按钮支持中英文，iOS 26 导出面板无取消按钮时通过
+下拉关闭手势验证取消回调。宿主读取三份导出文件再次核对正文和二进制字节，
+成功后仅删除本轮唯一命名产物，失败保留证据。项目文件及 DerivedData 均在临时目录。
+
+测试不访问账号、服务器或正常笔记数据库。iPhone 12 mini / iOS 26.3 模拟器已通过，
+不能外推为 iCloud、第三方文件 provider、iPad、真机或工作区落库验证。
+测试后须使用 `--target lib/main.dart` 重新构建普通模拟器应用并通过 `simctl install`
+覆盖安装；不要把测试入口作为正常应用或发布产物。
+
 图片预览通过 `ImageExporter` 复用系统文件保存能力和文件名清理逻辑，只保存已读取的
 图片字节，不再请求服务器。输出扩展名和 MIME 由 PNG/JPEG/GIF/WebP 文件头确定，
 不信任服务端文件名或类型；仍限制每张最多 8 MiB。该检查只识别格式，图片解码验证
