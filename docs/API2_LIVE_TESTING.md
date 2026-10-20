@@ -17,7 +17,8 @@ bash mobile-app/scripts/test_api2_postgres.sh
 `127.0.0.1:15438`（数据库）和 `127.0.0.1:19090`（API2）。
 任一端口被占用时提前失败，不连接已有数据库。
 
-测试仅使用该一次性环境的 `admin` / `gemsnote` 种子账号。
+测试使用该一次性环境的 `admin` / `gemsnote` 种子账号；共享测试通过管理员
+用户管理 API2 添加独立接收者，不使用公开注册。
 退出时停止脚本启动的服务端和数据库，保留临时目录中的日志和数据用于排查；
 确认不再需要后可删除脚本输出的那个目录。不会启动 brew 常驻服务。
 
@@ -33,6 +34,30 @@ bash mobile-app/scripts/test_api2_postgres.sh --plain-name 'real API2 two-client
 ```
 
 ## 用例边界
+
+### 共享复制的 JWT 鉴权阻塞（2026-10-20）
+
+运行 `bash mobile-app/scripts/test_api2_postgres.sh --plain-name 'real API2 shared note'`。
+测试已实际验证两个账号的共享正文读取、附件原件一致，以及接收者不能修改原文。
+随后 token-only `/api2/note/copySharedNote` 返回 **302 → /login**，用例保留失败，
+不会将此响应当作成功，也不增加移动端 Cookie 回退。
+复制后的所有权、附件独立 ID、副本编辑不影响原文、撤销共享后副本仍可用的
+断言已经编写，但尚未执行到，不能计为通过。
+
+服务端该路由仍指向 `Note.CopySharedNote`，控制器与拦截器从 Web Session
+读取用户身份；桌面端通过 `ensureSession()` 调用。修复需要真正的 JWT 鉴权入口，
+并保持目标笔记本归登录者所有、源共享可读和原文只读的校验。
+未获服务端修改授权，本批只修改移动端测试与文档。
+管理员 Cookie 夹具仅负责临时账号和共享授权，不作为移动端业务实现。
+
+用户明确要求 API2 统一 JWT。现有移动端 `_accountFormAction` 还用于用户名、
+邮箱、密码、头像、正文图片及附件上传；这些既有 Cookie 调用也应列入后续
+服务端和客户端联合整改，不能因路径以 `/api2/` 开头便宣称已统一 JWT。
+需要保留敏感操作必要的密码确认，但身份认证不应因此改回 Cookie。
+当前未直接删除这些功能或将其改到不存在的 token 接口。
+
+最终复现日志 `/private/tmp/gemsnote-api2-shared-live.log`，
+临时环境 `/private/tmp/gemsnote-api2-live.Zzrc1X`；进程由退出清理停止。
 
 - 目录管理使用真实增量同步：父子笔记本创建、子目录重命名、含子目录删除拒绝、
   过期 USN 删除拒绝、删除子目录及父目录后本地目录消失。标签删除同步 tombstone，

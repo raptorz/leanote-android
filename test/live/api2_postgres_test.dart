@@ -10,12 +10,17 @@ import 'package:gemsnote/sync/sync_coordinator.dart';
 import 'package:http/http.dart' as http;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
+import 'fixture_session.dart';
+
 /// Opt-in destructive test: use only a disposable, loopback server/database.
 /// No credentials or response bodies are written to test output.
 class _Api2OnlyClient extends http.BaseClient {
   final _inner = http.Client();
   final paths = <String>[];
   bool loseNextCreateResponse = false;
+  String? copyContentType;
+  int? copyStatus;
+  String? copyRedirectPath;
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
@@ -26,6 +31,11 @@ class _Api2OnlyClient extends http.BaseClient {
     }
     paths.add(request.url.path);
     final response = await _inner.send(request);
+    if (request.url.path == '/api2/note/copySharedNote') {
+      copyContentType = response.headers['content-type'];
+      copyStatus = response.statusCode;
+      copyRedirectPath = Uri.tryParse(response.headers['location'] ?? '')?.path;
+    }
     if (loseNextCreateResponse && request.url.path == '/api2/client/note/add') {
       loseNextCreateResponse = false;
       // The real server committed the request. Lose only its response, so the
@@ -47,6 +57,217 @@ void main() {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   });
+  test(
+    'real API2 shared note is read-only and an owned copy is independent',
+    () async {
+      final client = _Api2OnlyClient();
+      addTearDown(client.close);
+      final api = Api2Client(httpClient: client);
+      final server = Uri.parse('http://127.0.0.1:19090/');
+      final owner = await api.login(
+        server: server,
+        identity: 'admin',
+        password: 'gemsnote',
+      );
+      final admin = FixtureSession(client, server);
+      await admin.login('admin', 'gemsnote');
+      addTearDown(admin.close);
+      final run = DateTime.now().microsecondsSinceEpoch;
+      final recipientEmail = 'mobile-recipient-$run@example.test';
+      const password = 'temporary-fixture-password';
+      expect(
+        (await admin.request('/api2/web/adminRegister', {
+          'email': recipientEmail,
+          'pwd': password,
+        }))['Ok'],
+        isTrue,
+      );
+      final recipient = await api.login(
+        server: server,
+        identity: recipientEmail,
+        password: password,
+      );
+      final db = await AppDatabase.open(databasePath: inMemoryDatabasePath);
+      addTearDown(db.raw.close);
+      for (final account in [owner.account, recipient.account]) {
+        await db.replaceSnapshot(
+          account: account,
+          notebooks: [],
+          notes: [],
+          tags: [],
+          lastSyncUsn: 0,
+        );
+      }
+      final ownBook = await api.saveNotebook(
+        server: server,
+        token: owner.token,
+        title: 'Shared source $run',
+      );
+      final target = await api.saveNotebook(
+        server: server,
+        token: recipient.token,
+        title: 'Owned copies $run',
+      );
+      final draft = await db.createLocalNote(
+        account: owner.account,
+        notebookId: ownBook.notebookId,
+        isMarkdown: true,
+        title: 'Shared immutable source $run',
+        content: '# 原作者正文\n共享者只能复制 📝',
+      );
+      final sync = SyncCoordinator(api, db);
+      await sync.synchronize(account: owner.account, token: owner.token);
+      final bytes = Uint8List.fromList([0, 1, 127, 128, 255]);
+      final originalFile = await api.uploadAttachment(
+        server: server,
+        token: owner.token,
+        userId: owner.account.userId,
+        identity: 'admin',
+        password: 'gemsnote',
+        noteId: draft.noteId,
+        file: AttachmentUpload(name: 'shared-original.bin', bytes: bytes),
+      );
+      final grant = await admin.request('/api2/share/addShareNote', {
+        'noteId': draft.noteId,
+        'emails[0]': recipientEmail,
+        'perm': '1', // Legacy callers cannot turn a share into write access.
+      });
+      expect((grant[recipientEmail] as Map)['Ok'], isTrue);
+      final shared = (await api.sharedNotes(
+        server: server,
+        token: recipient.token,
+      )).singleWhere((item) => item.note.noteId == draft.noteId);
+      expect(
+        (await api.sharedContent(
+          server: server,
+          token: recipient.token,
+          shared: shared,
+        )).content,
+        draft.content,
+      );
+      final sharedFile = shared.files.singleWhere(
+        (f) => f.fileId == originalFile,
+      );
+      expect(
+        await api.sharedFile(
+          server: server,
+          token: recipient.token,
+          shared: shared,
+          file: sharedFile,
+        ),
+        bytes,
+      );
+      final original = await api.getConflictSnapshot(
+        server: server,
+        token: owner.token,
+        noteId: draft.noteId,
+      );
+      await expectLater(
+        api.updateNote(
+          server: server,
+          token: recipient.token,
+          note: original.note.copyWith(content: 'must not overwrite owner'),
+        ),
+        throwsA(isA<ApiException>()),
+      );
+      try {
+        await api.copySharedNote(
+          server: server,
+          token: recipient.token,
+          shared: shared,
+          notebookId: target.notebookId,
+        );
+      } finally {
+        expect(
+          client.copyStatus,
+          200,
+          reason: 'Token-only copy redirected to ${client.copyRedirectPath}',
+        );
+        expect(
+          client.copyContentType,
+          contains('application/json'),
+          reason: 'Token-only API2 copy must return JSON, not a login page',
+        );
+      }
+      await sync.synchronize(
+        account: recipient.account,
+        token: recipient.token,
+      );
+      final copied = (await db.notes(
+        recipient.account.cacheKey,
+        notebookId: target.notebookId,
+      )).single;
+      expect(copied.noteId, isNot(draft.noteId));
+      expect(copied.userId, recipient.account.userId);
+      expect(copied.content, draft.content);
+      final copiedFiles = await api.noteFiles(
+        server: server,
+        token: recipient.token,
+        noteId: copied.noteId,
+        userId: recipient.account.userId,
+      );
+      expect(copiedFiles.single.id, isNot(originalFile));
+      expect(
+        await api.noteAttachment(
+          server: server,
+          token: recipient.token,
+          noteId: copied.noteId,
+          userId: recipient.account.userId,
+          file: copiedFiles.single,
+        ),
+        bytes,
+      );
+      await db.saveEditedText(
+        recipient.account.cacheKey,
+        copied.noteId,
+        'My edited copy $run',
+        '# 修改自己的副本',
+      );
+      await sync.synchronize(
+        account: recipient.account,
+        token: recipient.token,
+      );
+      expect(
+        (await api.getConflictSnapshot(
+          server: server,
+          token: recipient.token,
+          noteId: copied.noteId,
+        )).note.content,
+        '# 修改自己的副本',
+      );
+      expect(
+        (await api.getConflictSnapshot(
+          server: server,
+          token: owner.token,
+          noteId: draft.noteId,
+        )).note.content,
+        draft.content,
+      );
+      await admin.revokeNote(draft.noteId, recipient.account.userId);
+      await expectLater(
+        api.sharedContent(
+          server: server,
+          token: recipient.token,
+          shared: shared,
+        ),
+        throwsA(isA<ApiException>()),
+      );
+      expect(
+        (await api.getConflictSnapshot(
+          server: server,
+          token: recipient.token,
+          noteId: copied.noteId,
+        )).note.content,
+        '# 修改自己的副本',
+      );
+      await api.logout(server: server, token: recipient.token);
+      await api.logout(server: server, token: owner.token);
+    },
+    skip: enabled
+        ? false
+        : 'Requires an explicitly disposable local API2 server',
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
   test(
     'real API2 notebook and tag deletion converge through incremental sync',
     () async {
@@ -290,8 +511,10 @@ void main() {
           // Verify the remote commit from an independent cache before retrying.
           await secondSync.synchronize(account: account, token: token);
           expect(
-            (await secondDb.searchableNote(account.cacheKey, draft.noteId))
-                ?.content,
+            (await secondDb.searchableNote(
+              account.cacheKey,
+              draft.noteId,
+            ))?.content,
             draft.content,
           );
         }
