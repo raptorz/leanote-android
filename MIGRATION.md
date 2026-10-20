@@ -14,6 +14,10 @@
 
 ## 当前现场（2026-10-20）
 
+- 本批 Android 对外分享收尾：静态分析通过（3.6 秒），普通 APK 构建通过（10.5 秒）、覆盖安装及实际冷启动成功，随后正常关闭一次性模拟器。日志 `/private/tmp/gemsnote-outbound-{analyze,restore-build}.log`。仅测试/夹具改动，不重复此前 787 项全套及 iOS 构建。下一步验证 iOS 对外分享；现有服务端联合整改不变。
+
+- 上批 `b07d10a` 完成 iOS 本地文件面板验证。本批 M22/M16 Android 对外分享使用生产 NoteSharer/AttachmentSharer、真实系统分享面板和独立本地接收 Activity，专项 **1 项通过（18 秒）**。精确核对 Markdown/HTML 标题与正文、两种附件的原始字节（含空文件）、安全文件名、MIME、content URI 及临时读取授权；取消后只存在四条接收记录。没有网络/真实账号或外部服务消息。初轮仅因系统面板折叠未找到接收目标失败，补上滑展开后通过，不属于生产分享缺陷。成功后测试夹具已卸载，宿主证据 `/private/tmp/gemsnote-outbound-share-expanded.log` 及 `/var/folders/6h/jjvzsttd0ms0j80_cfqgvt8c0000gn/T/gemsnote-outbound-share-_1egoe6g/received.jsonl`。本批仅测试、夹具和文档变更；阅读页/附件下载到分享的完整工作区流程、iOS 对外分享、其他接收应用和真机仍待验证。
+
 - 本批 iOS 文件面板验收收尾：普通 `lib/main.dart` 模拟器应用重新构建通过（16.9 秒）、覆盖安装并实际启动成功（PID 3127），随后正常关闭模拟器释放内存。日志 `/private/tmp/gemsnote-ios-picker-restore.log`。仅测试/脚本/文档变动，不重复上一批已通过的 787 项 Flutter 全套和 Android 构建。
 
 - 上批 `f838787` 修复 Android 归档选择。本批补 M22 iOS 真实文件面板验证：测试专用 Flutter 界面调用生产导入导出服务，独立 PickerFiles 测试应用提供本地 Files 目录；iPhone 12 mini / iOS 26.3 **1 项 UI 测试通过（60 秒，入口构建 20.2 秒）**，Markdown/HTML/含二进制资源归档往返校验正文、格式、标签/星标及原件，导出下拉关闭和导入取消均返回，宿主逐字节核对三份导出产物并仅清理本轮文件。iOS `.gemsnote` 在现有过滤下可选，不跟随 Android 改为任意文件；本批没有生产改动。前两轮失败分别是夹具缺少实际文件共享 plist 键/按钮语言，以及 iOS 26 导出面板没有 Cancel 按钮；已修正夹具和实际手势，不能计为应用缺陷。静态分析无问题（3.6 秒），Shell/Ruby 语法通过。最终日志 `/private/tmp/gemsnote-ios-picker-final.log`、证据 `/var/folders/6h/jjvzsttd0ms0j80_cfqgvt8c0000gn/T/gemsnote-picker-ios.QxELc9`。不代表 iCloud/第三方 provider、iPad、真机或工作区落库验收；服务端联合修复和发布暂缓不变。

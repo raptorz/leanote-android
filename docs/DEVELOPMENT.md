@@ -504,6 +504,30 @@ flutter test test/data/default_editor_test.dart test/default_editor_test.dart
 
 ## 附件系统分享
 
+### Android 实际接收验证
+
+使用已有 SDK 和一次性、英文系统的已启动模拟器：
+
+```sh
+fixture_apk="$(bash mobile-app/scripts/build_android_share_fixture.sh)"
+JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+  python3 mobile-app/scripts/test_android_outbound_share.py emulator-5554 "$fixture_apk"
+```
+
+测试调用生产 NoteSharer/AttachmentSharer，通过真实 Android 分享面板选择
+`Gemsnote test receiver`，不发送给外部服务。接收 Activity 无存储和网络权限，
+实际使用临时 URI 授权读取附件，并将结果写在自己的私有目录。
+宿主核对 Markdown/HTML 标题和完整原文、分享 MIME、清理后的文件名、
+`content://` 读取授权、二进制及空附件字节；取消后必须仍只有四条接收记录。
+面板目标折叠时脚本上滑展开。成功后卸载临时夹具并清理自己的 UI 快照，
+保留宿主接收证据；失败保留夹具用于诊断。
+
+Android 35 模拟器已通过；这不代表邮件/聊天软件的交付结果，也不代表阅读页、
+附件下载到分享的完整流程或 iOS 分享验收。运行后需构建并覆盖安装普通
+`lib/main.dart` APK，避免设备停留在集成测试入口。
+
+### 业务调用与临时文件
+
 个人笔记文件页的“分享附件”通过现有 share_plus 调用系统分享菜单。
 NoteFilesPage 先调用 noteAttachment，遵守联网校验与显式 cachedOnly 模式，
 不在联网失败后自动回退缓存；下载结束后检查页面仍在，再取当前页面位置用于 iPad 弹窗。

@@ -9,7 +9,8 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/gemsnote-share-fixture.XXXXXX")"
 mkdir "$work/classes" "$work/dex"
 source_dir="$mobile_root/integration_test/android_share_fixture"
 "$java_root/bin/javac" --release 17 -encoding UTF-8 -classpath "$android_jar" \
-  -d "$work/classes" "$source_dir/SharingActivity.java" "$source_dir/FixtureProvider.java"
+  -d "$work/classes" "$source_dir/SharingActivity.java" "$source_dir/FixtureProvider.java" \
+  "$source_dir/ReceivingActivity.java"
 JAVA_HOME="$java_root" "$tools/d8" --lib "$android_jar" --min-api 26 \
   --output "$work/dex" "$work/classes/com/github/gemsnote/sharefixture/"*.class
 "$tools/aapt2" link -I "$android_jar" --manifest "$source_dir/AndroidManifest.xml" -o "$work/unsigned.apk"

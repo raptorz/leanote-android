@@ -4,6 +4,14 @@
     <application android:label="Gemsnote sharing fixture" android:debuggable="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity android:name=".SharingActivity" android:exported="true" />
+        <activity android:name=".ReceivingActivity" android:exported="true"
+            android:label="Gemsnote test receiver">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+        </activity>
         <provider android:name=".FixtureProvider"
             android:authorities="com.github.gemsnote.sharefixture.files"
             android:exported="false" android:grantUriPermissions="true" />
