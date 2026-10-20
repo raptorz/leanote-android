@@ -185,6 +185,14 @@ final class ShareViewController: UIViewController {
         defer { if accessed { url.stopAccessingSecurityScopedResource() } }
         do {
           if let error { throw error }
+          if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) ||
+            ["txt", "md", "markdown"].contains(url.pathExtension.lowercased()) {
+            let text = try readSharedText(url)
+            DispatchQueue.main.async {
+              self?.append(text: text, providers: providers, index: index, generation: generation)
+            }
+            return
+          }
           let bytes = try readSharedResource(url, remainingBytes: remainingBytes)
           let name = url.lastPathComponent
           let kind = sharedResourceKind(bytes)
@@ -205,10 +213,14 @@ final class ShareViewController: UIViewController {
           let host = url.host, !host.isEmpty {
           text = url.absoluteString
         }
-      } else if let string = value as? String {
-        text = string
-      } else if let data = value as? Data, data.count <= 256 * 1024 {
-        text = String(data: data, encoding: .utf8)
+      } else if let value {
+        do {
+          text = try readSharedText(value)
+        } catch {
+          let message = error.localizedDescription
+          DispatchQueue.main.async { self?.fail(message, generation: generation) }
+          return
+        }
       }
       let loaded = text
       DispatchQueue.main.async {

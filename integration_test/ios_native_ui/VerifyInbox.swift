@@ -50,6 +50,13 @@ struct VerifyInbox {
       }
       verified.append(resource)
     }
+    let expectedText = "Shared text file \(batchID)\n正文"
+    let textMatches = records.filter { $0.text == expectedText }
+    guard textMatches.count == 1, let textRecord = textMatches.first,
+      textRecord.accountKey.isEmpty, textRecord.resourceKind == nil else {
+      throw SharedTextStore.Failure("Text file must be imported as complete text, not an attachment")
+    }
+    verified.append(textRecord)
     let invalidExpression = try NSRegularExpression(pattern: #"(?m)^SHARE_INVALID_ID=([0-9a-f-]{36})$"#)
     guard let invalidMatch = invalidExpression.firstMatch(in: log, range: NSRange(log.startIndex..., in: log)),
       let invalidRange = Range(invalidMatch.range(at: 1), in: log) else {
@@ -65,6 +72,6 @@ struct VerifyInbox {
     for fixture in verified { try store.acknowledge(id: fixture.id) }
     try FileManager.default.removeItem(at: originalDirectory)
     try FileManager.default.removeItem(at: invalidDirectory)
-    print("PASS URL, PNG, binary and GIF originals persisted; invalid batch absent; removed only four fixture records")
+    print("PASS URL and text file decoded, PNG/binary/GIF originals preserved; invalid batch absent; removed only five fixture records")
   }
 }

@@ -48,7 +48,9 @@ final class FixtureController: UIViewController {
       let gifURL = directory.appendingPathComponent("gemsnote-\(id).gif")
       let gif = Data(base64Encoded: "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")!
       try gif.write(to: gifURL)
-      let urls = invalid ? [imageURL, fileURL] : [imageURL, fileURL, gifURL]
+      let textURL = directory.appendingPathComponent("gemsnote-\(id).txt")
+      try Data("Shared text file \(id)\n正文".utf8).write(to: textURL)
+      let urls = invalid ? [imageURL, fileURL] : [imageURL, fileURL, gifURL, textURL]
       let sheet = UIActivityViewController(activityItems: urls, applicationActivities: nil)
       sheet.popoverPresentationController?.sourceView = sender
       sheet.popoverPresentationController?.sourceRect = sender.bounds

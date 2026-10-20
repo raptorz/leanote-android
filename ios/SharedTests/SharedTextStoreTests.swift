@@ -103,6 +103,24 @@ struct SharedTextStoreTests {
       _ = try readSharedResource(fifo, remainingBytes: 1024)
     }
     print("PASS bounded provider reads and remaining batch capacity")
+    let plainFile = root.appendingPathComponent("shared.txt")
+    let plain = "\u{FEFF}正文\nsecond line"
+    try Data(plain.utf8).write(to: plainFile)
+    for value: Any in [plain, Data(plain.utf8), plainFile] {
+      try check(readSharedText(value) == "正文\nsecond line", "text representation preserves body and removes UTF-8 BOM")
+    }
+    let exactText = String(repeating: "a", count: 256 * 1024)
+    try Data(exactText.utf8).write(to: plainFile)
+    try check(readSharedText(plainFile) == exactText, "text file exact byte limit")
+    try Data((exactText + "b").utf8).write(to: plainFile)
+    try rejects("text file byte limit") { _ = try readSharedText(plainFile) }
+    try rejects("in-memory text byte limit") { _ = try readSharedText(exactText + "b") }
+    try rejects("text URL must be local") { _ = try readSharedText(URL(string: "https://example.invalid/text")!) }
+    for value: Any in [Data([0xff, 0xfe]), "\u{FEFF} \n", "a\0b", 12] {
+      try rejects("invalid text representation") { _ = try readSharedText(value) }
+    }
+    print("PASS strict text String/Data/file representations and UTF-8 byte limits")
+
     let directory = root.appendingPathComponent("basic")
     let store = SharedTextStore(directory: directory)
     try check(store.peek() == nil, "empty inbox")

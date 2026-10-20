@@ -97,6 +97,40 @@ func readSharedResource(_ url: URL, remainingBytes: Int) throws -> Data {
   return bytes
 }
 
+/// NSItemProvider may return a temporary file URL even for plain text.
+/// Read it while the provider callback is alive, never treating a remote URL as a file.
+func readSharedText(_ value: Any) throws -> String {
+  let bytes: Data
+  if let url = value as? URL {
+    guard url.isFileURL else { throw SharedTextStore.Failure("无法读取分享文件") }
+    let accessed = url.startAccessingSecurityScopedResource()
+    defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+    do {
+      bytes = try readSharedResource(url, remainingBytes: 256 * 1024)
+    } catch {
+      throw SharedTextStore.Failure("分享文本无效或超过 256 KiB")
+    }
+  } else if let data = value as? Data {
+    bytes = data
+  } else if let string = value as? String {
+    guard string.utf8.count <= 256 * 1024 else {
+      throw SharedTextStore.Failure("分享文本无效或超过 256 KiB")
+    }
+    bytes = Data(string.utf8)
+  } else {
+    throw SharedTextStore.Failure("无法读取此分享类型")
+  }
+  guard bytes.count <= 256 * 1024, var text = String(data: bytes, encoding: .utf8) else {
+    throw SharedTextStore.Failure("分享文本无效或超过 256 KiB")
+  }
+  if text.hasPrefix("\u{FEFF}") { text.removeFirst() }
+  let blanks = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "\u{FEFF}"))
+  guard !text.trimmingCharacters(in: blanks).isEmpty, !text.contains("\0") else {
+    throw SharedTextStore.Failure("分享文本无效或超过 256 KiB")
+  }
+  return text
+}
+
 /// Match Flutter's inline-image formats. Preserve other originals (including
 /// HEIC/GIF/PDF) as attachments instead of creating an unimportable image item.
 func sharedResourceKind(_ bytes: Data) -> String {
