@@ -47,6 +47,178 @@ void main() {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   });
+  test(
+    'real API2 notebook and tag deletion converge through incremental sync',
+    () async {
+      final client = _Api2OnlyClient();
+      addTearDown(client.close);
+      final api = Api2Client(httpClient: client);
+      final server = Uri.parse('http://127.0.0.1:19090/');
+      final login = await api.login(
+        server: server,
+        identity: 'admin',
+        password: 'gemsnote',
+      );
+      final account = login.account;
+      final token = login.token;
+      final db = await AppDatabase.open(databasePath: inMemoryDatabasePath);
+      addTearDown(db.raw.close);
+      await db.replaceSnapshot(
+        account: account,
+        notebooks: [],
+        notes: [],
+        tags: [],
+        lastSyncUsn: 0,
+      );
+      final sync = SyncCoordinator(api, db);
+      final run = DateTime.now().microsecondsSinceEpoch;
+      final parent = await api.saveNotebook(
+        server: server,
+        token: token,
+        title: 'Parent $run',
+      );
+      final child = await api.saveNotebook(
+        server: server,
+        token: token,
+        title: 'Child $run',
+        parentNotebookId: parent.notebookId,
+      );
+      final renamed = await api.saveNotebook(
+        server: server,
+        token: token,
+        title: '重命名 $run',
+        existing: child,
+      );
+      expect(renamed.parentNotebookId, parent.notebookId);
+      await sync.synchronize(account: account, token: token);
+      expect(
+        (await db.notebooks(account.cacheKey))
+            .singleWhere((book) => book.notebookId == child.notebookId)
+            .title,
+        renamed.title,
+      );
+      await expectLater(
+        api.deleteNotebook(server: server, token: token, notebook: parent),
+        throwsA(
+          isA<ApiException>().having(
+            (error) => error.code,
+            'reason',
+            '笔记本下有子笔记本',
+          ),
+        ),
+      );
+      await expectLater(
+        api.deleteNotebook(server: server, token: token, notebook: child),
+        throwsA(
+          isA<ApiException>().having(
+            (error) => error.code,
+            'reason',
+            'conflict',
+          ),
+        ),
+      );
+      await api.deleteNotebook(server: server, token: token, notebook: renamed);
+      await sync.synchronize(account: account, token: token);
+      expect(
+        (await db.notebooks(account.cacheKey)).map((book) => book.notebookId),
+        isNot(contains(child.notebookId)),
+      );
+      final currentParent = (await db.notebooks(account.cacheKey))
+          .singleWhere((book) => book.notebookId == parent.notebookId);
+      await api.deleteNotebook(
+        server: server,
+        token: token,
+        notebook: currentParent,
+      );
+      await sync.synchronize(account: account, token: token);
+      expect(
+        (await db.notebooks(account.cacheKey)).map((book) => book.notebookId),
+        isNot(contains(parent.notebookId)),
+      );
+
+      final tag = '临时标签 $run';
+      final createdUsn = await api.createTag(
+        server: server,
+        token: token,
+        userId: account.userId,
+        name: tag,
+      );
+      final taggedBook = await api.saveNotebook(
+        server: server,
+        token: token,
+        title: 'Tag references $run',
+      );
+      await sync.synchronize(account: account, token: token);
+      final taggedIds = <bool, String>{};
+      for (final trash in [false, true]) {
+        final note = await db.createLocalNote(
+          account: account,
+          notebookId: taggedBook.notebookId,
+          isMarkdown: true,
+          title: 'Tagged $trash $run',
+          content: 'Keep body $trash',
+        );
+        taggedIds[trash] = note.noteId;
+        await db.saveLocalNote(
+          account.cacheKey,
+          note.copyWith(tags: [tag], isTrash: trash),
+        );
+      }
+      await sync.synchronize(account: account, token: token);
+      for (final trash in [false, true]) {
+        final note = (await db.notes(
+          account.cacheKey,
+          trashOnly: trash,
+        )).singleWhere((note) => note.noteId == taggedIds[trash]);
+        expect(note.tags, [tag]);
+      }
+      expect(
+        await db.tagCounts(account.cacheKey, includeUnused: true),
+        contains(tag),
+      );
+      final checkpoint = await db.lastSyncUsn(account.cacheKey);
+      final deletedUsn = await api.deleteTag(
+        server: server,
+        token: token,
+        name: tag,
+        usn: createdUsn,
+      );
+      expect(deletedUsn, greaterThan(checkpoint));
+      final changes = await api.getTags(
+        server: server,
+        token: token,
+        afterUsn: checkpoint,
+      );
+      expect(
+        changes.singleWhere((item) => item['Tag'] == tag)['IsDeleted'],
+        isTrue,
+      );
+      await sync.synchronize(account: account, token: token);
+      expect(
+        await db.tagCounts(account.cacheKey, includeUnused: true),
+        isNot(contains(tag)),
+      );
+      for (final trash in [false, true]) {
+        final note = (await db.notes(
+          account.cacheKey,
+          trashOnly: trash,
+        )).singleWhere((note) => note.noteId == taggedIds[trash]);
+        expect(note.tags, isEmpty);
+        expect(note.content, 'Keep body $trash');
+        expect(note.isTrash, trash);
+        expect(note.usn, greaterThan(checkpoint));
+      }
+      expect(
+        await db.lastSyncUsn(account.cacheKey),
+        greaterThanOrEqualTo(deletedUsn),
+      );
+      await api.logout(server: server, token: token);
+    },
+    skip: enabled
+        ? false
+        : 'Requires an explicitly disposable local API2 server',
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
   for (final scenario in ['upload', 'lostResponse', 'history']) {
     final restore = scenario == 'history';
     test(

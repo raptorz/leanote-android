@@ -34,6 +34,10 @@ bash mobile-app/scripts/test_api2_postgres.sh --plain-name 'real API2 two-client
 
 ## 用例边界
 
+- 目录管理使用真实增量同步：父子笔记本创建、子目录重命名、含子目录删除拒绝、
+  过期 USN 删除拒绝、删除子目录及父目录后本地目录消失。标签删除同步 tombstone，
+  同时清除活动笔记和回收站笔记中的引用，保留正文和回收站状态，USN 前进。
+  复现：为脚本追加 `--plain-name 'real API2 notebook and tag deletion'`。
 - 使用生产 `Api2Client`、`SyncCoordinator` 和两个独立 SQLite 库验证离线创建、
   服务端上传及另一客户端增量拉取，包含中文、emoji 和 Markdown 格式。
 - 通过真实 Cookie 会话上传二进制附件，再经 API2 下载并逐字节核对。
@@ -43,6 +47,10 @@ bash mobile-app/scripts/test_api2_postgres.sh --plain-name 'real API2 two-client
 - 后续编辑和完整历史恢复用例继续检查旧 USN 拒绝、历史正文与附件恢复。
   服务端失败时保持测试失败，不跳过内部断言或把失败算为客户端验收。
 - 宿主进程联调，不代表模拟器 UI、系统后台或真机验收。
+
+当前四项用例中，目录管理、双客户端同步/附件、创建响应丢失恢复三项已分别
+在全新 PostgreSQL 库中通过；后续编辑/历史恢复一项仍受下面的服务端问题阻塞。
+普通回归默认跳过四项，连同原有浏览器与性能专项共六个条件跳过项。
 
 ## 2026-10-20 发现的问题
 

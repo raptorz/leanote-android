@@ -52,7 +52,7 @@ flutter build ios
 运行 `bash mobile-app/scripts/test_api2_postgres.sh`（从项目根目录）。
 脚本使用已有 PostgreSQL/Go/Flutter，在临时服务端副本和独立数据库中运行，
 退出后停止临时进程，不安装软件或修改服务端仓库。
-普通 Flutter 回归默认跳过这三项联网测试。
+普通 Flutter 回归默认跳过这四项联网测试。
 环境参数、通过范围及 PostgreSQL 历史更新阻塞见
 [API2_LIVE_TESTING.md](API2_LIVE_TESTING.md)。
 
