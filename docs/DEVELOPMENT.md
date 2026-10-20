@@ -58,6 +58,8 @@ PendingIntent。先在**专用、已退出账号的模拟器**安装普通 debug
 
 ```sh
 python3 scripts/test_android_home_widget.py emulator-5554
+# 连接生产工作区、真实 SQLite 及离线保存：
+python3 scripts/test_android_home_widget.py emulator-5554 --workspace
 ```
 
 脚本允许通过 `ADB`、`FLUTTER_BIN` 覆盖工具路径。若终端 JAVA_HOME 失效，
@@ -70,7 +72,8 @@ python3 scripts/test_android_home_widget.py emulator-5554
 日志和逐阶段桌面 XML 保存在输出的临时目录。使用 `--no-uninstall` 保留安装和
 桌面绑定；成功或 Dart 断言失败时 finally 清除虚拟标题并关闭两个测试账号的显示。
 若运行器被强制终止，不能保证 finally 执行。测试会留下两个关闭状态的虚拟偏好，
-不写笔记数据库。结束后安装普通入口恢复后续使用：
+默认模式不写笔记数据库，工作区模式只写自己的临时数据库。
+结束后安装普通入口恢复后续使用：
 
 ```sh
 flutter build apk --debug --no-pub
@@ -78,8 +81,25 @@ adb -s emulator-5554 install -r build/app/outputs/flutter-apk/app-debug.apk
 adb -s emulator-5554 shell am start -n com.github.gemsnote/.MainActivity
 ```
 
-此专项验证原生桌面行为，不代表 Flutter 工作区完整笔记导航、真实账号登录/同步、
+默认模式验证原生桌面行为，不代表 Flutter 工作区完整笔记导航、真实账号登录/同步、
 系统回收或其他启动器均已验收。
+
+`--workspace` 使用独立临时 SQLite 和生产 HomeWidgetController/WorkspacePage，
+不读取用户笔记库，拒绝全部 HTTP 请求。宿主点击现有笔记后核对阅读页正文，
+在阅读页仍打开时点击新建，确认返回工作区后才弹出笔记本选择；随后选择笔记本、
+编辑标题/正文、保存，桌面点击新标题并核对新正文，最后重开 SQLite 验证持久化。
+此模式不处理分享收件箱，结束时清理自己的数据库和小组件标题。
+
+Android 小组件 Intent 的 URI 用于区分 PendingIntent，导航由原生通道和工作区处理。
+Activity 设置 `flutter_deeplinking_enabled=false`，防止默认 Flutter 深链处理器
+把该 URI 再次推为命名路由，触发找不到路由异常。配置依据见
+[Flutter 默认深链处理说明](https://docs.flutter.dev/release/breaking-changes/deep-links-flag-change)。
+
+生命周期检查要区分后台进程终止与用户强制停止：Android 15 的强制停止会取消
+PendingIntent 并禁用小组件，直到用户重新启动应用。因此 `am force-stop` 后的小组件
+点击不能作为普通进程回收的等价验证；见
+[Android 15 停止状态变更](https://developer.android.com/about/versions/15/behavior-changes-all?hl=en)。
+已在专用模拟器确认普通应用后台进程终止后，单次标题点击能以新进程进入登录页。
 
 ### CI
 

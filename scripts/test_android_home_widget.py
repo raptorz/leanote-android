@@ -17,9 +17,14 @@ import xml.etree.ElementTree as ET
 
 
 def main():
-    if len(sys.argv) != 2 or not sys.argv[1].startswith("emulator-"):
-        raise SystemExit("Usage: test_android_home_widget.py emulator-5554")
+    if (
+        len(sys.argv) not in (2, 3)
+        or not sys.argv[1].startswith("emulator-")
+        or (len(sys.argv) == 3 and sys.argv[2] != "--workspace")
+    ):
+        raise SystemExit("Usage: test_android_home_widget.py emulator-5554 [--workspace]")
     device = sys.argv[1]
+    workspace = len(sys.argv) == 3
     root = Path(__file__).resolve().parents[1]
     adb_path = os.environ.get(
         "ADB", str(Path.home() / "Library/Android/sdk/platform-tools/adb")
@@ -54,6 +59,12 @@ def main():
     adb("shell", "input", "keyevent", "KEYCODE_HOME")
     if not any(
         n.get("resource-id") == "com.github.gemsnote:id/widget_title"
+        or (
+            n.get("class", "").endswith("AppWidgetHostView")
+            and n.get("content-desc") in (
+                "Gemsnote recent notes", "珠玑笔记最近笔记"
+            )
+        )
         for n in dump("preflight")
     ):
         raise RuntimeError("Add a Gemsnote widget on the current home screen first")
@@ -68,9 +79,19 @@ def main():
         "restored-a": ("widget_row", "Widget fixture A restored", "widget_row"),
         "logout": ("widget_empty", None, "widget_title"),
     }
+    if workspace:
+        expectations = {
+            "workspace-open": ("widget_row", "Widget workspace source", "widget_row"),
+            "workspace-defer": ("widget_row", "Widget workspace source", "widget_create"),
+            "workspace-saved": ("widget_row", "Widget created locally", "widget_row"),
+        }
+    target = (
+        "android_widget_workspace_test.dart"
+        if workspace else "android_home_widget_test.dart"
+    )
     seen = []
     command = [
-        flutter, "test", "integration_test/android_home_widget_test.dart",
+        flutter, "test", f"integration_test/{target}",
         "-d", device, "--no-pub", "--no-uninstall", "--reporter", "expanded",
         f"--dart-define=WIDGET_TEST_RUN={run}",
     ]
@@ -109,9 +130,22 @@ def main():
                         if n.get("resource-id") == "com.github.gemsnote:id/widget_row"
                     ]
                     # No stale/foreign titles may remain alongside the current row.
-                    ready = ready and rows == (
+                    expected_rows = (
                         [] if expected_id == "widget_empty" else [expected_text]
                     )
+                    if stage == "workspace-saved":
+                        expected_rows.append("Widget workspace source")
+                    ready = ready and rows == expected_rows
+                    if click_id == "widget_row":
+                        target_row = next((
+                            n for n in nodes
+                            if n.get("resource-id") == "com.github.gemsnote:id/widget_row"
+                            and n.get("text") == expected_text
+                        ), None)
+                        # A collection can have multiple rows with the same resource ID.
+                        if target_row is not None:
+                            widgets[click_id] = target_row
+                            ready = rows == expected_rows
                     if ready and click_id in widgets:
                         break
                     if time.monotonic() >= deadline:
@@ -143,7 +177,7 @@ def main():
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait()
-    print("PASS: eight launcher stages and native action assertions.")
+    print(f"PASS: {len(expectations)} launcher stages and device assertions.")
     print("Rebuild/install the ordinary lib/main.dart debug APK before further app tests.")
 
 
