@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/data/database/app_database.dart';
 import 'package:gemsnote/data/session/session_store.dart';
@@ -13,6 +15,21 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  if (Platform.isIOS) {
+    testWidgets('iOS native inbox can access its App Group container', (
+      tester,
+    ) async {
+      // Exercise the real channel and signed container access without claiming
+      // or deleting an existing user share.
+      const channel = MethodChannel('gemsnote/shared_text');
+      final record = await channel.invokeMapMethod<String, dynamic>('peek');
+      if (record != null) {
+        expect(record['id'], isA<String>());
+        expect(record['text'], isA<String>());
+      }
+    });
+  }
 
   testWidgets('native database and secure storage survive reopen', (
     tester,
@@ -92,6 +109,9 @@ void main() {
     );
     await controller.loadHtmlString(visualEditorDocument(original));
     await loaded.future.timeout(const Duration(seconds: 90));
+    // The page can finish loading before Flutter attaches the native view.
+    // Complete that frame before exercising the platform's editing lifecycle.
+    await tester.pumpAndSettle();
     expect(
       await controller.runJavaScriptReturningResult(
         'window.readContent() === "$original"',
@@ -114,11 +134,15 @@ void main() {
       true,
     );
     await controller.runJavaScript("window.format('undo')");
+    final afterUndo = await controller.runJavaScriptReturningResult(
+      'window.readContent()',
+    );
     expect(
       await controller.runJavaScriptReturningResult(
         'window.readContent() === "$original"',
       ),
       true,
+      reason: 'Content after undo: $afterUndo',
     );
     await tester.pump();
     expect(changes, isNotEmpty);

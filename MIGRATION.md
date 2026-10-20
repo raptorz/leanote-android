@@ -18,10 +18,12 @@
 - 上一批提交：`f0416df` 目录管理和在线完整历史恢复；本批补齐 iOS 分享、拍照、原生语言桥及 CocoaPods 回退配置。
 - 2026-10-16 本轮完整 Flutter 测试 **780 项通过、2 项条件测试默认跳过**，静态检查无问题。Android debug APK 是此前批次构建通过，本轮没有重新构建，也未进行设备验收。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
-- 当前结论：主体迁移及在线完整历史恢复已接入。iOS 分享扩展新增图片、文件和多项接收，实现已通过 Swift 存储测试和 iOS SDK 类型检查，完整应用编译及设备验收仍未通过。
-- 本轮分享相关 Flutter 测试 40 项通过。后续已安装 iOS 26.3 运行时和 CocoaPods 1.17.0；刷新插件配置并成功执行 pod install，补入 CocoaPods 回退工程配置。当前完整构建阻塞于 `objective_c` 构建钩子找不到 SDK：hooks_runner 过滤临时 `DEVELOPER_DIR`，系统仍指向 CommandLineTools，需要用户在终端以管理员权限切换 xcode-select。未完成应用编译或模拟器启动。
+- 当前结论：主体迁移及在线完整历史恢复已接入。iOS 分享扩展新增图片、文件和多项接收，实现已通过 Swift 存储测试和 iOS SDK 类型检查；完整 Debug 模拟器编译、安装和中文登录页启动已通过，完整设备验收仍未完成。
+- 本轮分享相关 Flutter 测试 40 项通过。已安装 iOS 26.3 运行时和 CocoaPods 1.17.0，pod install 成功。最新环境复查：Xcode 26.3 的 Flutter doctor 检查、UIKit Swift 类型检查通过；iPhone 12 mini 模拟器约 29 秒启动成功。`scripts/with_xcode.sh` 通过单次命令的 xcrun 入口解决构建钩子丢失 `DEVELOPER_DIR` 的问题，无需管理员修改系统设置。在同一环境重新 `pub get` 恢复空的 Swift Package 依赖列表后，完整 Debug 模拟器构建通过（223.1 秒），安装、启动成功且截图确认中文登录页。初次安装曾等待 macOS 对模拟器访问 Documents 的授权，随后完成。iOS 原生集成测试 3 项通过，系统分享、相机及完整业务流程尚未验收。
 
 ### 2026-10-20 iOS 分享扩展
+
+最新设备验证：`integration_test/native_smoke_test.dart` 在 iPhone 12 mini / iOS 26.3 **3 项通过**：App Group 收件箱真实通道、SQLite 重开与钥匙串读写、真实 WKWebView 加粗及撤销恢复原文。初次撤销断言失败，排查确认测试在原生视图挂载前执行编辑；加载后等待界面完成渲染即可通过，未修改生产编辑器、未放宽原文恢复断言。日志 `/private/tmp/gemsnote-ios-native-tests-attached.log`。最终静态分析无问题；测试后以 `lib/main.dart` 重建普通 Debug 应用（183.3 秒），已重新安装并启动。本批按独立单元提交 Xcode 命令环境脚本、设备测试与文档，不推送。下一步继续系统分享扩展来源及跨进程导入验收，不把本轮原生插件检查等同于完整功能验收。
 
 图片、二进制文件、文件 URL、文本和网页提供者可进入原有 Flutter 分享收件箱。每批最多 8 项，资源总计最多 32 MiB；每项作为独立待导入条目依次处理。扩展预览只读，在主应用导入界面编辑。原件在提供者回调有效期内读取，存入 App Group 私有文件；账号认领后才允许读取，导入或主动丢弃确认后删除原件。
 

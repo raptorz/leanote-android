@@ -71,6 +71,7 @@ tag 必须匹配 `pubspec.yaml` 的版本，发布前复用上述 CI 测试。
 
 `integration_test/native_smoke_test.dart` 使用真实设备插件，检查临时 SQLite
 数据库关闭重开后正文及格式保留、安全存储读取，以及 WebView 中富文本加粗和撤销。
+iOS 还检查真实通道能否访问 App Group 收件箱，不认领或删除现有分享。
 测试使用独立临时数据库和随机测试密钥，并在结束时清理；不连接服务端，
 不能作为真实 API2 登录或同步验收证据。
 
@@ -78,8 +79,18 @@ tag 必须匹配 `pubspec.yaml` 的版本，发布前复用上述 CI 测试。
 flutter test --no-pub integration_test/native_smoke_test.dart -d emulator-5554
 ```
 
-替换设备 ID 可用于其他已连接的测试设备。测试会安装测试入口应用；
-结束后如需继续手工使用，重新构建并安装正常的 `lib/main.dart` debug APK。
+替换设备 ID 可用于其他已连接的测试设备。iOS 使用下节的 Xcode 环境脚本：
+
+```sh
+DEVELOPER_DIR=/Volumes/LC128G/Applications/Xcode.app/Contents/Developer \
+  bash scripts/with_xcode.sh ~/opt/flutter/bin/flutter test --no-pub \
+  integration_test/native_smoke_test.dart -d <iOS模拟器ID>
+```
+
+测试会安装测试入口应用；结束后如需继续手工使用，重新构建并安装正常的
+`lib/main.dart` debug APK 或 iOS 模拟器应用。2026-10-20 Android 35
+通过 2 项，iOS 26.3 通过 3 项。WebView 测试在加载完成后等待界面渲染，
+确保编辑发生在已挂载的原生视图上；离屏视图的 WebKit 撤销行为不能作为界面验收。
 普通 `flutter test` 仍只运行 `test/`，不自动启动模拟器。
 
 ### 本地 iOS 模拟器编译检查
@@ -88,9 +99,24 @@ flutter test --no-pub integration_test/native_smoke_test.dart -d emulator-5554
 1.17.0 可用。执行 `flutter pub get --offline` 刷新插件配置后，工程已生成
 Podfile 和配置引用，`pod install` 成功，`open_filex` 通过 CocoaPods 回退集成。
 
-完整构建目前阻塞于 `objective_c` 原生构建钩子查询 SDK：
 当前 hooks_runner 会过滤 `DEVELOPER_DIR`，仅在命令前指定该变量不足以
-完成构建。系统 `xcode-select` 仍指向 CommandLineTools，需在本机终端执行：
+让原生构建钩子找到 SDK。系统 `xcode-select` 仍指向 CommandLineTools，
+可使用项目脚本为单次命令配置 xcrun，无需修改全局设置：
+
+```sh
+DEVELOPER_DIR=/Volumes/LC128G/Applications/Xcode.app/Contents/Developer \
+  bash scripts/with_xcode.sh ~/opt/flutter/bin/flutter pub get
+DEVELOPER_DIR=/Volumes/LC128G/Applications/Xcode.app/Contents/Developer \
+  bash scripts/with_xcode.sh ~/opt/flutter/bin/flutter build ios --simulator --debug --no-codesign
+```
+
+`pub get` 也必须使用同一 Xcode 环境，否则可能生成空的 Swift Package
+插件列表，而后续 `--no-pub` 构建只报告插件模块缺失。不要手工编辑
+`ios/Flutter/ephemeral` 下的生成文件。离线执行时须使用已有缓存对应的
+`PUB_HOSTED_URL`；本机锁文件及缓存使用 `https://pub.flutter-io.cn`。
+
+脚本通过临时 PATH 入口保留 Xcode 选择，并在命令结束后清理入口。
+若希望普通命令也默认使用完整 Xcode，可在本机终端执行：
 
 ```sh
 sudo xcode-select --switch /Volumes/LC128G/Applications/Xcode.app/Contents/Developer
@@ -100,8 +126,14 @@ env -u DEVELOPER_DIR xcrun --sdk iphonesimulator --show-sdk-path
 
 切换需要管理员密码，本轮自动执行的 `sudo -n` 未获认证，未改变系统设置。
 验证时必须移除终端已有的 `DEVELOPER_DIR`，否则会误认为系统级路径已切换。
-外接盘需要保持连接。完整应用编译和模拟器启动仍未通过，不能把插件安装成功
-视为应用验收。
+外接盘需要保持连接。2026-10-20 实测 Flutter doctor 的 Xcode 检查通过、
+UIKit Swift 代码在 iOS 模拟器 SDK 下类型检查通过，iPhone 12 mini /
+iOS 26.3 模拟器约 29 秒启动成功。完整应用构建曾报
+`Module 'file_picker_darwin' not found`，原因是生成的 Swift Package
+依赖列表为空；在上述环境执行 `pub get` 后，完整 Debug 模拟器构建
+通过（223.1 秒），安装及启动成功，截图确认中文登录页。
+首次安装可能等待 macOS 对模拟器访问 Documents 的系统授权；本机此次等待后完成，
+不能把静默安装当作应用崩溃。系统分享、相机及完整业务流程仍需后续验收。
 
 分享存储可独立验证（使用上述 Xcode 环境）：
 
