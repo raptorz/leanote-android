@@ -11,6 +11,23 @@ go_bin=${GO_BIN:-go}
 for executable in "$pg_bin/initdb" "$pg_bin/pg_ctl" "$pg_bin/createdb" "$flutter_bin" "$go_bin" python3; do
   command -v "$executable" >/dev/null || { echo "Missing dependency: $executable" >&2; exit 1; }
 done
+if [[ -n "${API2_IOS_SIMULATOR:-}" && -n "${API2_ANDROID_EMULATOR:-}" ]]; then
+  echo "Choose one platform per run." >&2
+  exit 1
+fi
+adb_bin=${ADB_BIN:-"${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}/platform-tools/adb"}
+if [[ -n "${API2_ANDROID_EMULATOR:-}" ]]; then
+  python3 - "$API2_ANDROID_EMULATOR" "$adb_bin" <<'PY'
+import re, subprocess, sys
+device, adb = sys.argv[1:]
+if not re.fullmatch(r"emulator-[0-9]+", device):
+    raise SystemExit("API2_ANDROID_EMULATOR must name an emulator, not a physical device")
+state = subprocess.check_output([adb, "-s", device, "get-state"], text=True, timeout=15).strip()
+boot = subprocess.check_output([adb, "-s", device, "shell", "getprop", "sys.boot_completed"], text=True, timeout=15).strip()
+if state != "device" or boot != "1":
+    raise SystemExit("Android emulator must already be booted")
+PY
+fi
 if [[ -n "${API2_IOS_SIMULATOR:-}" ]]; then
   python3 - "$API2_IOS_SIMULATOR" <<'PY'
 import json, subprocess, sys
@@ -116,17 +133,21 @@ else:
 PY
 (
   cd "$mobile_root"
-  if [[ -n "${API2_IOS_SIMULATOR:-}" ]]; then
+  if [[ -n "${API2_IOS_SIMULATOR:-}${API2_ANDROID_EMULATOR:-}" ]]; then
+    device_id=${API2_IOS_SIMULATOR:-${API2_ANDROID_EMULATOR:-}}
     run_id=$(python3 -c 'import uuid; print(uuid.uuid4().hex)')
     echo "Native fixture run: $run_id"
     for phase in seed resume; do
       "$flutter_bin" test integration_test/native_api2_session_test.dart \
-        -d "$API2_IOS_SIMULATOR" --no-uninstall \
+        -d "$device_id" --no-uninstall \
         --dart-define="API2_TEST_RUN=$run_id" --dart-define="API2_TEST_PHASE=$phase"
       if [[ "$phase" == seed ]]; then
         # Flutter's runner may already have exited. The resume test separately
         # requires a different PID and the persisted fixture marker.
-        python3 - "$API2_IOS_SIMULATOR" <<'PY'
+        if [[ -n "${API2_ANDROID_EMULATOR:-}" ]]; then
+          "$adb_bin" -s "$device_id" shell am force-stop com.github.gemsnote
+        else
+          python3 - "$device_id" <<'PY'
 import subprocess, sys
 result = subprocess.run(
     ["xcrun", "simctl", "terminate", sys.argv[1], "com.github.gemsnote"],
@@ -135,6 +156,7 @@ if result.returncode and "found nothing to terminate" not in result.stderr:
     raise SystemExit(result.stderr)
 print("Seed process stopped" if result.returncode == 0 else "Seed process already exited")
 PY
+        fi
       fi
     done
   else

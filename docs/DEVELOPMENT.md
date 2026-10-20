@@ -58,6 +58,8 @@ flutter build ios
 设置 `API2_IOS_SIMULATOR=<已启动模拟器 ID>` 并通过 `with_xcode.sh` 运行同一脚本，
 可执行真实 API2 登录、SQLite/钥匙串跨进程恢复及离线退出保护的两阶段设备测试。
 使用独立测试数据，结束后恢复普通应用入口；详见上述文档。
+Android 设置 `API2_ANDROID_EMULATOR=emulator-5554` 并指定可用 `JAVA_HOME`，
+无需 Xcode；只允许已启动的模拟器，使用同一两阶段测试和独立数据。
 
 ### Android 桌面小组件设备测试
 

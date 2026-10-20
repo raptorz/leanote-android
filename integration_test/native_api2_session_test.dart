@@ -35,7 +35,7 @@ class _LocalApi2 extends http.BaseClient {
     if (offline) {
       throw StateError('Offline restore attempted a network request');
     }
-    if (request.url.host != '127.0.0.1' ||
+    if (request.url.host != (Platform.isAndroid ? '10.0.2.2' : '127.0.0.1') ||
         request.url.port != 19090 ||
         !request.url.path.startsWith('/api2/')) {
       throw StateError('Request outside disposable API2 server');
@@ -54,7 +54,10 @@ void main() {
   testWidgets('real API2 native session across process restart: $phase', (
     tester,
   ) async {
-    expect(Platform.isIOS, isTrue);
+    expect(Platform.isIOS || Platform.isAndroid, isTrue);
+    final serverAddress = Platform.isAndroid
+        ? 'http://10.0.2.2:19090'
+        : 'http://127.0.0.1:19090';
     expect(RegExp(r'^[0-9a-f]{32}$').hasMatch(run), isTrue);
     expect(['seed', 'resume'], contains(phase));
     final root = await getApplicationSupportDirectory();
@@ -82,7 +85,7 @@ void main() {
     try {
       if (phase == 'seed') {
         final pending = await repo.beginLogin(
-          serverAddress: 'http://127.0.0.1:19090',
+          serverAddress: serverAddress,
           identity: 'admin',
           password: 'gemsnote',
         );
@@ -166,7 +169,7 @@ void main() {
         expect(client.requests, beforeLogout);
         client.offline = false;
         final relogin = await repo.beginLogin(
-          serverAddress: 'http://127.0.0.1:19090',
+          serverAddress: serverAddress,
           identity: 'admin',
           password: 'gemsnote',
         );

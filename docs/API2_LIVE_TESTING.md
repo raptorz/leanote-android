@@ -53,7 +53,7 @@ bash mobile-app/scripts/test_api2_postgres.sh --plain-name 'real API2 two-client
 在全新 PostgreSQL 库中通过；后续编辑/历史恢复一项仍受下面的服务端问题阻塞。
 普通回归默认跳过四项，连同原有浏览器与性能专项共六个条件跳过项。
 
-## iOS 原生登录与进程重启
+## Android/iOS 原生登录与进程重启
 
 在已启动、没有重要数据的测试模拟器上运行：
 
@@ -63,10 +63,23 @@ DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer \
   bash mobile-app/scripts/with_xcode.sh bash mobile-app/scripts/test_api2_postgres.sh
 ```
 
+Android 使用已启动的模拟器，脚本拒绝真机序列号：
+
+```sh
+JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' \
+  API2_ANDROID_EMULATOR=emulator-5554 \
+  bash mobile-app/scripts/test_api2_postgres.sh
+```
+
+可用 `ADB_BIN` 指定已有 adb；两个平台变量不能同时设置。
+iOS 访问 `127.0.0.1:19090`，Android 使用模拟器宿主别名 `10.0.2.2:19090`，
+服务端仍仅监听本机回环地址。测试客户端只允许对应地址下的 API2 请求。
+
 此模式使用同一临时 API2 服务，依次构建运行
 `integration_test/native_api2_session_test.dart` 的 seed/resume 两阶段。
 第一阶段调用生产 `AuthRepository` 登录、初始化缓存、创建笔记本及离线笔记；
-宿主在两阶段之间终止应用（运行器已使其退出时直接继续，其他终止错误不忽略）。
+宿主在两阶段之间终止应用（iOS 运行器已使其退出时直接继续，其他终止错误不忽略；
+Android 使用 `am force-stop`）。
 第二阶段要求 PID 与第一阶段不同，禁止网络请求时
 从真实 SQLite 与钥匙串恢复账号及待同步正文，再允许网络并同步验证。
 随后检查未同步笔记阻止直接退出、显式退出保留修改、重新登录保留缓存并上传。
@@ -76,7 +89,7 @@ DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer \
 失败时保留测试现场，日志只打印运行标识，不打印 token。
 脚本仍会停止临时服务端与 PostgreSQL，测试失败的数据库/钥匙串夹具不可作为真实账号使用。
 `--no-uninstall` 保留两个进程之间的应用容器；测试结束后需重新构建安装正常
-`lib/main.dart` 模拟器应用，不能将测试入口作为普通应用使用。
+`lib/main.dart` 应用，不能将测试入口作为普通应用使用。
 
 这是生产仓库与原生存储的设备集成测试，不代替登录页面操作、系统后台唤醒、
 跨账号切换或真机网络验收。
@@ -86,6 +99,17 @@ DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer \
 测试实际确认新 PID、离线恢复零 HTTP 请求、重连上传、退出保护与重新登录保留修改；
 第二阶段结束确认测试凭据已删除、独立数据库目录已移除。
 日志 `/private/tmp/gemsnote-native-api2-session.log`。
+
+Android 35 / 一次性 Pixel 2 AVD 同样两阶段各 1 项通过（集成构建 20.5/21.1 秒，
+各阶段约 1 秒），日志 `/private/tmp/gemsnote-native-api2-android-isolated.log`。
+该 AVD 使用本机已有镜像、软件渲染和独立临时数据目录，没有下载镜像或清空原 AVD。
+原 Pixel 9 首次在测试加载前 ADB 掉线，心跳停止；重启软件渲染后又出现启动未完成、
+ADB 反复握手的环境问题。原 AVD 的失败不算业务通过，也未据此修改生产代码；
+隔离环境通过不代表原 AVD 已恢复或真机验收。
+原 Pixel 9 的普通 APK 恢复安装最终返回 `cmd: Can't find service: package`，
+包管理服务不可用，已停止恢复尝试并保留原数据。它可能仍留有首次测试安装的集成入口；
+待 AVD 正常启动后，应覆盖安装 `build/app/outputs/flutter-apk/app-debug.apk`。
+隔离 AVD 已安装并启动普通 APK 后正常关闭；两者均未清空数据。
 
 ## 2026-10-20 发现的问题
 
