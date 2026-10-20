@@ -14,6 +14,8 @@
 
 ## 当前现场（2026-10-20）
 
+- 上批 `6fc8e98` 完成 iOS 分享语言验收。本批新增 `native_api2_session_test.dart` 和临时 API2 脚本的 iOS 模式：iPhone 12 mini / iOS 26.3 两阶段各 **1 项通过**，首阶段真实生产 AuthRepository 登录、SQLite 快照、钥匙串 token、离线笔记落盘；运行器结束首进程后，恢复阶段验证 PID 不同，禁止 HTTP 请求时恢复真实账号、待同步 Markdown 正文和已保存账号，然后使用恢复的 token 联网成功同步。继续验证未同步笔记拒绝直接退出、显式退出仅删除凭据且保留正文、重新登录保留缓存并上传富文本笔记。使用随机前缀的独立 SQLite/钥匙串键，测试内确认清除自己的凭据与数据库目录；不修改正常账号数据。集成构建分别 268.9/60.1 秒，用例各约 1 秒；静态分析无问题（4.4 秒），Shell 语法/diff 检查通过，临时 PostgreSQL 退出清理已核对。运行器已退出时 simctl terminate 返回“found nothing to terminate”是预期情况，脚本已单独处理该分支并实测，其他终止错误不忽略。普通 iOS Debug 入口构建通过（146.0 秒）。本批仅测试/脚本/文档改动，未重复 Flutter 全套及 Android 构建。日志 `/private/tmp/gemsnote-native-api2-session.log`、`/private/tmp/gemsnote-native-api2-restore.log`，临时环境 `/private/tmp/gemsnote-api2-live.5JEBmC` 已停止；不是登录页 UI、后台系统唤醒或跨账号切换验收。下一步将同一流程用于 Android 模拟器；服务端历史更新阻塞与发布暂缓不变。
+
 - 上批 `350d600` 补强真实响应丢失证据。本批完成 iOS 主应用到 Share Extension 的显式语言跨进程验收：通过真实语言菜单英文→中文→英文，每轮终止并重启主应用后再打开独立来源应用的分享扩展，精确检查保存、取消和导入提示；专项 **1 项通过（63 秒）**，连同 Safari、混合资源及失败批次共 **4 项 UI 测试通过（122 秒）**。宿主确认原 App Group 语言偏好恢复，三次取消未新增记录，原有 PNG/bin/GIF 逐字节和文本正文验证仍通过，只清理本轮五条成功夹具及其来源文件。首次执行发现旧测试仅定位英文 Gemsnote，中文系统实际显示“珠玑笔记”，已修正正式中英文名称定位并重跑，未修改生产原生逻辑；失败的初次测试不计通过。最终普通 iOS Debug 模拟器构建通过（58.9 秒），含 `c30ecb6` API2 请求头修复。Shell/Ruby 语法及 diff 检查通过，本批测试/文档改动未重复全套 Flutter/Android 构建。UI 日志 `/private/tmp/gemsnote-ios-language-ui.log`，产物 `/var/folders/6h/jjvzsttd0ms0j80_cfqgvt8c0000gn/T/gemsnote-share-ui.vMo5GJ`，构建日志 `/private/tmp/gemsnote-api2-ios-build.log`。未验证系统语言变化、真机、后台长期唤醒；PostgreSQL 历史更新阻塞仍待服务端处理。下一步继续已登录设备生命周期及其他原生入口；发布仍暂缓。
 
 - 上批 `05449ce` 完成目录管理真实联调。补强创建响应丢失证据：在原客户端重试前，先由第二个独立 SQLite 客户端同步并确认远端已有同一 ID 和完整正文，再验证原客户端重试后不重复创建。全新临时 PostgreSQL 专项 **1 项通过**，日志 `/private/tmp/gemsnote-api2-loss-confirmed.log`，退出后临时服务自动停止。本批仅补断言和文档，不重复已有全套回归。

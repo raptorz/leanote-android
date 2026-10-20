@@ -55,6 +55,9 @@ flutter build ios
 普通 Flutter 回归默认跳过这四项联网测试。
 环境参数、通过范围及 PostgreSQL 历史更新阻塞见
 [API2_LIVE_TESTING.md](API2_LIVE_TESTING.md)。
+设置 `API2_IOS_SIMULATOR=<已启动模拟器 ID>` 并通过 `with_xcode.sh` 运行同一脚本，
+可执行真实 API2 登录、SQLite/钥匙串跨进程恢复及离线退出保护的两阶段设备测试。
+使用独立测试数据，结束后恢复普通应用入口；详见上述文档。
 
 ### Android 桌面小组件设备测试
 

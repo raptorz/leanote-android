@@ -11,6 +11,15 @@ go_bin=${GO_BIN:-go}
 for executable in "$pg_bin/initdb" "$pg_bin/pg_ctl" "$pg_bin/createdb" "$flutter_bin" "$go_bin" python3; do
   command -v "$executable" >/dev/null || { echo "Missing dependency: $executable" >&2; exit 1; }
 done
+if [[ -n "${API2_IOS_SIMULATOR:-}" ]]; then
+  python3 - "$API2_IOS_SIMULATOR" <<'PY'
+import json, subprocess, sys
+devices = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"]))
+matches = [d for items in devices["devices"].values() for d in items if d["udid"] == sys.argv[1]]
+if len(matches) != 1 or matches[0]["state"] != "Booted":
+    raise SystemExit("API2_IOS_SIMULATOR must name an already booted iOS simulator")
+PY
+fi
 python3 - <<'PY'
 import socket
 for port in (15438, 19090):
@@ -107,5 +116,28 @@ else:
 PY
 (
   cd "$mobile_root"
-  GEMSNOTE_DISPOSABLE_API2=1 "$flutter_bin" test test/live/api2_postgres_test.dart --reporter expanded "$@"
+  if [[ -n "${API2_IOS_SIMULATOR:-}" ]]; then
+    run_id=$(python3 -c 'import uuid; print(uuid.uuid4().hex)')
+    echo "Native fixture run: $run_id"
+    for phase in seed resume; do
+      "$flutter_bin" test integration_test/native_api2_session_test.dart \
+        -d "$API2_IOS_SIMULATOR" --no-uninstall \
+        --dart-define="API2_TEST_RUN=$run_id" --dart-define="API2_TEST_PHASE=$phase"
+      if [[ "$phase" == seed ]]; then
+        # Flutter's runner may already have exited. The resume test separately
+        # requires a different PID and the persisted fixture marker.
+        python3 - "$API2_IOS_SIMULATOR" <<'PY'
+import subprocess, sys
+result = subprocess.run(
+    ["xcrun", "simctl", "terminate", sys.argv[1], "com.github.gemsnote"],
+    capture_output=True, text=True)
+if result.returncode and "found nothing to terminate" not in result.stderr:
+    raise SystemExit(result.stderr)
+print("Seed process stopped" if result.returncode == 0 else "Seed process already exited")
+PY
+      fi
+    done
+  else
+    GEMSNOTE_DISPOSABLE_API2=1 "$flutter_bin" test test/live/api2_postgres_test.dart --reporter expanded "$@"
+  fi
 ) 2>&1 | tee "$test_work/flutter-test.log"
