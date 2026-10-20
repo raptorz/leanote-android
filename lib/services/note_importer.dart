@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 
 class ImportedNote {
   const ImportedNote(this.title, this.content, this.isMarkdown, {this.bundle});
@@ -25,12 +26,19 @@ class NoteImporter {
   final AppStrings strings;
   final Future<PlatformFile?> Function() _pick;
   static const maxBytes = 32 * 1024 * 1024;
-  static Future<PlatformFile?> _pickSystem(AppStrings strings) =>
-      FilePicker.pickFile(
-        dialogTitle: strings.label('导入笔记原文'),
-        type: FileType.custom,
-        allowedExtensions: ['md', 'markdown', 'txt', 'html', 'htm', 'gemsnote'],
-      );
+  static Future<PlatformFile?> _pickSystem(AppStrings strings) {
+    // Android converts extension filters to known MIME types. A .gemsnote
+    // archive is not registered and becomes unselectable in DocumentsUI.
+    // Validate the selected name and bounded content below instead.
+    final android = defaultTargetPlatform == TargetPlatform.android;
+    return FilePicker.pickFile(
+      dialogTitle: strings.label('导入笔记原文'),
+      type: android ? FileType.any : FileType.custom,
+      allowedExtensions: android
+          ? null
+          : ['md', 'markdown', 'txt', 'html', 'htm', 'gemsnote'],
+    );
+  }
 
   Future<ImportedNote?> pick() async {
     final file = await _pick();

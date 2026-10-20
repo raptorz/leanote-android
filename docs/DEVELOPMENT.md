@@ -340,8 +340,11 @@ Markdown 阅读使用 [flutter_markdown_plus](https://pub.dev/packages/flutter_m
 
 选择文件不写库，确认后将标题、正文与新建/dirty 标记一次写入当前账号 SQLite，
 后续沿用现有上传流程，不新增 API2 接口。取消不创建笔记；失败保留对话框可重试。
-不导入附件、历史或其他元数据，也不注册系统分享接收入口；原生选择器及内容 URI
-读取仍需 Android/iOS 真机验收。
+原文模式不包含附件或历史；`.gemsnote` 归档另行保留正文、支持的元数据和二进制资源，
+导入后进入既有资源上传队列，不导入服务器历史。系统分享接收使用独立入口。
+Android DocumentsUI 不认识 `.gemsnote` 扩展名对应的 MIME，使用 custom 过滤会让
+已导出的归档变灰；Android 选择器现允许浏览任意文件，选择后仍严格验证扩展名、
+大小和归档内容。其他平台保留扩展名过滤。
 
 ## 原文导出
 
@@ -349,6 +352,22 @@ Markdown 阅读使用 [flutter_markdown_plus](https://pub.dev/packages/flutter_m
 是否保存，取消返回 null；不把 Android content URI 当作本地路径写文件。
 测试可注入保存回调验证字节、文件名、取消和失败行为。导出不执行 HTML，也不下载附件。
 iOS 保存对话框只能在 macOS/iOS 环境完成构建和真机验收。
+
+### Android 系统文件选择器验证
+
+在英文系统、已启动且已有普通 Gemsnote APK 的一次性 Android 模拟器上运行：
+
+```sh
+JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+  python3 mobile-app/scripts/test_android_file_picker.py emulator-5554
+```
+
+脚本运行生产 NoteExporter/NoteImporter，使用真实 DocumentsUI 保存到 Downloads，
+再选择同一文件。覆盖 Markdown、HTML、含二进制附件的 `.gemsnote` 往返，
+不支持扩展名的拒绝和保存/导入取消；宿主额外核对导出原文字节、归档二进制、
+取消后没有产物。只清理本次唯一命名文件，失败保留日志和文件便于诊断。
+不登录、不访问网络、不写账号数据库，不代表工作区导入落库、云文件 provider 或 iOS 验收。
+运行后需重新构建并覆盖安装普通 APK，避免设备留在集成测试入口。
 
 图片预览通过 `ImageExporter` 复用系统文件保存能力和文件名清理逻辑，只保存已读取的
 图片字节，不再请求服务器。输出扩展名和 MIME 由 PNG/JPEG/GIF/WebP 文件头确定，
