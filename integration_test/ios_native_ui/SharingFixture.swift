@@ -33,7 +33,7 @@ final class FixtureController: UIViewController {
 
   @objc private func share(_ sender: UIButton) {
     do {
-      let id = UserDefaults.standard.string(forKey: "fixture-id")!
+      let id = UserDefaults.standard.string(forKey: "fixture-id") ?? UUID().uuidString.lowercased()
       let directory = FileManager.default.temporaryDirectory.appendingPathComponent(id)
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
       let imageURL = directory.appendingPathComponent("gemsnote-\(id).png")
@@ -43,8 +43,13 @@ final class FixtureController: UIViewController {
         context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
       }
       try image.write(to: imageURL)
-      try Data("Gemsnote binary fixture \(id)\n".utf8).write(to: fileURL)
-      let sheet = UIActivityViewController(activityItems: [imageURL, fileURL], applicationActivities: nil)
+      let invalid = UserDefaults.standard.bool(forKey: "invalid-file")
+      try (invalid ? Data() : Data("Gemsnote binary fixture \(id)\n".utf8)).write(to: fileURL)
+      let gifURL = directory.appendingPathComponent("gemsnote-\(id).gif")
+      let gif = Data(base64Encoded: "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")!
+      try gif.write(to: gifURL)
+      let urls = invalid ? [imageURL, fileURL] : [imageURL, fileURL, gifURL]
+      let sheet = UIActivityViewController(activityItems: urls, applicationActivities: nil)
       sheet.popoverPresentationController?.sourceView = sender
       sheet.popoverPresentationController?.sourceRect = sender.bounds
       present(sheet, animated: true)

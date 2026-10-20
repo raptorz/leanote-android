@@ -14,6 +14,8 @@
 
 ## 当前现场（2026-10-20）
 
+- 上批 `1d9a37a` 已验证 PNG/二进制文件分享。本批扩展为 PNG、二进制文件、GIF 三项真实系统分享，GIF 正确保留为附件且全部原件逐字节一致；另验证有效 PNG 加空文件时扩展报错、保存禁用、取消可用，真实队列没有部分记录。连同 Safari 回归共 **3 项 UI 测试通过（62.0 秒）**，宿主存储核对通过，仅清理本轮四条成功记录及夹具原件。首次失败是测试在错误弹窗关闭动画完成前检查按钮，改为等待按钮出现后通过，未修改生产逻辑或放宽禁用断言。测试工程构建、Shell/Ruby 语法、diff 检查通过；本批仅测试/文档改动，未重复 Flutter/Android 构建。已同步矩阵中过期的安全存储及 iOS 编译状态。下一步继续文本来源、超限/生命周期和主应用认领导入闭环，HEIC/真实相机与后台仍待相应设备验收。
+
 - 上批 `70d739c` 已修复分享操作本地化并加入 Safari UI 验证。本批新增独立 SharingFixture 来源应用，以真实 UIActivityViewController 同时发送 PNG 与二进制文件；UI 测试实际进入扩展保存，宿主核对两条未认领记录分别为 image/attachment，资源逐字节等于来源原件。Safari 取消/重开/保存回归同时通过，共 **2 项 UI 测试通过（48.1 秒）**，本轮三条夹具记录及原件均已清理，不修改其他记录。已查看扩展截图，中文操作、提示及文件名布局正常。仅测试和文档改动；Xcode 构建测试工程、Shell/Ruby 语法与 diff 检查通过。下一步验证 GIF 等非正文图片回退、其他文本/文件来源、异常输入、主应用认领及导入闭环；不能把本轮两个普通文件的成功扩大为所有提供者和生命周期均已验收。
 
 - 上批 `8f682cc` 已补齐 iOS 后台调度。本批实际验证中文 Safari 分享：系统自带 SLCompose 发布面板未采用自定义按钮标题，现改为 UIKit 只读预览、明确的“保存/取消”操作和始终可见的导入提示，保存期间禁用取消。完整 iOS Debug 模拟器构建通过（19.8 秒），独立 Xcode UI 测试通过（1 项、33.1 秒），覆盖打开扩展、取消、再次打开并保存、主应用重启。读取真实 App Group 队列确认完整测试 URL 仅保存一次且未认领，再通过生产存储 acknowledge 清理本次唯一记录。可重复运行脚本 `scripts/test_ios_share_ui.sh` 及测试工程生成器已加入；Ruby/Shell 语法和 diff 检查通过。本批仅原生 iOS 界面及设备测试/文档改动，未重跑未变动的 Flutter/Android 全套检查。无签名模拟器构建实测无法保存到 App Group，文档已改用默认签名构建。未验证图片、文件、多项、真实账号导入和真机；下一步继续这些独立验收。日志 `/private/tmp/GemsnoteSharingUI/share-ui.log`。
@@ -107,11 +109,11 @@ Swift 测试覆盖真实 PNG/JPEG、超尺寸 PNG、其他格式、损坏头部�
 | M18 缓存偏好持久化 | desktop-app/db 配置、service/file_service.go | 无新增请求 | ui/SettingsActivity | app_database schema v8、workspace_page；本地 | 已提交 f524502；账号隔离、升级、读写失败/重试测试通过 |
 | M19 账号资料、头像、密码 | desktop-app/webapi/background_profile.go、proxy.go | Api2.UploadAvatar、User.UpdateUsername/UpdatePwd、web/emailChange | ui/SettingsActivity | ui/account_page.dart、avatar_upload_dialog.dart；API2 + 允许的公开头像 | 主要功能、头像裁剪、Android/iOS 相机入口与 PNG/JPEG/WebP/GIF/BMP 导入已实现；iOS 原生代码通过 SDK 类型检查，原生相机权限/方向/取消/进程恢复及帐号变更竞态真机验收待做 |
 | M20 默认编辑器、语言、关于 | desktop-app/webapi/about.go、应用配置 | 默认编辑器与语言本地；协议版本 API2 | ui/SettingsActivity、AboutActivity | default_editor_dialog.dart、about_dialog.dart；API2 | 编辑器/版本、Flutter 中英文与 system/zh/en 全设备语言设置已实现（schema v17）；Android 分享、拍照、小组件跟随选择；iOS 分享扩展与拍照错误提示已接入 App Group 偏好；仍需跨进程语言切换、输入法及原生入口真机验收 |
-| M21 多账号快速切换 | desktop-app/app.go、db 配置 | Api2.TokenLogin、ApiUser.Info | service/AccountService、ui/MainActivity | app.dart、data/session/session_store.dart | 本轮实现切换/添加账号、登录页恢复已登录账号；保留离线修改与多账号凭据，切换前等待资源任务、重建工作区；静态检查和全量 488 项测试通过；原生安全存储/生命周期验收仍待进行 |
+| M21 多账号快速切换 | desktop-app/app.go、db 配置 | Api2.TokenLogin、ApiUser.Info | service/AccountService、ui/MainActivity | app.dart、data/session/session_store.dart | 本轮实现切换/添加账号、登录页恢复已登录账号；保留离线修改与多账号凭据，切换前等待资源任务、重建工作区；静态检查和全量 488 项测试通过；Android/iOS 原生安全存储及数据库重开验证已通过，完整账号切换生命周期仍待验收 |
 | M22 导入导出、对外分享 | desktop-app/webapi/local.go | 本地操作无需新接口 | ui/edit/NoteEditActivity | services/note_importer.dart、note_exporter.dart、note_sharer.dart | 原文导入导出及系统分享已实现；新增本地 .gemsnote 完整资源归档导入导出，包含摘要校验及持久上传队列；Android/iOS 文件面板和系统分享流程仍待验收 |
-| M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity、ios/ShareExtension 与 Shared | Android 单项/多项文本、文本文件、图片与二进制附件接收已实现；iOS 图片/文件/多项已接入同一收件箱，私有原件、整批发布与账号隔离有 Swift 测试；系统来源应用和生命周期验收仍待做 |
+| M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity、ios/ShareExtension 与 Shared | Android 单项/多项文本、文本文件、图片与二进制附件接收已实现；iOS 图片/文件/多项已接入同一收件箱，私有原件、整批发布与账号隔离有 Swift 测试；Safari 网页、独立来源应用 PNG/二进制文件批量接收已通过系统 UI 与原件核对，完整来源兼容性和导入生命周期仍待验收 |
 | M24 Android 小组件 | Desktop 无等价 | 本地快照，无新接口 | appwidget/NoteAppWidget、WidgetService、RedirActivity | services/home_widget.dart、Android NoteWidget；本地快照 | 最近 30 条标题列表、新建/打开入口、默认隐私关闭、账号代次隔离和退出清理已实现；仅 home_screen，不提供锁屏组件；启动器/进程重启/系统生命周期真机验收待做 |
-| M25 Android/iOS 发布与运行 | desktop-app/.github/workflows 为发布参考 | 无 | 旧 Android 构建参考 | android、ios、.github/workflows | 损坏 Gradle 包已修复，Android debug APK 已构建成功；iOS 模拟器/签名/设备验收未完成；不自动发布 |
+| M25 Android/iOS 发布与运行 | desktop-app/.github/workflows 为发布参考 | 无 | 旧 Android 构建参考 | android、ios、.github/workflows | 损坏 Gradle 包已修复，Android debug APK 已构建成功；iOS Debug 模拟器构建、安装和启动已通过，正式签名/发布暂缓，完整设备验收未完成；不自动发布 |
 | M26 API2 边界与网络错误 | desktop-app/api/client.go | conf/routes、Api2Controller、api/* | 禁止复用旧请求 | lib/core/api/api2_client.dart | 未发现直接 Legacy 业务调用；JSON/表单已禁止自动重定向，真实 HTTP 测试覆盖 GET/JSON/form × 301/302/303/307/308；旧正文路径仅解析 FileId，绝不请求原路径 |
 
 ## API2 审计与接口缺口

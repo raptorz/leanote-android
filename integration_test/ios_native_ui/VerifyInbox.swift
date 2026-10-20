@@ -35,7 +35,7 @@ struct VerifyInbox {
     let originalDirectory = URL(fileURLWithPath: CommandLine.arguments[3])
       .appendingPathComponent("tmp").appendingPathComponent(batchID)
     var verified = [record]
-    for (suffix, kind) in [("png", "image"), ("bin", "attachment")] {
+    for (suffix, kind) in [("png", "image"), ("bin", "attachment"), ("gif", "attachment")] {
       let name = "gemsnote-\(batchID).\(suffix)"
       let candidates = records.filter { $0.resourceName == name }
       guard candidates.count == 1, let resource = candidates.first,
@@ -50,9 +50,21 @@ struct VerifyInbox {
       }
       verified.append(resource)
     }
+    let invalidExpression = try NSRegularExpression(pattern: #"(?m)^SHARE_INVALID_ID=([0-9a-f-]{36})$"#)
+    guard let invalidMatch = invalidExpression.firstMatch(in: log, range: NSRange(log.startIndex..., in: log)),
+      let invalidRange = Range(invalidMatch.range(at: 1), in: log) else {
+      throw SharedTextStore.Failure("Missing invalid batch fixture ID")
+    }
+    let invalidID = String(log[invalidRange])
+    guard !records.contains(where: { ($0.resourceName ?? "").contains(invalidID) || $0.text.contains(invalidID) }) else {
+      throw SharedTextStore.Failure("Failed batch partially persisted")
+    }
+    let invalidDirectory = URL(fileURLWithPath: CommandLine.arguments[3])
+      .appendingPathComponent("tmp").appendingPathComponent(invalidID)
     let store = SharedTextStore(directory: directory)
     for fixture in verified { try store.acknowledge(id: fixture.id) }
     try FileManager.default.removeItem(at: originalDirectory)
-    print("PASS Safari URL and two-item image/file batch persisted; original bytes match; removed only three fixture records")
+    try FileManager.default.removeItem(at: invalidDirectory)
+    print("PASS URL, PNG, binary and GIF originals persisted; invalid batch absent; removed only four fixture records")
   }
 }

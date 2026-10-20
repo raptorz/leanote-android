@@ -8,7 +8,7 @@ final class SharingUITests: XCTestCase {
     let id = UUID().uuidString.lowercased()
     print("SHARE_BATCH_ID=\(id)")
     let source = XCUIApplication(bundleIdentifier: "com.github.gemsnote.SharingFixture")
-    source.launchArguments = ["-fixture-id", id]
+    source.launchArguments = ["-fixture-id", id, "-invalid-file", "NO"]
     source.launch()
     let share = source.buttons["Share image and file"]
     XCTAssertTrue(share.waitForExistence(timeout: 20))
@@ -30,6 +30,34 @@ final class SharingUITests: XCTestCase {
     let app = XCUIApplication(bundleIdentifier: "com.github.gemsnote")
     app.launch()
     XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
+  }
+
+  func testInvalidFileRejectsEntireBatch() throws {
+    continueAfterFailure = false
+    let id = UUID().uuidString.lowercased()
+    print("SHARE_INVALID_ID=\(id)")
+    let source = XCUIApplication(bundleIdentifier: "com.github.gemsnote.SharingFixture")
+    source.launchArguments = ["-fixture-id", id, "-invalid-file", "YES"]
+    source.launch()
+    let share = source.buttons["Share image and file"]
+    XCTAssertTrue(share.waitForExistence(timeout: 20))
+    share.tap()
+    let gemsnote = source.staticTexts["Gemsnote"].firstMatch
+    XCTAssertTrue(gemsnote.waitForExistence(timeout: 20), source.debugDescription)
+    gemsnote.tap()
+    let alert = source.alerts.firstMatch
+    XCTAssertTrue(alert.waitForExistence(timeout: 20), source.debugDescription)
+    XCTAssertTrue(alert.staticTexts.matching(NSPredicate(format:
+      "label IN {'未保存分享', 'Share not saved'}")).firstMatch.exists)
+    alert.buttons.firstMatch.tap()
+    let save = source.buttons.matching(NSPredicate(format: "label IN {'保存', 'Save'}")).firstMatch
+    XCTAssertTrue(save.waitForExistence(timeout: 20), source.debugDescription)
+    XCTAssertFalse(save.isEnabled)
+    let cancel = source.buttons.matching(NSPredicate(format: "label IN {'取消', 'Cancel'}")).firstMatch
+    XCTAssertTrue(cancel.isEnabled)
+    cancel.tap()
+    expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: cancel)
+    waitForExpectations(timeout: 20)
   }
 
   func testSafariShareToGemsnote() throws {
