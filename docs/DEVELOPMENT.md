@@ -47,6 +47,42 @@ flutter build ios
 
 ## 自动化验证
 
+### Android 桌面小组件设备测试
+
+`integration_test/android_home_widget_test.dart` 与
+`scripts/test_android_home_widget.py` 配合验证真实原生通道、RemoteViews 列表和
+PendingIntent。先在**专用、已退出账号的模拟器**安装普通 debug APK，启动一次应用，
+并通过系统桌面的小组件选择器添加 Gemsnote 小组件到当前桌面。不要使用有重要数据的设备。
+
+从 mobile-app 目录执行：
+
+```sh
+python3 scripts/test_android_home_widget.py emulator-5554
+```
+
+脚本允许通过 `ADB`、`FLUTTER_BIN` 覆盖工具路径。若终端 JAVA_HOME 失效，
+请为本次命令指定 Android Studio 的 JDK。脚本拒绝真机、当前小组件账号非空及
+当前桌面未添加小组件的情况；不登录、不访问服务器。它使用唯一虚拟账号和标题，
+检查默认关闭、开启显示、点击笔记、关闭清空、切换账号、点击新建、切回原账号
+以及退出清空，Dart 端核对每次真实回传的 account/action/noteId 和确认清理行为。
+还验证过期账号/代次的发布被拒绝、开启偏好按账号保留。
+
+日志和逐阶段桌面 XML 保存在输出的临时目录。使用 `--no-uninstall` 保留安装和
+桌面绑定；成功或 Dart 断言失败时 finally 清除虚拟标题并关闭两个测试账号的显示。
+若运行器被强制终止，不能保证 finally 执行。测试会留下两个关闭状态的虚拟偏好，
+不写笔记数据库。结束后安装普通入口恢复后续使用：
+
+```sh
+flutter build apk --debug --no-pub
+adb -s emulator-5554 install -r build/app/outputs/flutter-apk/app-debug.apk
+adb -s emulator-5554 shell am start -n com.github.gemsnote/.MainActivity
+```
+
+此专项验证原生桌面行为，不代表 Flutter 工作区完整笔记导航、真实账号登录/同步、
+系统回收或其他启动器均已验收。
+
+### CI
+
 独立 mobile-app 仓库的 `.github/workflows/ci.yml` 在分支 push、PR 和手动触发时执行。
 固定 Flutter 3.47.5（本地验证使用的版本），只执行检查和测试，不构建安装包：
 
