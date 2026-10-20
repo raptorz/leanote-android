@@ -67,6 +67,36 @@ enum NativeLanguage {
   ]
 }
 
+/// Read inside the provider callback while its temporary URL is still valid.
+/// Bound the actual read, not only the file's initial size: a provider may still
+/// be writing, and earlier items already consume part of the batch budget.
+func readSharedResource(_ url: URL, remainingBytes: Int) throws -> Data {
+  guard url.isFileURL, remainingBytes > 0, remainingBytes <= 32 * 1024 * 1024 else {
+    throw SharedTextStore.Failure("分享资源信息无效或超过 32 MiB")
+  }
+  let descriptor = open(url.path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
+  guard descriptor >= 0 else { throw SharedTextStore.Failure("无法读取分享文件") }
+  let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+  defer { try? handle.close() }
+  var info = stat()
+  guard fstat(descriptor, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG,
+    info.st_size > 0, info.st_size <= remainingBytes else {
+    throw SharedTextStore.Failure("分享资源信息无效或超过 32 MiB")
+  }
+  var bytes = Data()
+  while let chunk = try handle.read(upToCount: min(64 * 1024, remainingBytes - bytes.count + 1)),
+    !chunk.isEmpty {
+    guard chunk.count <= remainingBytes - bytes.count else {
+      throw SharedTextStore.Failure("分享资源信息无效或超过 32 MiB")
+    }
+    bytes.append(chunk)
+  }
+  guard bytes.count == info.st_size else {
+    throw SharedTextStore.Failure("分享资源不完整")
+  }
+  return bytes
+}
+
 /// Match Flutter's inline-image formats. Preserve other originals (including
 /// HEIC/GIF/PDF) as attachments instead of creating an unimportable image item.
 func sharedResourceKind(_ bytes: Data) -> String {

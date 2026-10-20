@@ -1,6 +1,7 @@
 import Foundation
 import CoreGraphics
 import ImageIO
+import Darwin
 
 // Runs against the same Foundation storage source used in both iOS targets.
 // No iOS SDK or third-party test framework is required for these storage tests.
@@ -69,6 +70,39 @@ struct SharedTextStoreTests {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
+    let providerFile = root.appendingPathComponent("provider.bin")
+    let providerBytes = Data((0..<(128 * 1024 + 7)).map { UInt8($0 % 251) })
+    try providerBytes.write(to: providerFile)
+    try check(readSharedResource(providerFile, remainingBytes: providerBytes.count) == providerBytes,
+      "bounded multi-chunk read retains exact original at the budget boundary")
+    try rejects("remaining batch budget, not just per-file limit") {
+      _ = try readSharedResource(providerFile, remainingBytes: providerBytes.count - 1)
+    }
+    try rejects("exhausted batch budget") {
+      _ = try readSharedResource(providerFile, remainingBytes: 0)
+    }
+    try rejects("cannot raise the shared resource limit") {
+      _ = try readSharedResource(providerFile, remainingBytes: 32 * 1024 * 1024 + 1)
+    }
+    try rejects("directory is not a shared file") {
+      _ = try readSharedResource(root, remainingBytes: 32 * 1024 * 1024)
+    }
+    try rejects("missing provider file") {
+      _ = try readSharedResource(root.appendingPathComponent("missing"), remainingBytes: 1024)
+    }
+    try rejects("network URL is never fetched") {
+      _ = try readSharedResource(URL(string: "https://example.invalid/file")!, remainingBytes: 1024)
+    }
+    try Data().write(to: providerFile)
+    try rejects("empty provider file") {
+      _ = try readSharedResource(providerFile, remainingBytes: 1024)
+    }
+    let fifo = root.appendingPathComponent("provider-pipe")
+    try check(mkfifo(fifo.path, 0o600) == 0, "create non-regular provider fixture")
+    try rejects("non-regular provider cannot block waiting for data") {
+      _ = try readSharedResource(fifo, remainingBytes: 1024)
+    }
+    print("PASS bounded provider reads and remaining batch capacity")
     let directory = root.appendingPathComponent("basic")
     let store = SharedTextStore(directory: directory)
     try check(store.peek() == nil, "empty inbox")

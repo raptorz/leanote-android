@@ -99,6 +99,7 @@ final class ShareViewController: SLComposeServiceViewController {
       return
     }
     let provider = providers[index]
+    let remainingBytes = 32 * 1024 * 1024 - entries.reduce(0, { $0 + ($1.1?.count ?? 0) })
     let fileType = provider.registeredTypeIdentifiers.first {
       guard let type = UTType($0) else { return false }
       return type.conforms(to: .png) || type.conforms(to: .jpeg)
@@ -114,14 +115,8 @@ final class ShareViewController: SLComposeServiceViewController {
         do {
           if let error { throw error }
           guard let url else { throw SharedTextStore.Failure("无法读取分享文件") }
-          let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-          guard attributes[.type] as? FileAttributeType == .typeRegular,
-            let size = attributes[.size] as? NSNumber,
-            size.intValue > 0, size.intValue <= 32 * 1024 * 1024 else {
-            throw SharedTextStore.Failure("文件为空或超过 32 MiB")
-          }
           // Provider URLs expire when this callback returns; copy bytes here.
-          let bytes = try Data(contentsOf: url)
+          let bytes = try readSharedResource(url, remainingBytes: remainingBytes)
           let name = url.lastPathComponent
           let kind = sharedResourceKind(bytes)
           DispatchQueue.main.async {
@@ -152,13 +147,7 @@ final class ShareViewController: SLComposeServiceViewController {
         defer { if accessed { url.stopAccessingSecurityScopedResource() } }
         do {
           if let error { throw error }
-          let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-          guard attributes[.type] as? FileAttributeType == .typeRegular,
-            let size = attributes[.size] as? NSNumber,
-            size.intValue > 0, size.intValue <= 32 * 1024 * 1024 else {
-            throw SharedTextStore.Failure("文件为空或超过 32 MiB")
-          }
-          let bytes = try Data(contentsOf: url)
+          let bytes = try readSharedResource(url, remainingBytes: remainingBytes)
           let name = url.lastPathComponent
           let kind = sharedResourceKind(bytes)
           DispatchQueue.main.async {
