@@ -35,6 +35,19 @@ bash mobile-app/scripts/test_api2_postgres.sh --plain-name 'real API2 two-client
 
 ## 用例边界
 
+### 多账号离线切换与同步隔离（2026-10-20）
+
+运行 `bash mobile-app/scripts/test_api2_postgres.sh --plain-name 'real API2 account switching'`。
+真实临时服务器专项 **1 项通过**：通过生产 `AuthRepository` 登录两个账号，在同一
+SQLite 数据库分别保存待同步 Markdown/富文本草稿，重建仓库对象后离线恢复与切换，
+确认自动同步偏好和草稿隔离；同步 A 不清除 B 的待同步队列，各自上传到正确所有者。
+双方读取对方未共享笔记均被服务端拒绝。离线退出 B 删除 B 凭据，保留 A 凭据及切换能力。
+离线阶段以禁止 HTTP 的客户端及请求计数验证，不等同真实断网设备测试。
+
+本用例使用内存凭据存储和宿主 SQLite，不声称验证设备安全存储或 UI 账号切换；
+此前原生存储跨进程测试另见下文。日志 `/private/tmp/gemsnote-api2-account-isolation.log`，
+临时环境 `/private/tmp/gemsnote-api2-live.6g6oZR` 已由脚本退出清理停止。
+
 ### 共享复制的 JWT 鉴权阻塞（2026-10-20）
 
 运行 `bash mobile-app/scripts/test_api2_postgres.sh --plain-name 'real API2 shared note'`。

@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/core/api/api2_client.dart';
 import 'package:gemsnote/core/api/api_exception.dart';
 import 'package:gemsnote/data/database/app_database.dart';
+import 'package:gemsnote/data/session/session_store.dart';
 import 'package:gemsnote/domain/models/attachment_upload.dart';
+import 'package:gemsnote/repositories/auth_repository.dart';
 import 'package:gemsnote/sync/sync_coordinator.dart';
 import 'package:http/http.dart' as http;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -18,6 +20,7 @@ class _Api2OnlyClient extends http.BaseClient {
   final _inner = http.Client();
   final paths = <String>[];
   bool loseNextCreateResponse = false;
+  bool offline = false;
   String? copyContentType;
   int? copyStatus;
   String? copyRedirectPath;
@@ -30,6 +33,7 @@ class _Api2OnlyClient extends http.BaseClient {
       throw StateError('Test attempted a request outside its API2 server');
     }
     paths.add(request.url.path);
+    if (offline) throw StateError('Offline operation attempted HTTP');
     final response = await _inner.send(request);
     if (request.url.path == '/api2/note/copySharedNote') {
       copyContentType = response.headers['content-type'];
@@ -50,6 +54,19 @@ class _Api2OnlyClient extends http.BaseClient {
   void close() => _inner.close();
 }
 
+// Host integration tests exercise account keys and repository behavior.
+// Native secure-storage persistence is covered by native_api2_session_test.
+class _MemorySessions implements SessionStore {
+  final tokens = <String, String>{};
+  @override
+  Future<String?> read(String userId) async => tokens[userId];
+  @override
+  Future<void> write(String userId, String token) async =>
+      tokens[userId] = token;
+  @override
+  Future<void> delete(String userId) async => tokens.remove(userId);
+}
+
 void main() {
   final enabled = Platform.environment['GEMSNOTE_DISPOSABLE_API2'] == '1';
   setUpAll(() {
@@ -57,6 +74,169 @@ void main() {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   });
+  test(
+    'real API2 account switching isolates offline drafts and credentials',
+    () async {
+      final client = _Api2OnlyClient();
+      addTearDown(client.close);
+      final api = Api2Client(httpClient: client);
+      final server = Uri.parse('http://127.0.0.1:19090/');
+      final admin = FixtureSession(client, server);
+      await admin.login('admin', 'gemsnote');
+      addTearDown(() async {
+        client.offline = false;
+        await admin.close();
+      });
+      final run = DateTime.now().microsecondsSinceEpoch;
+      final email = 'mobile-switch-$run@example.test';
+      const password = 'temporary-fixture-password';
+      expect(
+        (await admin.request('/api2/web/adminRegister', {
+          'email': email,
+          'pwd': password,
+        }))['Ok'],
+        isTrue,
+      );
+      final db = await AppDatabase.open(databasePath: inMemoryDatabasePath);
+      addTearDown(db.raw.close);
+      final sessions = _MemorySessions();
+      AuthRepository repository() =>
+          AuthRepository(api, db, sessions, SyncCoordinator(api, db));
+      var repo = repository();
+      Future<StoredSession> login(String identity, String secret) async {
+        final pending = await repo.beginLogin(
+          serverAddress: server.toString(),
+          identity: identity,
+          password: secret,
+        );
+        return repo.completeLogin(pending, resetCache: false);
+      }
+
+      final first = await login('admin', 'gemsnote');
+      final firstBook = await api.saveNotebook(
+        server: server,
+        token: first.token,
+        title: 'Account isolation $run',
+      );
+      await repo.synchronize(first);
+      await repo.setAutoSync(first, true);
+      client.offline = true;
+      final firstDraft = await db.createLocalNote(
+        account: first.account,
+        notebookId: firstBook.notebookId,
+        isMarkdown: true,
+        title: 'Private A $run',
+        content: '账号 A 离线正文 📝',
+      );
+      client.offline = false;
+      final second = await login(email, password);
+      expect(second.account.cacheKey, isNot(first.account.cacheKey));
+      expect(await repo.autoSync(second), isFalse);
+      final secondBook = await api.saveNotebook(
+        server: server,
+        token: second.token,
+        title: 'Account isolation $run',
+      );
+      await repo.synchronize(second);
+      client.offline = true;
+      final secondDraft = await db.createLocalNote(
+        account: second.account,
+        notebookId: secondBook.notebookId,
+        isMarkdown: false,
+        title: 'Private B $run',
+        content: '<p>账号 B 离线正文</p>',
+      );
+      final beforeSwitch = client.paths.length;
+      repo = repository();
+      expect((await repo.restore())!.account.cacheKey, second.account.cacheKey);
+      final restoredFirst = await repo.switchAccount(first.account.cacheKey);
+      expect(restoredFirst.token == first.token, isTrue);
+      expect(await repo.autoSync(restoredFirst), isTrue);
+      expect(
+        await db.searchableNote(first.account.cacheKey, secondDraft.noteId),
+        isNull,
+      );
+      expect(
+        await db.searchableNote(second.account.cacheKey, firstDraft.noteId),
+        isNull,
+      );
+      expect(
+        await db.pendingNoteIds(first.account.cacheKey),
+        contains(firstDraft.noteId),
+      );
+      expect(
+        await db.pendingNoteIds(second.account.cacheKey),
+        contains(secondDraft.noteId),
+      );
+      expect(client.paths.length, beforeSwitch);
+
+      client.offline = false;
+      await repo.synchronize(restoredFirst);
+      expect(await db.pendingNoteIds(first.account.cacheKey), isEmpty);
+      expect(
+        await db.pendingNoteIds(second.account.cacheKey),
+        contains(secondDraft.noteId),
+      );
+      final remoteFirst = await api.getConflictSnapshot(
+        server: server,
+        token: first.token,
+        noteId: firstDraft.noteId,
+      );
+      expect(remoteFirst.note.content, firstDraft.content);
+      expect(remoteFirst.note.userId, first.account.userId);
+      await expectLater(
+        api.getConflictSnapshot(
+          server: server,
+          token: second.token,
+          noteId: firstDraft.noteId,
+        ),
+        throwsA(isA<ApiException>()),
+      );
+      final restoredSecond = await repo.switchAccount(second.account.cacheKey);
+      await repo.synchronize(restoredSecond);
+      expect(await db.pendingNoteIds(second.account.cacheKey), isEmpty);
+      final remoteSecond = await api.getConflictSnapshot(
+        server: server,
+        token: second.token,
+        noteId: secondDraft.noteId,
+      );
+      expect(remoteSecond.note.content, secondDraft.content);
+      expect(remoteSecond.note.userId, second.account.userId);
+      await expectLater(
+        api.getConflictSnapshot(
+          server: server,
+          token: first.token,
+          noteId: secondDraft.noteId,
+        ),
+        throwsA(isA<ApiException>()),
+      );
+      client.offline = true;
+      final beforeLogout = client.paths.length;
+      await repo.logout(restoredSecond);
+      expect(await repo.restore(), isNull);
+      expect(await sessions.read(second.account.cacheKey), isNull);
+      expect(
+        await sessions.read(first.account.cacheKey) == first.token,
+        isTrue,
+      );
+      expect(
+        (await repo.savedAccounts()).single.cacheKey,
+        first.account.cacheKey,
+      );
+      expect(
+        (await repo.switchAccount(first.account.cacheKey)).token == first.token,
+        isTrue,
+      );
+      expect(client.paths.length, beforeLogout);
+      client.offline = false;
+      await api.logout(server: server, token: first.token);
+      await api.logout(server: server, token: second.token);
+    },
+    skip: enabled
+        ? false
+        : 'Requires an explicitly disposable local API2 server',
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
   test(
     'real API2 shared note is read-only and an owned copy is independent',
     () async {
