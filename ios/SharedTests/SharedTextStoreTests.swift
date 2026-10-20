@@ -1,4 +1,6 @@
 import Foundation
+import CoreGraphics
+import ImageIO
 
 // Runs against the same Foundation storage source used in both iOS targets.
 // No iOS SDK or third-party test framework is required for these storage tests.
@@ -17,6 +19,21 @@ struct SharedTextStoreTests {
     SharedTextRecord(id: String(format: "%024x", number), title: "标题", text: text)
   }
 
+  static func imageBytes(type: String, width: Int = 1) throws -> Data {
+    guard let context = CGContext(data: nil, width: width, height: 1,
+      bitsPerComponent: 8, bytesPerRow: 4 * width,
+      space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue),
+      let image = context.makeImage() else { throw SharedTextStore.Failure("image fixture") }
+    let output = NSMutableData()
+    guard let destination = CGImageDestinationCreateWithData(output, type as CFString, 1, nil) else {
+      throw SharedTextStore.Failure("image destination fixture")
+    }
+    CGImageDestinationAddImage(destination, image, nil)
+    guard CGImageDestinationFinalize(destination) else { throw SharedTextStore.Failure("image encoding fixture") }
+    return output as Data
+  }
+
   static func main() throws {
     if CommandLine.arguments.count == 4, CommandLine.arguments[1] == "enqueue" {
       let directory = URL(fileURLWithPath: CommandLine.arguments[2])
@@ -32,6 +49,23 @@ struct SharedTextStoreTests {
     try check(!NativeLanguage.isChinese(preference: "en", languages: ["zh"]),
       "explicit English")
     print("PASS native language selection")
+    try check(sharedResourceKind(imageBytes(type: "public.png")) == "image",
+      "PNG shares use the image import path")
+    try check(sharedResourceKind(imageBytes(type: "public.jpeg")) == "image",
+      "JPEG shares use the image import path")
+    try check(sharedResourceKind(imageBytes(type: "public.png", width: 4097)) == "attachment",
+      "large dimensions preserve the original as an attachment")
+    try check(sharedResourceKind(Data([255, 216, 255])) == "attachment",
+      "invalid image bytes are not passed to inline import")
+    for bytes in [Data("GIF89a".utf8), Data("ftypheic".utf8), Data("%PDF".utf8)] {
+      try check(sharedResourceKind(bytes) == "attachment",
+        "unsupported inline formats preserve original attachment")
+    }
+    var largeImage = Data([255, 216, 255])
+    largeImage.append(Data(repeating: 0, count: 8 * 1024 * 1024))
+    try check(sharedResourceKind(largeImage) == "attachment",
+      "large images remain importable as original attachments")
+    print("PASS shared resource classification")
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }

@@ -101,6 +101,9 @@ final class ShareViewController: SLComposeServiceViewController {
     let provider = providers[index]
     let fileType = provider.registeredTypeIdentifiers.first {
       guard let type = UTType($0) else { return false }
+      return type.conforms(to: .png) || type.conforms(to: .jpeg)
+    } ?? provider.registeredTypeIdentifiers.first {
+      guard let type = UTType($0) else { return false }
       return type.conforms(to: .image)
     } ?? provider.registeredTypeIdentifiers.first {
       guard let type = UTType($0) else { return false }
@@ -120,7 +123,7 @@ final class ShareViewController: SLComposeServiceViewController {
           // Provider URLs expire when this callback returns; copy bytes here.
           let bytes = try Data(contentsOf: url)
           let name = url.lastPathComponent
-          let kind = UTType(fileType)?.conforms(to: .image) == true ? "image" : "attachment"
+          let kind = sharedResourceKind(bytes)
           DispatchQueue.main.async {
             self?.append(text: name, bytes: bytes, name: name, kind: kind,
                          providers: providers, index: index, generation: generation)
@@ -157,7 +160,7 @@ final class ShareViewController: SLComposeServiceViewController {
           }
           let bytes = try Data(contentsOf: url)
           let name = url.lastPathComponent
-          let kind = UTType(filenameExtension: url.pathExtension)?.conforms(to: .image) == true ? "image" : "attachment"
+          let kind = sharedResourceKind(bytes)
           DispatchQueue.main.async {
             self?.append(text: name, bytes: bytes, name: name, kind: kind,
                          providers: providers, index: index, generation: generation)

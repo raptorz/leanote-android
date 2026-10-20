@@ -41,6 +41,20 @@ Swift 主应用、分享桥和相机实现通过 iOS 15 目标的 SDK 类型检�
 
 下一步：系统级 Xcode 路径修正后完成模拟器构建和启动；继续核对系统分享来源、相机授权及生命周期，之后进行 Android 原生入口验收。发布保持暂缓，不自动推送。
 
+### Android 模拟器验证进行中
+
+本批原生功能已提交为 `408f175`，未推送。启动现有 Pixel_9 / Android 35 模拟器，首次 ADB 离线，在重连及重启 ADB 服务后恢复；`sys.boot_completed=1`，本批 debug APK 的 `adb install -r` 返回 Success。首次 `am start -W` 返回 timeout / UNKNOWN（43611 ms），UI dump 返回 null root，正在采集启动日志 `/private/tmp/gemsnote-android-startup.log`；尚不能声明启动或原生分享验收通过。模拟器进程仍在运行，不应仅因观察超时而重启或清除数据。
+
+历史正文中的 `/api/file/getImage` 和 `/api/file/getAttach` 仅用于同源资源 ID 识别及归档引用转换；实际资源获取使用 `Api2Client` 的 `/api2/file/getImage`、`/api2/file/getAttach`，本批没有引入 Legacy API 请求。
+
+后续诊断：首次应用进程确实存在且是前台 Activity，截图仍停在系统启动画面。日志有模拟器图形缓冲错误和多项系统服务超时/低内存回收，未见 Gemsnote 致命异常；主机交换空间使用约 7.8 GiB。已正常关闭首次实例，保留 AVD 数据并用 `-gpu host -cores 2 -no-snapshot` 重启；硬件后端识别为 Apple M4，92 秒完成系统启动。第二次应用安装返回包管理服务 `Broken pipe`，仍在核对系统日志及安装状态，不能标记应用运行通过。
+
+### iOS 分享资源类型兼容性修正
+
+复核 Flutter 正文图片导入器后发现它仅接受 8 MiB 内、4096×4096 内的 PNG/JPEG。扩展现在优先读取提供者的 PNG/JPEG 表示，并检查实际文件签名和 ImageIO 尺寸信息；HEIC/GIF 等其他格式、超限图片及无法读取尺寸的文件保留原件作为附件，避免保存为必然无法导入的正文图片。原件不转码、不丢弃；附件继续受原有 32 MiB 限制。此规则与现有正文图片支持范围保持一致。
+
+Swift 测试覆盖真实 PNG/JPEG、超尺寸 PNG、其他格式、损坏头部和超过图片字节限制的附件回退，全部存储/语言测试及 iOS SDK 类型检查通过。没有新增网络调用。
+
 ## 功能对照索引
 
 路径以项目根目录为基准；表中 Flutter 路径省略 `mobile-app/`，旧版路径省略 `mobile-app/legacy-android/app/src/main/java/com/github/gemsnote/`。服务端路径中的 `api/` 是控制器目录名，不表示使用 Legacy URL；实际路由以 `conf/routes` 的 `/api2/...` 为准。

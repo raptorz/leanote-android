@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+import ImageIO
 
 enum NativeLanguage {
   static var preferences: UserDefaults {
@@ -64,6 +65,20 @@ enum NativeLanguage {
     "分享内容为空、格式不支持或超过 256 KiB":
       "The share is empty, unsupported, or exceeds 256 KiB",
   ]
+}
+
+/// Match Flutter's inline-image formats. Preserve other originals (including
+/// HEIC/GIF/PDF) as attachments instead of creating an unimportable image item.
+func sharedResourceKind(_ bytes: Data) -> String {
+  let png = bytes.starts(with: [137, 80, 78, 71, 13, 10, 26, 10])
+  let jpeg = bytes.starts(with: [255, 216, 255])
+  guard (png || jpeg), bytes.count <= 8 * 1024 * 1024,
+    let source = CGImageSourceCreateWithData(bytes as CFData, nil),
+    let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+    let width = properties[kCGImagePropertyPixelWidth] as? Int,
+    let height = properties[kCGImagePropertyPixelHeight] as? Int,
+    width > 0, height > 0, width <= 4096, height <= 4096 else { return "attachment" }
+  return "image"
 }
 
 struct SharedTextRecord: Codable, Equatable {
