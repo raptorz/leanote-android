@@ -473,7 +473,20 @@ v7 升级只建表，保留正文、默认编辑器和排序偏好。
 关闭成功后取消队列后续任务，在途请求不强制中断。持久化只保存偏好，
 下载任务和运行锁持久保存。Android 开启自动缓存后使用 WorkManager 安排一次性续传和
 15 分钟周期任务；前后台执行共用 SQLite 过期锁，避免两个 Flutter engine 同时处理同一账号。
-iOS 尚未接入等价的系统后台调度。
+iOS 通过 `background_tasks.dart` 接入 Workmanager 的 BGProcessing：
+AppDelegate 在启动时注册 `com.github.gemsnote.resourceCache` 和
+`com.github.gemsnote.noteSync`，Info.plist 声明同名许可标识及 `processing` 模式，
+独立后台引擎通过 GeneratedPluginRegistrant 注册 SQLite、钥匙串等插件。
+开启偏好时预约最早 15 分钟后的联网处理机会，转入后台时可请求更早处理；
+这是最早执行时间提示，不是定时保证，实际唤醒由 iOS 决定。
+
+每次后台运行先检查当前账号和 SQLite 中的偏好，符合条件才预约下次机会，
+随后重新恢复安全存储中的会话并通过 API2 执行。任务数据不保存 token。
+关闭偏好会取消对应待执行任务；过期请求即使被唤醒也会再次检查偏好。
+保留已有钥匙串保护级别：锁屏时读取不可用则本次失败，后续机会继续重试。
+前后台共用既有 SQLite 租约与持久队列；iOS 终止后台引擎后，通过租约过期恢复，
+不能把调用调度 API 返回当作系统已接受或已执行任务的证明。
+真机后台唤醒、锁屏/解锁、任务过期及长期恢复仍待验收。
 
 验证：`flutter test test/data/default_editor_test.dart test/account_file_cache_page_test.dart`，
 覆盖 v7 升级、账号隔离、重启/退出/快照替换、失败重试、保存等待期间禁用操作，

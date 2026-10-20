@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import AVFoundation
+import workmanager_apple
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -11,6 +12,11 @@ import AVFoundation
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    WorkmanagerPlugin.setPluginRegistrantCallback { registry in
+      GeneratedPluginRegistrant.register(with: registry)
+    }
+    WorkmanagerPlugin.registerBGProcessingTask(withIdentifier: "com.github.gemsnote.resourceCache")
+    WorkmanagerPlugin.registerBGProcessingTask(withIdentifier: "com.github.gemsnote.noteSync")
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 

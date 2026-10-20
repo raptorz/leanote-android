@@ -25,7 +25,7 @@ import '../services/home_widget.dart';
 import 'shared_text_dialog.dart';
 import '../services/note_sharer.dart';
 import '../services/account_file_cache.dart';
-import '../services/android_background_cache.dart';
+import '../services/background_tasks.dart';
 import 'note_editor_page.dart';
 import 'import_note_dialog.dart';
 import 'note_reader_page.dart';
@@ -286,7 +286,7 @@ class _WorkspacePageState extends State<WorkspacePage>
 
   Future<void> _configureBackgroundCache(bool enabled) async {
     try {
-      await AndroidBackgroundCache.setEnabled(enabled);
+      await BackgroundResourceCache.setEnabled(enabled);
     } on Object catch (error) {
       if (mounted && !_signedOut) {
         setState(() => _fileStatus = trNow(context, 'm0484', [error]));
@@ -298,7 +298,7 @@ class _WorkspacePageState extends State<WorkspacePage>
     try {
       await _fileTask;
       if (!mounted || _foreground || _signedOut || !_autoCacheFiles) return;
-      await AndroidBackgroundCache.resumeOnce();
+      await BackgroundResourceCache.resumeOnce();
     } on Object catch (error) {
       if (mounted && !_signedOut) {
         setState(() => _fileStatus = trNow(context, 'm0484', [error]));
@@ -637,7 +637,7 @@ class _WorkspacePageState extends State<WorkspacePage>
 
   Future<void> _configureBackgroundSync(bool enabled) async {
     try {
-      await AndroidBackgroundSync.setEnabled(enabled);
+      await BackgroundNoteSync.setEnabled(enabled);
     } on Object catch (error) {
       if (mounted && !_signedOut) {
         setState(() => _syncError = trNow(context, 'm0506', [error]));
@@ -648,12 +648,12 @@ class _WorkspacePageState extends State<WorkspacePage>
   Future<void> _handoffBackgroundSync() async {
     try {
       if (!mounted || _foreground || _signedOut || !_autoSyncEnabled) return;
-      await AndroidBackgroundSync.setEnabled(true);
+      await BackgroundNoteSync.setEnabled(true);
       if (!mounted || _foreground || _signedOut || !_autoSyncEnabled) {
-        await AndroidBackgroundSync.setEnabled(false);
+        await BackgroundNoteSync.setEnabled(false);
         return;
       }
-      await AndroidBackgroundSync.resumeOnce();
+      await BackgroundNoteSync.resumeOnce();
     } on Object catch (error) {
       if (mounted && !_signedOut) {
         setState(() => _syncError = trNow(context, 'm0506', [error]));

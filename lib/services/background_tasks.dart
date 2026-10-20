@@ -1,6 +1,6 @@
-import 'dart:io';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:workmanager/workmanager.dart';
 
@@ -16,16 +16,21 @@ const _resumeName = 'gemsnote.resourceCache.resume';
 const _syncTaskName = 'gemsnote.noteSync';
 const _syncPeriodicName = 'gemsnote.noteSync.periodic';
 const _syncResumeName = 'gemsnote.noteSync.resume';
+const iosCacheTask = 'com.github.gemsnote.resourceCache';
+const iosSyncTask = 'com.github.gemsnote.noteSync';
+
+bool get _ios => defaultTargetPlatform == TargetPlatform.iOS;
+bool get _android => defaultTargetPlatform == TargetPlatform.android;
 
 @pragma('vm:entry-point')
 void backgroundCacheDispatcher() {
   Workmanager().executeTask((taskName, _) async {
-    if (taskName != _taskName && taskName != _syncTaskName) return true;
+    final cache = taskName == _taskName || taskName == iosCacheTask;
+    final sync = taskName == _syncTaskName || taskName == iosSyncTask;
+    if (!cache && !sync) return true;
     WidgetsFlutterBinding.ensureInitialized();
     DartPluginRegistrant.ensureInitialized();
-    return taskName == _taskName
-        ? runBackgroundResourceCache()
-        : runBackgroundNoteSync();
+    return cache ? runBackgroundResourceCache() : runBackgroundNoteSync();
   });
 }
 
@@ -34,6 +39,9 @@ void backgroundCacheDispatcher() {
 Future<bool> runBackgroundNoteSync() async {
   final database = await AppDatabase.open();
   try {
+    if (_ios && !await prepareIOSBackgroundRun(database, sync: true)) {
+      return true;
+    }
     final api = Api2Client();
     final repository = AuthRepository(
       api,
@@ -63,6 +71,9 @@ Future<bool> runBackgroundNoteSync() async {
 Future<bool> runBackgroundResourceCache() async {
   final database = await AppDatabase.open();
   try {
+    if (_ios && !await prepareIOSBackgroundRun(database, sync: false)) {
+      return true;
+    }
     final api = Api2Client();
     final repository = AuthRepository(
       api,
@@ -117,16 +128,46 @@ Future<bool> runBackgroundResourceCache() async {
   }
 }
 
-class AndroidBackgroundCache {
-  const AndroidBackgroundCache._();
+// BGProcessing requests run once. Requeue before accessing the Keychain or
+// network: a locked device or expired execution window must not permanently
+// stop future opportunities. Each run still checks the live account and flags.
+@visibleForTesting
+Future<bool> prepareIOSBackgroundRun(
+  AppDatabase database, {
+  required bool sync,
+}) async {
+  final account = await database.activeAccount();
+  if (account == null) return false;
+  final enabled = sync
+      ? await database.autoSync(account.cacheKey)
+      : await database.autoCacheFiles(account.cacheKey);
+  if (!enabled) return false;
+  if (sync) {
+    await BackgroundNoteSync.setEnabled(true);
+  } else {
+    await BackgroundResourceCache.setEnabled(true);
+  }
+  return true;
+}
+
+class BackgroundResourceCache {
+  const BackgroundResourceCache._();
 
   static Future<void> initialize() async {
-    if (!Platform.isAndroid) return;
+    if (!_android && !_ios) return;
     await Workmanager().initialize(backgroundCacheDispatcher);
   }
 
   static Future<void> setEnabled(bool enabled) async {
-    if (!Platform.isAndroid) return;
+    if (_ios) {
+      if (enabled) {
+        await _scheduleIOS(iosCacheTask, const Duration(minutes: 15));
+      } else {
+        await Workmanager().cancelByUniqueName(iosCacheTask);
+      }
+      return;
+    }
+    if (!_android) return;
     if (enabled) {
       await Workmanager().registerPeriodicTask(
         _periodicName,
@@ -142,7 +183,8 @@ class AndroidBackgroundCache {
   }
 
   static Future<void> resumeOnce() async {
-    if (!Platform.isAndroid) return;
+    if (_ios) return _scheduleIOS(iosCacheTask, Duration.zero);
+    if (!_android) return;
     await Workmanager().registerOneOffTask(
       _resumeName,
       _taskName,
@@ -152,11 +194,19 @@ class AndroidBackgroundCache {
   }
 }
 
-class AndroidBackgroundSync {
-  const AndroidBackgroundSync._();
+class BackgroundNoteSync {
+  const BackgroundNoteSync._();
 
   static Future<void> setEnabled(bool enabled) async {
-    if (!Platform.isAndroid) return;
+    if (_ios) {
+      if (enabled) {
+        await _scheduleIOS(iosSyncTask, const Duration(minutes: 15));
+      } else {
+        await Workmanager().cancelByUniqueName(iosSyncTask);
+      }
+      return;
+    }
+    if (!_android) return;
     if (enabled) {
       await Workmanager().registerPeriodicTask(
         _syncPeriodicName,
@@ -172,7 +222,8 @@ class AndroidBackgroundSync {
   }
 
   static Future<void> resumeOnce() async {
-    if (!Platform.isAndroid) return;
+    if (_ios) return _scheduleIOS(iosSyncTask, Duration.zero);
+    if (!_android) return;
     await Workmanager().registerOneOffTask(
       _syncResumeName,
       _syncTaskName,
@@ -181,3 +232,11 @@ class AndroidBackgroundSync {
     );
   }
 }
+
+Future<void> _scheduleIOS(String identifier, Duration delay) =>
+    Workmanager().registerProcessingTask(
+      identifier,
+      identifier,
+      initialDelay: delay,
+      constraints: Constraints(networkType: NetworkType.connected),
+    );
