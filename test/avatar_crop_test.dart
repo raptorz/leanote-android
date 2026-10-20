@@ -109,33 +109,38 @@ void main() {
       }
     },
   );
-  test('Android camera cancellation and errors are surfaced without a fallback upload', () async {
-    const channel = MethodChannel('gemsnote/avatar_camera');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    debugDefaultTargetPlatformOverride = TargetPlatform.android;
-    addTearDown(() {
-      debugDefaultTargetPlatformOverride = null;
-      messenger.setMockMethodCallHandler(channel, null);
-    });
-    var mode = 'cancel';
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      expect(call.method, 'capture');
-      if (mode == 'cancel') return null;
-      if (mode == 'fail') throw PlatformException(code: 'noCamera');
-      return File('assets/images/gemsnote_s.png').readAsBytesSync();
-    });
-    final picker = AvatarPicker();
-    expect(picker.cameraSupported, isTrue);
-    expect(await picker.capture(), isNull);
-    mode = 'fail';
-    await expectLater(picker.capture(), throwsA(isA<PlatformException>()));
-    mode = 'ok';
-    expect(await picker.capture(), isNotNull);
-    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-    expect(picker.cameraSupported, isFalse);
-    await expectLater(picker.capture(), throwsUnsupportedError);
-  });
+  for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
+    test(
+      '$platform camera cancellation and errors are surfaced without a fallback upload',
+      () async {
+        const channel = MethodChannel('gemsnote/avatar_camera');
+        final messenger =
+            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        debugDefaultTargetPlatformOverride = platform;
+        addTearDown(() {
+          debugDefaultTargetPlatformOverride = null;
+          messenger.setMockMethodCallHandler(channel, null);
+        });
+        var mode = 'cancel';
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          expect(call.method, 'capture');
+          if (mode == 'cancel') return null;
+          if (mode == 'fail') throw PlatformException(code: 'noCamera');
+          return File('assets/images/gemsnote_s.png').readAsBytesSync();
+        });
+        final picker = AvatarPicker();
+        expect(picker.cameraSupported, isTrue);
+        expect(await picker.capture(), isNull);
+        mode = 'fail';
+        await expectLater(picker.capture(), throwsA(isA<PlatformException>()));
+        mode = 'ok';
+        expect(await picker.capture(), isNotNull);
+        debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+        expect(picker.cameraSupported, isFalse);
+        await expectLater(picker.capture(), throwsUnsupportedError);
+      },
+    );
+  }
   testWidgets('cancel crop returns no image and never uploads', (tester) async {
     Uint8List? result;
     var finished = false;

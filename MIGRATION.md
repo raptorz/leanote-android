@@ -7,18 +7,39 @@
 - 主工作目录保持服务端仓库根目录。所有 Git 操作明确使用 `git -C mobile-app`；只提交此独立仓库的相关文件，不 push、不改写历史。
 - `legacy-android` 仅作只读参考。服务端和 desktop 的共享只读、同步合同修复已在用户明确授权后完成。
 - 业务通信必须为 API2。用户已明确允许公开头像直接访问；沿用同源、不携带凭据、不跟随重定向的下载策略。
-- 2026-10-13 最新范围：iOS 原生实现与验证暂缓，发布工作暂缓；继续完成其余功能迁移。已有 iOS 代码保留，共享 Flutter 功能仍继续实现。
+- 2026-10-20 最新范围：恢复 iOS 原生功能实现和编译检查；发布继续暂缓。设备验证仍需可用运行时或真机，不把源码检查视为验收。
 - 服务端 B01/B02/B03/B06 已修复；B07 已补完整快照、附件原件保留和在线恢复接口；Flutter 继续只使用 API2，不回退 Legacy API。
 - 旧 Android 小组件保留为目标。深链、生物识别属于既有规划扩展，是否为旧功能对应项还需核对，不能冒充已迁移。
 - 注册、博客、演示账号、旧数据库迁移目前按原迁移方案排除；若发现与必要移动功能有依赖需重新记录。
 
-## 当前现场（2026-10-16）
+## 当前现场（2026-10-20）
 
 - 独立仓库已确认：`/Users/raptor/Documents/github/gemsnote/mobile-app`，分支 develop。
-- 最近提交：`4612e3c` 共享只读复制、空标签合同和历史格式恢复。此前各功能批次的提交与验证记录保留在后文。
+- 上一批提交：`f0416df` 目录管理和在线完整历史恢复；本批补齐 iOS 分享、拍照、原生语言桥及 CocoaPods 回退配置。
 - 2026-10-16 本轮完整 Flutter 测试 **780 项通过、2 项条件测试默认跳过**，静态检查无问题。Android debug APK 是此前批次构建通过，本轮没有重新构建，也未进行设备验收。
 - Android 构建已恢复：曾因 Gradle 9.3.1 all.zip 损坏失败，已通过官方 SHA-256 验证并替换，补齐 NDK/SDK/CMake 后首次及增量 debug APK 构建成功。尚无真机验收证据。
-- 当前结论：主体迁移、笔记本删除和全局标签删除/重命名已实现；共享只读复制、空标签清除与历史格式恢复已接入。在线完整历史附件恢复已接入，旧快照/缺失原件明确拒绝；离线保留正文恢复。设备验收、iOS 原生扩展和发布按要求暂缓。
+- 当前结论：主体迁移及在线完整历史恢复已接入。iOS 分享扩展新增图片、文件和多项接收，实现已通过 Swift 存储测试和 iOS SDK 类型检查，完整应用编译及设备验收仍未通过。
+- 本轮分享相关 Flutter 测试 40 项通过。后续已安装 iOS 26.3 运行时和 CocoaPods 1.17.0；刷新插件配置并成功执行 pod install，补入 CocoaPods 回退工程配置。当前完整构建阻塞于 `objective_c` 构建钩子找不到 SDK：hooks_runner 过滤临时 `DEVELOPER_DIR`，系统仍指向 CommandLineTools，需要用户在终端以管理员权限切换 xcode-select。未完成应用编译或模拟器启动。
+
+### 2026-10-20 iOS 分享扩展
+
+图片、二进制文件、文件 URL、文本和网页提供者可进入原有 Flutter 分享收件箱。每批最多 8 项，资源总计最多 32 MiB；每项作为独立待导入条目依次处理。扩展预览只读，在主应用导入界面编辑。原件在提供者回调有效期内读取，存入 App Group 私有文件；账号认领后才允许读取，导入或主动丢弃确认后删除原件。
+
+队列在跨进程锁下整批发布；数量、容量、元数据或原件失败不发布部分条目。已有文本队列可继续解码，重试保留账号认领且拒绝覆盖原件。Swift 测试覆盖批次失败、资源持久化、账号隔离、幂等、清理、损坏队列和跨进程并发。
+
+本轮只验证存储行为、iOS SDK 类型检查和共享 Flutter 导入流程；系统分享面板、不同来源应用、扩展内存限制、App Group 签名和生命周期尚需设备验收。iOS 相机、原生语言设置及其他平台待办继续保留；未进行发布。
+
+### iOS 头像拍照后续
+
+已补齐 `gemsnote/avatar_camera` 原生通道和 iOS 入口：使用系统相机，显式申请摄像头权限；拒绝、无相机、重复打开和非前台调用返回错误，取消返回空值。拍照结果通过绘制归一化方向、去除原始 EXIF/位置元数据并限制为最长边 1024 像素、2 MiB 内 JPEG，再交给既有 Flutter 裁剪和 API2 头像上传流程。不保存相册副本，也不申请相册权限。
+
+Swift 主应用、分享桥和相机实现通过 iOS 15 目标的 SDK 类型检查；Android/iOS 通道取消、错误及成功结果和头像上传专项共 14 项通过。权限弹窗、真实相机、后台中断和方向仍需设备验证；原生中英文提示尚待统一。当前终端的 `DEVELOPER_DIR` 会掩盖系统路径，复查时须用 `env -u DEVELOPER_DIR xcode-select -p`；系统真实配置仍为 CommandLineTools。
+
+后续已接入 iOS `gemsnote/app_language`：与分享扩展通过 App Group UserDefaults 共享 `system/zh/en` 偏好，分享预览、错误与拍照错误使用该选择；未选择时中文系统显示中文，其他系统显示英文。系统相机和权限窗口保持系统控制。Swift 语言选择规则有测试，Flutter 原生语言桥测试覆盖 Android/iOS 并排除其他平台。跨进程实际偏好传播仍需设备验收。
+
+本批静态分析无问题，全量 Flutter **781 项通过、2 项条件测试跳过**；Android debug APK 构建通过。原生语言桥追加后专项 **25 项通过**、静态分析和 Android 增量构建通过（7.1 秒），Swift 存储/语言测试和 iOS SDK 类型检查通过。完整 iOS 应用尚不能编译通过，不能据此宣布迁移完成。
+
+下一步：系统级 Xcode 路径修正后完成模拟器构建和启动；继续核对系统分享来源、相机授权及生命周期，之后进行 Android 原生入口验收。发布保持暂缓，不自动推送。
 
 ## 功能对照索引
 
@@ -46,11 +67,11 @@
 | M16 附件上传下载、打开、分享 | desktop-app/service/file_service.go、webapi/proxy.go | Api2.UploadAttachment、ApiFile.GetAttach | service/NoteFileService | ui/note_files_page.dart、services/attachment_*；API2 | 在线上传、下载、离线保存/分享/打开已实现；附件离线暂存、持久上传状态及结果不确定时手动恢复已实现（schema v11）；原生 intent 验证未完，iOS 暂缓 |
 | M17 资源任务与缓存管理 | desktop-app/service/file_service.go | ApiNote.GetNote + ApiFile | background/NoteSyncService | services/account_file_cache.dart、android_background_cache.dart、ui/file_cache_dialog.dart；API2 | 账号资源下载队列已持久化（schema v10），支持重启/暂停续传、逐文件失败恢复、失效快照拦截；64MiB 缓存与任务清理已实现；Android WorkManager 资源下载按已保存偏好安排周期/一次性任务，跨隔离队列互斥；自动同步开关按账号持久化（schema v20），后台笔记同步按此偏好调度；系统后台行为待设备验收 |
 | M18 缓存偏好持久化 | desktop-app/db 配置、service/file_service.go | 无新增请求 | ui/SettingsActivity | app_database schema v8、workspace_page；本地 | 已提交 f524502；账号隔离、升级、读写失败/重试测试通过 |
-| M19 账号资料、头像、密码 | desktop-app/webapi/background_profile.go、proxy.go | Api2.UploadAvatar、User.UpdateUsername/UpdatePwd、web/emailChange | ui/SettingsActivity | ui/account_page.dart、avatar_upload_dialog.dart；API2 + 允许的公开头像 | 主要功能、头像裁剪、Android 相机与 PNG/JPEG/WebP/GIF/BMP 导入已实现；iOS 相机暂缓，原生相机方向/取消/进程恢复及帐号变更竞态真机验收待做 |
-| M20 默认编辑器、语言、关于 | desktop-app/webapi/about.go、应用配置 | 默认编辑器与语言本地；协议版本 API2 | ui/SettingsActivity、AboutActivity | default_editor_dialog.dart、about_dialog.dart；API2 | 编辑器/版本、Flutter 中英文与 system/zh/en 全设备语言设置已实现（schema v17）；Android 分享、拍照、小组件跟随选择；仍需系统语言切换、输入法及原生入口真机验收 |
+| M19 账号资料、头像、密码 | desktop-app/webapi/background_profile.go、proxy.go | Api2.UploadAvatar、User.UpdateUsername/UpdatePwd、web/emailChange | ui/SettingsActivity | ui/account_page.dart、avatar_upload_dialog.dart；API2 + 允许的公开头像 | 主要功能、头像裁剪、Android/iOS 相机入口与 PNG/JPEG/WebP/GIF/BMP 导入已实现；iOS 原生代码通过 SDK 类型检查，原生相机权限/方向/取消/进程恢复及帐号变更竞态真机验收待做 |
+| M20 默认编辑器、语言、关于 | desktop-app/webapi/about.go、应用配置 | 默认编辑器与语言本地；协议版本 API2 | ui/SettingsActivity、AboutActivity | default_editor_dialog.dart、about_dialog.dart；API2 | 编辑器/版本、Flutter 中英文与 system/zh/en 全设备语言设置已实现（schema v17）；Android 分享、拍照、小组件跟随选择；iOS 分享扩展与拍照错误提示已接入 App Group 偏好；仍需跨进程语言切换、输入法及原生入口真机验收 |
 | M21 多账号快速切换 | desktop-app/app.go、db 配置 | Api2.TokenLogin、ApiUser.Info | service/AccountService、ui/MainActivity | app.dart、data/session/session_store.dart | 本轮实现切换/添加账号、登录页恢复已登录账号；保留离线修改与多账号凭据，切换前等待资源任务、重建工作区；静态检查和全量 488 项测试通过；原生安全存储/生命周期验收仍待进行 |
 | M22 导入导出、对外分享 | desktop-app/webapi/local.go | 本地操作无需新接口 | ui/edit/NoteEditActivity | services/note_importer.dart、note_exporter.dart、note_sharer.dart | 原文导入导出及系统分享已实现；新增本地 .gemsnote 完整资源归档导入导出，包含摘要校验及持久上传队列；Android 文件面板验收仍待做，iOS 暂缓 |
-| M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity、ios/ShareExtension 与 Shared | Android 单项/多项文本、文本文件、图片与二进制附件接收已实现，含私有原件暂存、账号认领和事务导入；JVM/Flutter 测试和 APK 构建通过，设备生命周期验收待做；iOS 文件/多项及验证暂缓 |
+| M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity、ios/ShareExtension 与 Shared | Android 单项/多项文本、文本文件、图片与二进制附件接收已实现；iOS 图片/文件/多项已接入同一收件箱，私有原件、整批发布与账号隔离有 Swift 测试；系统来源应用和生命周期验收仍待做 |
 | M24 Android 小组件 | Desktop 无等价 | 本地快照，无新接口 | appwidget/NoteAppWidget、WidgetService、RedirActivity | services/home_widget.dart、Android NoteWidget；本地快照 | 最近 30 条标题列表、新建/打开入口、默认隐私关闭、账号代次隔离和退出清理已实现；仅 home_screen，不提供锁屏组件；启动器/进程重启/系统生命周期真机验收待做 |
 | M25 Android/iOS 发布与运行 | desktop-app/.github/workflows 为发布参考 | 无 | 旧 Android 构建参考 | android、ios、.github/workflows | 损坏 Gradle 包已修复，Android debug APK 已构建成功；iOS 模拟器/签名/设备验收未完成；不自动发布 |
 | M26 API2 边界与网络错误 | desktop-app/api/client.go | conf/routes、Api2Controller、api/* | 禁止复用旧请求 | lib/core/api/api2_client.dart | 未发现直接 Legacy 业务调用；JSON/表单已禁止自动重定向，真实 HTTP 测试覆盖 GET/JSON/form × 301/302/303/307/308；旧正文路径仅解析 FileId，绝不请求原路径 |

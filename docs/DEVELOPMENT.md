@@ -69,6 +69,35 @@ tag 必须匹配 `pubspec.yaml` 的版本，发布前复用上述 CI 测试。
 
 ### 本地 iOS 模拟器编译检查
 
+2026-10-20 后续复查：iOS 26.3 模拟器运行时和设备已经安装，CocoaPods
+1.17.0 可用。执行 `flutter pub get --offline` 刷新插件配置后，工程已生成
+Podfile 和配置引用，`pod install` 成功，`open_filex` 通过 CocoaPods 回退集成。
+
+完整构建目前阻塞于 `objective_c` 原生构建钩子查询 SDK：
+当前 hooks_runner 会过滤 `DEVELOPER_DIR`，仅在命令前指定该变量不足以
+完成构建。系统 `xcode-select` 仍指向 CommandLineTools，需在本机终端执行：
+
+```sh
+sudo xcode-select --switch /Volumes/LC128G/Applications/Xcode.app/Contents/Developer
+env -u DEVELOPER_DIR xcode-select -p
+env -u DEVELOPER_DIR xcrun --sdk iphonesimulator --show-sdk-path
+```
+
+切换需要管理员密码，本轮自动执行的 `sudo -n` 未获认证，未改变系统设置。
+验证时必须移除终端已有的 `DEVELOPER_DIR`，否则会误认为系统级路径已切换。
+外接盘需要保持连接。完整应用编译和模拟器启动仍未通过，不能把插件安装成功
+视为应用验收。
+
+分享存储可独立验证（使用上述 Xcode 环境）：
+
+```sh
+xcrun swiftc ios/Shared/SharedTextStore.swift ios/SharedTests/SharedTextStoreTests.swift -o /private/tmp/gemsnote-share-tests
+/private/tmp/gemsnote-share-tests
+```
+
+该测试不代替系统分享面板验收。扩展每批最多保存 8 项、总资源 32 MiB，
+使用 App Group 原件和跨进程锁；宿主应用必须正确配置相同 App Group 权限。
+
 普通 push/PR 不再构建模拟器包。可在 macOS 上使用相同 Flutter 版本手动执行：
 
 ```sh

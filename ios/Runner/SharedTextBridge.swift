@@ -9,7 +9,7 @@ final class SharedTextBridge {
     channel = FlutterMethodChannel(name: "gemsnote/shared_text", binaryMessenger: messenger)
     channel.setMethodCallHandler { [weak self] call, result in
       guard let self else { return }
-      guard ["peek", "claim", "acknowledge"].contains(call.method) else {
+      guard ["peek", "claim", "acknowledge", "readResource"].contains(call.method) else {
         result(FlutterMethodNotImplemented)
         return
       }
@@ -23,11 +23,15 @@ final class SharedTextBridge {
             guard let args = call.arguments as? [String: Any], let id = args["id"] as? String else {
               throw SharedTextStore.Failure("缺少分享标识")
             }
-            if call.method == "claim" {
+            if call.method == "claim" || call.method == "readResource" {
               guard let accountKey = args["accountKey"] as? String else {
                 throw SharedTextStore.Failure("缺少分享目标账号")
               }
-              try store.claim(id: id, accountKey: accountKey)
+              if call.method == "claim" {
+                try store.claim(id: id, accountKey: accountKey)
+              } else {
+                value = FlutterStandardTypedData(bytes: try store.readResource(id: id, accountKey: accountKey))
+              }
             } else {
               try store.acknowledge(id: id)
             }

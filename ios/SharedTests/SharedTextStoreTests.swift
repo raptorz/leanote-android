@@ -23,6 +23,15 @@ struct SharedTextStoreTests {
       try SharedTextStore(directory: directory).enqueue(record(Int(CommandLine.arguments[3])!))
       return
     }
+    try check(NativeLanguage.isChinese(preference: "system", languages: ["zh-Hant-TW"]),
+      "system Chinese variants")
+    try check(!NativeLanguage.isChinese(preference: "system", languages: ["fr", "zh"]),
+      "other system languages use English")
+    try check(NativeLanguage.isChinese(preference: "zh", languages: ["en"]),
+      "explicit Chinese")
+    try check(!NativeLanguage.isChinese(preference: "en", languages: ["zh"]),
+      "explicit English")
+    print("PASS native language selection")
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
@@ -47,6 +56,40 @@ struct SharedTextStoreTests {
     try store.acknowledge(id: first.id)
     try check(store.peek() == nil, "idempotent acknowledgement; only one retry record")
     print("PASS persistence, claim isolation, idempotence")
+
+    let payload = Data([1, 2, 3, 4])
+    var image = record(10, text: "photo.png")
+    image.resourceKind = "image"
+    image.resourceName = "photo.png"
+    image.resourceSize = payload.count
+    try store.enqueueBatch([(first, nil), (image, payload)])
+    try store.acknowledge(id: first.id)
+    try check(store.peek() == image, "batch preserves FIFO metadata")
+    try rejects("unclaimed original") { _ = try store.readResource(id: image.id, accountKey: "A") }
+    try store.claim(id: image.id, accountKey: "A")
+    try check(store.readResource(id: image.id, accountKey: "A") == payload, "durable original")
+    try rejects("other account original") { _ = try store.readResource(id: image.id, accountKey: "B") }
+    try store.enqueueBatch([(image, payload)])
+    try rejects("different original retry") {
+      try store.enqueueBatch([(image, Data([4, 3, 2, 1]))])
+    }
+    try store.acknowledge(id: image.id)
+    try check(!FileManager.default.fileExists(
+      atPath: directory.appendingPathComponent(image.id + ".resource").path), "ack cleans original")
+    try rejects("bad batch leaves no prefix") {
+      try store.enqueueBatch([(first, nil), (image, Data([1]))])
+    }
+    try check(store.peek() == nil, "failed batch is invisible")
+    var unsafe = image
+    unsafe.resourceName = "../photo.png"
+    try rejects("unsafe filename") { try store.enqueueBatch([(unsafe, payload)]) }
+    for index in 1...7 { try store.enqueue(record(index)) }
+    try rejects("capacity rejects whole batch") {
+      try store.enqueueBatch([(image, payload), (record(11), nil)])
+    }
+    for index in 1...7 { try store.acknowledge(id: record(index).id) }
+    try check(store.peek() == nil, "capacity failure left no partial entries")
+    print("PASS resource persistence, account isolation, atomic batch, cleanup")
 
     for text in ["", " \n", "\u{FEFF}\u{85}\u{A0}", "nul\0", String(repeating: "中", count: 90_000)] {
       try rejects("invalid content") { try store.enqueue(record(1, text: text)) }

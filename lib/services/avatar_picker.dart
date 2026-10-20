@@ -18,7 +18,9 @@ class AvatarPicker {
   final Future<PlatformFile?> Function() _pick;
   static const maxBytes = 2 * 1024 * 1024;
   bool get cameraSupported =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
   Future<Uint8List?> capture() async {
     if (!cameraSupported) throw UnsupportedError('当前平台暂不支持拍照');
     final bytes = await const MethodChannel('gemsnote/avatar_camera')

@@ -209,7 +209,7 @@ void main() {
     expect(find.text('English'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
-  testWidgets('native bridge only sends locale preference on Android', (
+  testWidgets('native bridge sends locale preference on Android and iOS', (
     tester,
   ) async {
     final values = <Object?>[];
@@ -231,9 +231,12 @@ void main() {
     await setNativeLanguage('en');
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     await setNativeLanguage('zh');
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    await setNativeLanguage('system');
     debugDefaultTargetPlatformOverride = null;
     expect(values, [
       {'language': 'en'},
+      {'language': 'zh'},
     ]);
   });
 }
