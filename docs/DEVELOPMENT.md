@@ -93,6 +93,17 @@ DEVELOPER_DIR=/Volumes/LC128G/Applications/Xcode.app/Contents/Developer \
 确保编辑发生在已挂载的原生视图上；离屏视图的 WebKit 撤销行为不能作为界面验收。
 普通 `flutter test` 仍只运行 `test/`，不自动启动模拟器。
 
+### iOS 原生权限文案
+
+相机权限用途说明位于 `ios/Runner/{en,zh-Hans,zh-Hant}.lproj/InfoPlist.strings`，
+通过 Xcode 的本地化资源组随 Runner 打包；Info.plist 中英文说明保留为回退。
+这些说明由 iOS 为该应用选择的语言决定，不能靠 Flutter 的运行时语言偏好
+动态改写系统权限弹窗。Flutter 界面、分享扩展和相机错误提示仍使用既有语言设置。
+添加新权限用途说明时，应同时维护本地化资源和英文回退。
+
+2026-10-20 已检查构建产物中的三种文案，以及简体/繁体区域选择和英文回退；
+此检查不代替真机授权弹窗与相机功能验收。
+
 ### 本地 iOS 模拟器编译检查
 
 2026-10-20 后续复查：iOS 26.3 模拟器运行时和设备已经安装，CocoaPods

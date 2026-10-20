@@ -1,1 +1,2 @@
 "CFBundleDisplayName" = "Gemsnote";
+"NSCameraUsageDescription" = "Take a photo to use as your Gemsnote avatar.";
