@@ -14,6 +14,8 @@
 
 ## 当前现场（2026-10-20）
 
+- 上批 `05449ce` 完成目录管理真实联调。补强创建响应丢失证据：在原客户端重试前，先由第二个独立 SQLite 客户端同步并确认远端已有同一 ID 和完整正文，再验证原客户端重试后不重复创建。全新临时 PostgreSQL 专项 **1 项通过**，日志 `/private/tmp/gemsnote-api2-loss-confirmed.log`，退出后临时服务自动停止。本批仅补断言和文档，不重复已有全套回归。
+
 - 上批 `c30ecb6` 修复 Cookie 会话请求头并建立真实 API2 测试。本批继续 M06/M07/M11 目录管理：全新 PostgreSQL 临时库专项 **1 项通过**，使用生产客户端、同步器和 SQLite 验证父子目录创建/重命名、含子目录删除拒绝（精确业务原因）、旧 USN 删除拒绝（conflict）、空子目录及父目录删除后通过正常增量同步移除；创建标签并分别用于活动笔记和回收站笔记，删除标签后收到 tombstone、两类笔记标签清空且 USN 前进，正文与回收站状态保留。最终静态分析无问题（3.8 秒），`git diff --check` 通过；仅测试和文档改动，未重复全套 Flutter/平台构建。真实 API2 当前累计三项已分别通过、一项历史更新失败；普通回归的联网条件跳过由三项增加为四项，不将它们算入已通过数量。最终日志 `/private/tmp/gemsnote-api2-catalog-final.log`，临时目录 `/private/tmp/gemsnote-api2-live.Bp4GIQ`，脚本已停止临时服务。服务端历史字段映射阻塞仍未修复；下一步继续其他不依赖历史更新的入口和生命周期验收。
 
 - 上批 `8af797c` 完成 Android 文件分享设备验证。用户已用 brew 安装 PostgreSQL 18 并授权临时测试，本批使用全新独立 PostgreSQL 18.6 数据目录及服务端源码副本，仅监听本机；未修改服务端工作区、真实配置或数据库。实际联调发现移动端 Cookie 会话写请求缺少 `X-Requested-With: XMLHttpRequest`，附件上传被 `Api2.RequireSession` 拒绝为 `invalidRequest`；已按 desktop 代理补齐共用 `_accountFormAction`，六类接口（附件、正文图片、头像、用户名、密码、邮箱）增加断言。新增 `scripts/test_api2_postgres.sh` 不安装软件，自动构建临时副本、初始化并运行测试、退出时停止两项进程；实际执行及清理验证通过。真实 API2 **2 项通过、1 项失败**：双 SQLite 客户端创建/拉取、二进制上传下载逐字节一致、服务端已保存但响应被注入丢失后的重试不重复创建通过；后续笔记编辑失败为服务端 `historySaveFailed`，PostgreSQL 明确报告 `note_content_histories.note_id` 不存在（实际主键 `id`），完整历史恢复未执行到，保留失败测试。禁止将此归为客户端通过；服务端修复留待授权，不更改测试表结构绕过。完整 Flutter 回归 **787 项通过、5 项条件跳过（80 秒）**：原浏览器/性能 2 项及新增显式联网 3 项；静态分析无问题（最终 3.4 秒），Android debug 构建通过（7.5 秒）。日志 `/private/tmp/gemsnote-api2-script-validation.log`、临时测试目录 `/private/tmp/gemsnote-api2-live.mF77ls`，两个临时服务已停止；另一次初始目录 `/private/tmp/gemsnote-api2-live-6xu3u8gy` 也已停止。复现与限制见 `docs/API2_LIVE_TESTING.md`。下一步继续不依赖历史更新的 API2 和设备流程；历史更新/恢复需服务端修复后复验。

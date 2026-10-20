@@ -287,6 +287,13 @@ void main() {
             await db.pendingNoteIds(account.cacheKey),
             contains(draft.noteId),
           );
+          // Verify the remote commit from an independent cache before retrying.
+          await secondSync.synchronize(account: account, token: token);
+          expect(
+            (await secondDb.searchableNote(account.cacheKey, draft.noteId))
+                ?.content,
+            draft.content,
+          );
         }
         await sync.synchronize(account: account, token: token);
         expect(await db.pendingNoteIds(account.cacheKey), isEmpty);
