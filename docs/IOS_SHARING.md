@@ -55,7 +55,7 @@ bash scripts/test_ios_share_store.sh
 并启动 8 个独立进程验证并发写入不丢记录。Flutter 的
 `test/shared_text_inbox_test.dart` 覆盖 Android/iOS 默认启用和初始化/前台刷新路径。
 
-Safari 分享可使用独立 Xcode UI 测试工程验证；测试需要未登录的测试模拟器、
+Safari 分享及图片/文件批量接收可使用独立 Xcode UI 测试工程验证；测试需要未登录的测试模拟器、
 已有 CocoaPods 的 xcodeproj Ruby gem、Python 3，以及空闲的本机 8765 端口。
 先构建普通 Debug 模拟器应用（**不要加 `--no-codesign`**），再运行：
 
@@ -67,8 +67,11 @@ DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer \
 ```
 
 脚本安装当前构建，启动仅监听 127.0.0.1 的网页夹具，实际操作 Safari 分享面板。
+另外生成仅用于测试的 SharingFixture 应用，通过真实 UIActivityViewController
+同时分享 PNG 与二进制文件，检查正文图片/附件分类及资源与来源文件逐字节一致。
 取消首次分享后再次保存同一测试 URL，重启主应用，检查真实 App Group 中仅有一条
-完整且未认领的记录，再用生产存储代码确认移除该唯一测试记录。不会清空其他收件记录。
+完整且未认领的记录。两项测试均成功后，用生产存储代码确认移除本轮三个测试记录
+及其资源，并清理来源应用本轮临时原件；不会清空其他收件记录。
 失败时保留现场供排查；测试日志、截图附件和 xcresult 位于输出的临时目录，
 可用 `IOS_UI_WORK_DIR` 指定专用目录复用编译缓存。脚本结束关闭其启动的网页服务。
 测试当前针对 iOS 26 的中文/英文 Safari 紧凑工具栏，其他布局需适配测试定位。
@@ -78,7 +81,9 @@ DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer \
 设备集成测试已通过主应用真实通道的 App Group 收件箱访问检查；
 该检查不认领或删除现有条目。后续独立 Safari UI 测试已通过取消后重开、保存、
 主应用重启后唯一 URL 记录持久化；自有 UIKit 界面实际显示中文“保存/取消”。
-该测试不包含登录后的笔记导入，也不覆盖图片、文件和多项来源。
+后续 SharingFixture 来源应用的 PNG 与二进制文件两项批量分享也通过，
+分类和原件字节均已核对，共 2 项 UI 测试通过。测试不包含登录后的笔记导入、
+其他提供者、GIF/HEIC 或异常/超限输入。
 这些检查不能替代系统分享与真机验收。仍需检查：
 
 - Release/Profile 扩展嵌入、签名、版本一致性（发布暂缓）。

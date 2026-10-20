@@ -3,6 +3,35 @@ import XCTest
 /// Runs against the installed debug app and the simulator's Safari.
 /// No login credentials or production account are required.
 final class SharingUITests: XCTestCase {
+  func testImageAndFileBatch() throws {
+    continueAfterFailure = false
+    let id = UUID().uuidString.lowercased()
+    print("SHARE_BATCH_ID=\(id)")
+    let source = XCUIApplication(bundleIdentifier: "com.github.gemsnote.SharingFixture")
+    source.launchArguments = ["-fixture-id", id]
+    source.launch()
+    let share = source.buttons["Share image and file"]
+    XCTAssertTrue(share.waitForExistence(timeout: 20))
+    share.tap()
+    let gemsnote = source.staticTexts["Gemsnote"].firstMatch
+    XCTAssertTrue(gemsnote.waitForExistence(timeout: 20), source.debugDescription)
+    gemsnote.tap()
+    let save = source.buttons.matching(NSPredicate(format: "label IN {'保存', 'Save'}")).firstMatch
+    XCTAssertTrue(save.waitForExistence(timeout: 20), source.debugDescription)
+    expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: save)
+    waitForExpectations(timeout: 20)
+    let preview = XCTAttachment(screenshot: source.screenshot())
+    preview.lifetime = .keepAlways
+    add(preview)
+    save.tap()
+    expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: save)
+    waitForExpectations(timeout: 20)
+    XCTAssertFalse(source.alerts.firstMatch.exists, source.debugDescription)
+    let app = XCUIApplication(bundleIdentifier: "com.github.gemsnote")
+    app.launch()
+    XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
+  }
+
   func testSafariShareToGemsnote() throws {
     continueAfterFailure = false
     let app = XCUIApplication(bundleIdentifier: "com.github.gemsnote")

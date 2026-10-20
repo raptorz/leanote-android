@@ -5,8 +5,8 @@ import Foundation
 @main
 struct VerifyInbox {
   static func main() throws {
-    guard CommandLine.arguments.count == 3 else {
-      throw SharedTextStore.Failure("Usage: verify-inbox <group-directory> <test-log>")
+    guard CommandLine.arguments.count == 4 else {
+      throw SharedTextStore.Failure("Usage: verify-inbox <group-directory> <test-log> <fixture-container>")
     }
     let group = URL(fileURLWithPath: CommandLine.arguments[1])
     let log = try String(contentsOfFile: CommandLine.arguments[2], encoding: .utf8)
@@ -26,7 +26,33 @@ struct VerifyInbox {
       throw SharedTextStore.Failure("Expected exactly one unclaimed URL in the real App Group inbox")
     }
     try record.validate()
-    try SharedTextStore(directory: directory).acknowledge(id: record.id)
-    print("PASS Safari share persisted across main-app relaunch; removed only fixture \(record.id)")
+    let batchExpression = try NSRegularExpression(pattern: #"(?m)^SHARE_BATCH_ID=([0-9a-f-]{36})$"#)
+    guard let batchMatch = batchExpression.firstMatch(in: log, range: NSRange(log.startIndex..., in: log)),
+      let batchRange = Range(batchMatch.range(at: 1), in: log) else {
+      throw SharedTextStore.Failure("Missing batch fixture ID")
+    }
+    let batchID = String(log[batchRange])
+    let originalDirectory = URL(fileURLWithPath: CommandLine.arguments[3])
+      .appendingPathComponent("tmp").appendingPathComponent(batchID)
+    var verified = [record]
+    for (suffix, kind) in [("png", "image"), ("bin", "attachment")] {
+      let name = "gemsnote-\(batchID).\(suffix)"
+      let candidates = records.filter { $0.resourceName == name }
+      guard candidates.count == 1, let resource = candidates.first,
+        resource.accountKey.isEmpty, resource.resourceKind == kind else {
+        throw SharedTextStore.Failure("Expected exactly one unclaimed \(kind): \(name)")
+      }
+      try resource.validate()
+      let original = try Data(contentsOf: originalDirectory.appendingPathComponent(name))
+      let saved = try Data(contentsOf: directory.appendingPathComponent(resource.id + ".resource"))
+      guard original == saved, saved.count == resource.resourceSize else {
+        throw SharedTextStore.Failure("Shared bytes differ from original: \(name)")
+      }
+      verified.append(resource)
+    }
+    let store = SharedTextStore(directory: directory)
+    for fixture in verified { try store.acknowledge(id: fixture.id) }
+    try FileManager.default.removeItem(at: originalDirectory)
+    print("PASS Safari URL and two-item image/file batch persisted; original bytes match; removed only three fixture records")
   }
 }

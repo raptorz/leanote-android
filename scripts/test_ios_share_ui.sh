@@ -55,5 +55,6 @@ fi
 
 xcrun swiftc -swift-version 5 "$mobile_root/ios/Shared/SharedTextStore.swift" \
   "$sources/VerifyInbox.swift" -o "$work_dir/verify-inbox"
-"$work_dir/verify-inbox" "$group_dir" "$test_log"
+fixture_container="$(xcrun simctl get_app_container "$device_id" com.github.gemsnote.SharingFixture data)"
+"$work_dir/verify-inbox" "$group_dir" "$test_log" "$fixture_container"
 echo "UI test artifacts: $work_dir"

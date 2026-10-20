@@ -13,8 +13,23 @@ target.build_configurations.each do |config|
   config.build_settings['TARGETED_DEVICE_FAMILY'] = '1,2'
   config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
 end
+fixture = project.new_target(:application, 'SharingFixture', :ios, '15.0')
+fixture.source_build_phase.add_file_reference(project.main_group.new_file(File.join(__dir__, 'SharingFixture.swift')))
+fixture.build_configurations.each do |config|
+  config.build_settings['SWIFT_VERSION'] = '5.0'
+  config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'com.github.gemsnote.SharingFixture'
+  config.build_settings['GENERATE_INFOPLIST_FILE'] = 'YES'
+  config.build_settings['INFOPLIST_KEY_UILaunchScreen_Generation'] = 'YES'
+  config.build_settings['TARGETED_DEVICE_FAMILY'] = '1,2'
+  config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+end
+target.add_dependency(fixture)
+target.build_configurations.each do |config|
+  config.build_settings['TEST_TARGET_NAME'] = 'SharingFixture'
+end
 project.save
 scheme = Xcodeproj::XCScheme.new
+scheme.add_build_target(fixture)
 scheme.add_build_target(target)
 scheme.add_test_target(target)
 scheme.test_action.build_configuration = 'Debug'
