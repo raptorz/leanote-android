@@ -18,7 +18,7 @@ echo "Import fixture prefix: $run_id; artifacts: $work_dir"
 # Flutter requires the package directory. This subshell does not change callers' cwd.
 (
   cd "$mobile_root"
-  "$flutter_bin" test --no-pub integration_test/ios_share_import_test.dart \
+  "$flutter_bin" test --no-pub --no-uninstall integration_test/ios_share_import_test.dart \
     -d "$device_id" --dart-define="SHARE_IMPORT_RUN=$run_id" \
     > "$work_dir/flutter-test.log" 2>&1
 ) || {

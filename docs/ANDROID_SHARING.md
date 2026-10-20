@@ -32,8 +32,41 @@ bash scripts/test_android_share_decoder.sh
 覆盖 UTF-8/BOM、多字节跨块、恰好达限/超限、无限长度流读取界限、来源读取失败、
 中断、NUL/空白和 Unicode 标题；资源测试覆盖二进制保真、重开读取、路径拒绝、空/超限文件、总容量、取消清理和读取期间的残留清理互斥。Android debug APK 构建验证 Kotlin/Java 集成和 Manifest。
 
-尚待设备验收：来源应用 URI 授权、冷/热启动、文件选择器和云端 provider、
+### 真实跨应用来源与导入
+
+2026-10-20 在 Android 35 / Pixel 9 上，通过独立测试来源应用和系统分享面板，
+验证了非导出 provider 的临时 URI 授权，以及一次发送 PNG、二进制文件、GIF、
+带 BOM 的 UTF-8 文本和说明文字。收件箱一次新增 5 条，PNG/bin/GIF 原件逐字节
+相同，中文/emoji/换行保留且去除 BOM；应用重新启动后队列不变。有效 PNG 加空文件的
+失败批次在完整超时窗口内未新增任何记录，暂存目录亦无残留文件。
+
+随后真实原生通道和生产导入对话框 **1 项设备测试通过（5 类内容循环，16 秒）**：
+认领前/错误账号不能读原件、不能重新认领到其他账号；编辑标题/正文并选择笔记本后，
+离线笔记和资源任务保存到独立真实 SQLite。注入首次确认清理失败，数据库重开后重试
+不覆盖后续编辑、不重复导入，再通过对话框重试清理。最终宿主确认收件箱和私有原件
+目录均为空。不访问真实服务器，不代表其他来源或上传同步已经通过。
+
+复现需要 macOS、Android SDK 36/build-tools 36.0.0、JDK，以及英文系统的专用模拟器。
+先安装并启动普通 debug APK，退出账号并确保分享收件箱为空，然后从 mobile-app 执行：
+
+```sh
+bash scripts/build_android_share_fixture.sh
+# 使用上一步输出的 fixture.apk 路径：
+python3 scripts/test_android_share_ui.py emulator-5554 /path/to/fixture.apk
+# 使用 UI 验证输出的 records.json 路径：
+python3 scripts/test_android_share_import.py emulator-5554 /path/to/records.json
+```
+
+如已有失效 JAVA_HOME，为构建及导入命令设置 Android Studio JDK。构建脚本只生成临时
+来源 APK，不更改生产工程；UI 脚本只替换来源测试应用，拒绝非空收件箱，不清空目标
+应用数据。UI 验证保留五条夹具供导入验证，导入脚本严格比对已核验记录后才执行；
+失败保留现场，不删除未知记录。共用导入场景在 `native_share_import_scenario.dart`，
+Android/iOS 保持各自测试入口；设备运行使用 `--no-uninstall`。
+结束后重新构建并安装普通 `lib/main.dart` APK，避免保留测试入口。
+
+尚待设备验收：更多来源应用/无授权 URI、文件选择器和云端 provider、
 多项与混合说明文字、满队列、超时、后台/旋转/进程终止、与导入确认同时读取文件。
+已有多项与说明文字证据只覆盖本地测试 provider，不能推广到全部来源。
 JVM 测试及 APK 编译不代表上述设备用例已通过。
 
 接口依据：[Android 接收其他应用分享](https://developer.android.com/develop/ui/compose/sharing/receive)。

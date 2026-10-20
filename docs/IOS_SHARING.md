@@ -104,7 +104,9 @@ DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer \
 
 已有收件记录时脚本拒绝运行，不清空收件箱。成功时仅确认本轮三个记录并清理
 独立数据库；失败时脚本不主动清理剩余夹具，日志保留在输出的临时目录。
-Flutter 测试运行器可能卸载测试应用，不能保证失败后 App Group 容器仍可访问。
+脚本已指定 `--no-uninstall`，避免 Flutter 运行器结束时卸载应用和 App Group 数据。
+共用导入场景位于 `native_share_import_scenario.dart`，iOS 保留原有入口和三条夹具；
+测试中断时仍应检查剩余记录，不清空其他来源的内容。
 测试会安装集成测试入口，完成后使用 DEVELOPMENT.md 中的模拟器构建命令
 显式指定 `--target lib/main.dart`，重新安装普通应用。
 
