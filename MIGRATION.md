@@ -14,6 +14,10 @@
 
 ## 当前现场（2026-10-20）
 
+- 上批 `80c3b7d` 已完成 787 项完整回归。本批完成 M24 的首轮实际桌面验收：Pixel_9 / Android 35 安装最新 debug APK，通过 Pixel Launcher 的 Widgets 搜索 Gemsnote、展开并添加 3×3 小组件；未登录显示英文登录提示，点击“＋”进入英文登录页。通过应用语言菜单切换简体中文后，桌面立即显示“珠玑笔记”“打开珠玑笔记登录”，加号无障碍说明为“新建笔记”。强制停止应用后点击标题，首次即时快照仍为桌面，再次点击并等待后进入中文登录页，包状态 stopped=false；只确认最终能恢复，不断言首次点击即时成功。初始 2048 MiB 模拟器出现系统级 ANR 和严重内存压力，正常关闭确认退出后，以单次 `-memory 3072 -cores 2` 重启恢复响应，未清数据或更改 AVD 配置。证据 `/private/tmp/widget-{placed,create,chinese,cold-retry}.xml`、`/private/tmp/widget-placed.png`。已确认未登录入口和语言更新，已登录笔记列表、隐私关闭、账号切换和点击具体笔记仍待设备验收，不能把本批视为 M24 整体完成。本批未修改生产代码。
+
+- 按用户要求重新检查 Xcode：外接盘 Xcode 26.3（17C529）首次启动检查通过，iOS 26.2 SDK、iOS 26.3.1 模拟器运行时、CocoaPods 1.17.0 可用。通过 `DEVELOPER_DIR` 和项目 `scripts/with_xcode.sh` 实际构建 iOS Debug 模拟器应用成功（20.7 秒）；日志 `/private/tmp/gemsnote-xcode-current-check.log`。系统默认 xcode-select 仍为 CommandLineTools，未修改全局设置；本次没有启动 iOS 模拟器。
+
 - 上批 `5589fc0` 已补齐原生权限本地化。本轮对近期 iOS 迁移做阶段性跨平台复核：静态分析无问题，完整 Flutter **787 项通过、2 项条件跳过（86 秒）**，Android debug APK 构建通过（Gradle 8.5 秒）；Android 原生文本解码及资源存储回归通过。两个跳过项分别为显式 Chromium 浏览器专项与 SEARCH_BENCHMARK 性能基准，不计为通过。原生 Android 脚本首次受终端遗留失效 JAVA_HOME 影响，单次命令指定 Android Studio JDK 后通过，未修改系统配置。复核 HTTP 入口仍集中于 API2 客户端；Legacy 字符串只用于历史资源 ID 解析，公开头像遵守既有例外。核对恢复历史、复制共享笔记、删除笔记本的 Flutter 路径与服务端 API2 路由一致；本轮不宣称真实服务器交互已验收。docs/MIGRATION.md 已合并过期历史状态为当前证据摘要，逐批记录仍保留于本文件。下一步优先 Android 小组件/文件入口的模拟器运行验证，以及跨进程语言切换；相机、后台长期运行及真实 API2 并发仍待相应环境验收，发布继续暂缓。日志 `/private/tmp/gemsnote-migration-audit-{analyze,tests,apk,android-native}.log`。
 
 - 上批 `e8bbe4d` 已修复 iOS 文本文件导入。本批补齐 M19/M20 原生相机权限用途说明：此前 Runner 只有英文权限说明，已有中英文名称 strings 文件未接入 Xcode 资源组，现保留既有应用名称，补齐 en/zh-Hans/zh-Hant 的权限说明并加入 Xcode Resources 和已知语言。最终 iOS Debug 模拟器构建通过（11.3 秒），实际 App 包中三种名称和权限文案已核对，已安装并冷启动；Foundation 语言选择检查 zh-CN→zh-Hans、zh-TW→zh-Hant、en-US→en、fr-FR→en 均通过。系统权限说明由 iOS 为该应用选择的语言控制，应用内 system/zh/en 不动态改写权限弹窗。真机权限弹窗、相机方向/拒绝/生命周期仍待验收；本批仅原生资源和工程引用改动，未重复 Flutter 单元及 Android 构建。
@@ -122,7 +126,7 @@ Swift 测试覆盖真实 PNG/JPEG、超尺寸 PNG、其他格式、损坏头部�
 | M21 多账号快速切换 | desktop-app/app.go、db 配置 | Api2.TokenLogin、ApiUser.Info | service/AccountService、ui/MainActivity | app.dart、data/session/session_store.dart | 本轮实现切换/添加账号、登录页恢复已登录账号；保留离线修改与多账号凭据，切换前等待资源任务、重建工作区；静态检查和全量 488 项测试通过；Android/iOS 原生安全存储及数据库重开验证已通过，完整账号切换生命周期仍待验收 |
 | M22 导入导出、对外分享 | desktop-app/webapi/local.go | 本地操作无需新接口 | ui/edit/NoteEditActivity | services/note_importer.dart、note_exporter.dart、note_sharer.dart | 原文导入导出及系统分享已实现；新增本地 .gemsnote 完整资源归档导入导出，包含摘要校验及持久上传队列；Android/iOS 文件面板和系统分享流程仍待验收 |
 | M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity、ios/ShareExtension 与 Shared | Android 单项/多项文本、文本文件、图片与二进制附件接收已实现；iOS 图片/文件/多项已接入同一收件箱，私有原件、整批发布与账号隔离有 Swift 测试；Safari 网页、PNG/二进制/GIF/纯文本文件混合分享已通过系统 UI 与正文/原件核对，原生认领及生产导入对话框已有设备验证，完整来源兼容性和工作区生命周期仍待验收 |
-| M24 Android 小组件 | Desktop 无等价 | 本地快照，无新接口 | appwidget/NoteAppWidget、WidgetService、RedirActivity | services/home_widget.dart、Android NoteWidget；本地快照 | 最近 30 条标题列表、新建/打开入口、默认隐私关闭、账号代次隔离和退出清理已实现；仅 home_screen，不提供锁屏组件；启动器/进程重启/系统生命周期真机验收待做 |
+| M24 Android 小组件 | Desktop 无等价 | 本地快照，无新接口 | appwidget/NoteAppWidget、WidgetService、RedirActivity | services/home_widget.dart、Android NoteWidget；本地快照 | 最近 30 条标题列表、新建/打开入口、默认隐私关闭、账号代次隔离和退出清理已实现；仅 home_screen，不提供锁屏组件；Android 35 模拟器已验证桌面添加、未登录入口、中英更新及强制停止后最终可重新打开；已登录列表、隐私/账号切换、完整生命周期与真机验收待做 |
 | M25 Android/iOS 发布与运行 | desktop-app/.github/workflows 为发布参考 | 无 | 旧 Android 构建参考 | android、ios、.github/workflows | 损坏 Gradle 包已修复，Android debug APK 已构建成功；iOS Debug 模拟器构建、安装和启动已通过，正式签名/发布暂缓，完整设备验收未完成；不自动发布 |
 | M26 API2 边界与网络错误 | desktop-app/api/client.go | conf/routes、Api2Controller、api/* | 禁止复用旧请求 | lib/core/api/api2_client.dart | 未发现直接 Legacy 业务调用；JSON/表单已禁止自动重定向，真实 HTTP 测试覆盖 GET/JSON/form × 301/302/303/307/308；旧正文路径仅解析 FileId，绝不请求原路径 |
 
