@@ -55,6 +55,22 @@ Swift 主应用、分享桥和相机实现通过 iOS 15 目标的 SDK 类型检�
 
 Swift 测试覆盖真实 PNG/JPEG、超尺寸 PNG、其他格式、损坏头部和超过图片字节限制的附件回退，全部存储/语言测试及 iOS SDK 类型检查通过。没有新增网络调用。
 
+该修复已提交为 `d833f13`。后续 Android 验证有新证据：包管理器最终确认安装存在；重新启动返回 `Status: ok`，首次耗时约 77.8 秒，随后截图和 UI hierarchy 确认正常英文登录页。模拟器日志中的 DeadSystemException 属于 Google 系统组件，不是 Gemsnote，不能据此宣称应用崩溃。
+
+已在 Pixel_9 / Android 35 验证：
+
+- 登录页英文显示；通过语言菜单切换中文，按钮和标题变为中文，原生 `app_language.xml` 保存 `zh`。
+- `ACTION_SEND text/plain` 在未登录状态接收测试文本 `Gemsnote_migration_smoke_20261020`，保存至私有 `shared_text_inbox`，未认领账号。
+- 强制结束应用后冷启动返回成功（约 2.4 秒），上述分享记录 ID 与内容保持不变，没有自动消费或重复新增。
+
+截图/XML 证据暂存于 `/private/tmp/gemsnote-android-login.png`、`gemsnote-android-zh.xml` 和 `gemsnote-android-restart.xml`。这些仅证明安装、登录页呈现、语言切换与未登录文本收件箱持久化；真实 API2 登录同步、登录后的 WebView/资源操作、图片与多项系统分享、相机和后台任务仍未完成设备验收。测试文本保留在此模拟器收件箱，供后续导入验证；没有发送给服务器。
+
+### 原生设备自动化检查
+
+新增 SDK `integration_test` 依赖及 `integration_test/native_smoke_test.dart`。真实 Android 35 / Pixel_9 上 **2 项通过**（运行约 42 秒）：独立临时 SQLite 数据库关闭重开后标题、HTML 正文及编辑格式保留；真实安全存储写入读取并清理随机测试密钥；真实 WebView 加载生产富文本脚本后保留原文、按选区加粗、回传变更并撤销恢复。没有模拟数据库或 WebView，也没有请求服务器。
+
+静态分析通过，测试 APK 构建安装成功。结束后重新构建正常 `lib/main.dart` 入口并安装，避免把测试入口留作手工使用的应用。命令及隔离范围见 docs/DEVELOPMENT.md。仍需输入法、复杂选区/表格/图片、外部来源文件、多项分享、相机、后台调度和真实 API2 验收。
+
 ## 功能对照索引
 
 路径以项目根目录为基准；表中 Flutter 路径省略 `mobile-app/`，旧版路径省略 `mobile-app/legacy-android/app/src/main/java/com/github/gemsnote/`。服务端路径中的 `api/` 是控制器目录名，不表示使用 Legacy URL；实际路由以 `conf/routes` 的 `/api2/...` 为准。

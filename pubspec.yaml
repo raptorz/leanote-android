@@ -55,6 +55,8 @@ dependencies:
   workmanager: ^0.10.10
 
 dev_dependencies:
+  integration_test:
+    sdk: flutter
   analyzer: ^10.2.0
   flutter_test:
     sdk: flutter

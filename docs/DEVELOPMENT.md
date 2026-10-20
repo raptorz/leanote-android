@@ -67,6 +67,21 @@ tag 必须匹配 `pubspec.yaml` 的版本，发布前复用上述 CI 测试。
 切换源时应统一更新锁文件并重新验证，不能忽略 `--enforce-lockfile` 失败。
 升级 Flutter 时需同时核对工作流固定版本、Dart SDK 约束和 Android 工具链。
 
+### 原生设备专项
+
+`integration_test/native_smoke_test.dart` 使用真实设备插件，检查临时 SQLite
+数据库关闭重开后正文及格式保留、安全存储读取，以及 WebView 中富文本加粗和撤销。
+测试使用独立临时数据库和随机测试密钥，并在结束时清理；不连接服务端，
+不能作为真实 API2 登录或同步验收证据。
+
+```sh
+flutter test --no-pub integration_test/native_smoke_test.dart -d emulator-5554
+```
+
+替换设备 ID 可用于其他已连接的测试设备。测试会安装测试入口应用；
+结束后如需继续手工使用，重新构建并安装正常的 `lib/main.dart` debug APK。
+普通 `flutter test` 仍只运行 `test/`，不自动启动模拟器。
+
 ### 本地 iOS 模拟器编译检查
 
 2026-10-20 后续复查：iOS 26.3 模拟器运行时和设备已经安装，CocoaPods
