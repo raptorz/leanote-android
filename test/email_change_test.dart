@@ -42,6 +42,7 @@ void main() {
                   200,
                 );
               case '/api2/web/emailChange':
+                expect(request.headers['X-Requested-With'], 'XMLHttpRequest');
                 expect(request.method, 'POST');
                 expect(request.headers['cookie'], 'session=private');
                 expect(

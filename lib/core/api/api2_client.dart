@@ -242,6 +242,9 @@ class Api2Client {
         request = plain;
       }
       request.followRedirects = false;
+      // API2's cookie-session write guard requires this header, as does the
+      // desktop proxy. Apply it to multipart and regular session requests.
+      request.headers['X-Requested-With'] = 'XMLHttpRequest';
       if (cookies.isNotEmpty) {
         request.headers['Cookie'] = cookies.entries
             .map((e) => '${e.key}=${e.value}')

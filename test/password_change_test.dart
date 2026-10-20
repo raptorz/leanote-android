@@ -44,6 +44,7 @@ void main() {
                   200,
                 );
               case '/api2/user/updatePwd':
+                expect(r.headers['X-Requested-With'], 'XMLHttpRequest');
                 writes++;
                 expect(r.headers['cookie'], 'session=abc');
                 expect(Uri.splitQueryString(r.body), {

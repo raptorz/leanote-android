@@ -68,6 +68,9 @@ void main() {
         var logouts = 0;
         final api = Api2Client(
           httpClient: MockClient((request) async {
+            if (request.method == 'POST') {
+              expect(request.headers['X-Requested-With'], 'XMLHttpRequest');
+            }
             switch (request.url.path) {
               case '/api2/note/getNote':
                 return http.Response(

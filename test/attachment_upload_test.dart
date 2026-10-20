@@ -91,6 +91,7 @@ void main() {
                 200,
               );
             case '/api2/attachments/upload':
+              expect(request.headers['X-Requested-With'], 'XMLHttpRequest');
               expect(markedSending, isTrue);
               uploads++;
               expect(request.method, 'POST');

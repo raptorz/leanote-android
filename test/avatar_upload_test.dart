@@ -71,6 +71,7 @@ void main() {
         httpClient: MockClient((r) async {
           paths.add(r.url.path);
           expect(r.followRedirects, false);
+          expect(r.headers['X-Requested-With'], 'XMLHttpRequest');
           expect(r.url.queryParameters, isEmpty);
           switch (r.url.path) {
             case '/api2/auth/session':

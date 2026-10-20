@@ -60,6 +60,7 @@ void main() {
               );
             case '/api2/user/updateUsername':
               expect(request.method, 'POST');
+              expect(request.headers['X-Requested-With'], 'XMLHttpRequest');
               expect(
                 request.headers['content-type'],
                 startsWith('application/x-www-form-urlencoded'),
