@@ -77,6 +77,29 @@ DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer \
 可用 `IOS_UI_WORK_DIR` 指定专用目录复用编译缓存。脚本结束关闭其启动的网页服务。
 测试当前针对 iOS 26 的中文/英文 Safari 紧凑工具栏，其他布局需适配测试定位。
 
+### 原生收件箱到 Flutter 离线导入
+
+使用已安装普通 Debug 应用、收件箱为空的测试模拟器执行：
+
+```sh
+FLUTTER_BIN=/path/to/flutter/bin/flutter \
+DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer \
+  bash scripts/with_xcode.sh bash scripts/test_ios_share_import.sh <simulator-id>
+```
+
+脚本通过生产 Swift 存储写入带唯一标识的文本、PNG 和二进制文件夹具，
+再运行 Flutter 设备测试。测试使用真实 App Group 通道和独立 SQLite 文件，
+验证认领前资源不可读、其他账号不能读取或再次认领、离线导入后产生待同步任务、
+数据库重开后重试不覆盖后续编辑，以及确认后原生记录/资源不可再读取。
+网络客户端明确拒绝任何请求，不使用真实账号。此测试验证存储桥接和仓库导入；
+不能替代系统来源分享测试、导入对话框操作或真实 API2 上传验收。
+
+已有收件记录时脚本拒绝运行，不清空收件箱。成功时仅确认本轮三个记录并清理
+独立数据库；失败时脚本不主动清理剩余夹具，日志保留在输出的临时目录。
+Flutter 测试运行器可能卸载测试应用，不能保证失败后 App Group 容器仍可访问。
+测试会安装集成测试入口，完成后使用 DEVELOPMENT.md 中的模拟器构建命令
+显式指定 `--target lib/main.dart`，重新安装普通应用。
+
 2026-10-20 已通过 UIKit 类型检查和完整 iOS Debug 模拟器构建，
 并在 iPhone 12 mini / iOS 26.3 启动主应用，确认中文登录页显示。
 设备集成测试已通过主应用真实通道的 App Group 收件箱访问检查；
