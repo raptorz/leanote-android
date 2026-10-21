@@ -14,6 +14,16 @@
 
 ## 当前现场（2026-10-21）
 
+- M16 iOS 附件原生打开专项 **1 项 UI 测试通过（20.8 秒）**：生产
+  `AttachmentOpener` 通过 `open_filex` 的 DocumentInteraction/Quick Look，把二进制及
+  空附件实际“拷贝到”独立 OpenReceiver 应用；接收应用读取文件后由测试核对安全文件名和
+  原件字节。Flutter 模拟器入口构建通过，证据
+  `/private/tmp/gemsnote-ios-attachment-open-final2.log` 和
+  `/var/folders/6h/jjvzsttd0ms0j80_cfqgvt8c0000gn/T/gemsnote-open-ios.rDyR7K`。
+  静态分析无问题；普通 iOS 模拟器应用重新构建通过（14.8 秒）、覆盖安装并启动成功，
+  随后关闭模拟器。不代表其他文件类型、第三方应用、iPad 或真机兼容性；下一步继续
+  工作区完整链路审计。
+
 - M16 Android 附件原生打开专项 **1 项通过**：生产 `AttachmentOpener` 通过
   `open_filex` 和系统“打开方式”面板将二进制及空附件交给独立本地接收 Activity，
   宿主核对安全文件名、`application/octet-stream`、`content://` URI、临时读取授权和
@@ -21,7 +31,7 @@
   证据 `/private/tmp/gemsnote-android-attachment-open-final.log` 和
   `/var/folders/6h/jjvzsttd0ms0j80_cfqgvt8c0000gn/T/gemsnote-attachment-open-1adoml57`。
   静态分析无问题，附件打开回归 **11 项通过**；普通 APK 构建通过（13.0 秒），覆盖安装及
-  冷启动成功。下一步继续 iOS DocumentInteraction 外部打开验证；服务端联合整改不变。
+  冷启动成功。iOS 对应验证见上文；服务端联合整改不变。
 
 - iOS 对外分享收尾：普通 `lib/main.dart` 模拟器构建通过（59.2 秒），已覆盖安装并启动成功，随后正常关闭模拟器；独立 ReceiverHost 接收应用已卸载。日志 `/private/tmp/gemsnote-ios-outbound-restore.log`。本批没有生产源码变更，不重复上一批已通过的 787 项 Flutter 全套和 Android 构建。下一步继续附件外部打开和工作区完整流程；服务端 JWT/共享复制/历史更新仍按用户要求留待联合处理。
 

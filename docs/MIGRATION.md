@@ -2,10 +2,15 @@
 
 ## 当前结论
 
+2026-10-21 iOS 附件原生打开专项 **1 项 UI 测试通过（20.8 秒）**：生产
+`AttachmentOpener` 经 DocumentInteraction/Quick Look 实际把二进制和空附件拷贝到独立
+OpenReceiver 应用，接收端读取后的安全文件名和原件字节均通过核对。该证据不包含其他
+文件类型、第三方应用、iPad 或真机。
+
 2026-10-21 Android 附件原生打开专项 **1 项通过**：生产 `AttachmentOpener` 经
 `open_filex` 和系统选择面板交给独立接收 Activity；二进制及空附件的安全文件名、MIME、
 `content://` URI、临时读取授权和原件字节均由宿主核对。该证据不包含真实账号、网络、
-其他文件类型、第三方应用或真机；iOS DocumentInteraction 外部打开仍待验证。
+其他文件类型、第三方应用或真机；iOS 对应模拟器验证见上文。
 
 2026-10-21 iOS 对外分享专项 **1 项通过（43 秒）**：独立扩展实际读取并核对 Markdown/HTML
 原文、二进制和空附件的文件名与原件；取消时验证系统面板关闭及调用返回。

@@ -634,8 +634,20 @@ python3 scripts/test_android_attachment_open.py emulator-5554 "$fixture"
 脚本拒绝真机，重新安装独立夹具后分别触发二进制和空附件，实际操作系统“打开方式”面板；
 接收 Activity 从授权 URI 读取并记录文件，宿主精确核对安全文件名、MIME、读取授权和字节。
 运行集成入口会覆盖普通应用 APK，结束后必须重新构建并安装 `lib/main.dart`。该专项不联网、
-不使用账号，也不代表第三方应用、其他文件类型或真机兼容性。iOS 外部打开仍待设备验收。
+不使用账号，也不代表第三方应用、其他文件类型或真机兼容性。iOS 模拟器证据见下文。
 本机原有 Gradle 压缩包损坏问题已修复；aapt 验证合并权限无共享存储/媒体读取权限。
+
+iOS 模拟器专项使用生产 `AttachmentOpener` 和插件 DocumentInteraction，并创建仅供测试的
+文档接收应用：
+
+```sh
+DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer \
+  bash scripts/with_xcode.sh bash scripts/test_ios_attachment_open.sh <simulator-id>
+```
+
+UI 测试在 Quick Look 中点击系统提供的“拷贝到 OpenReceiver”，接收应用实际读取二进制及
+空附件，再核对安全文件名和原件字节。脚本卸载接收应用，但集成入口会覆盖普通应用；结束后
+必须重新构建、安装并启动 `lib/main.dart`。该专项不代表其他文档应用、iPad 或真机兼容性。
 
 ## 同步后资源缓存偏好
 
