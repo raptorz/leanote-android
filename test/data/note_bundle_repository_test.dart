@@ -67,8 +67,6 @@ class BundleApi extends Api2Client {
     required Uri server,
     required String token,
     required String userId,
-    required String identity,
-    required String password,
     required String noteId,
     required NoteImageUpload image,
     Future<void> Function()? beforeSend,
@@ -83,8 +81,6 @@ class BundleApi extends Api2Client {
     required Uri server,
     required String token,
     required String userId,
-    required String identity,
-    required String password,
     required String noteId,
     required AttachmentUpload file,
     Future<void> Function()? beforeSend,
@@ -282,12 +278,7 @@ void main() {
       throwsA(isA<PendingVisualImage>()),
     );
     expect(api.imageUploadCalls, 0);
-    await repo.uploadStagedImage(
-      session,
-      task.id,
-      identity: 'u',
-      password: 'pass',
-    );
+    await repo.uploadStagedImage(session, task.id);
     final outbox = AttachmentOutbox(db.raw, account);
     await outbox.insertImage(task.id);
     expect(api.imageUploadCalls, 1);
@@ -348,12 +339,7 @@ void main() {
         session,
         noteId: draft.noteId,
       )).single;
-      await repo.uploadStagedImage(
-        session,
-        task.id,
-        identity: 'u',
-        password: 'pass',
-      );
+      await repo.uploadStagedImage(session, task.id);
       expect(api.imageUploadCalls, 1);
       await sync.uploadPending(account: account, token: 'secret');
       expect(api.updatedIds, contains(draft.noteId));
@@ -437,12 +423,7 @@ void main() {
       )).single;
       api.remote = source.copyWith(usn: 8);
       await expectLater(
-        repo.uploadStagedImage(
-          session,
-          task.id,
-          identity: 'u',
-          password: 'pass',
-        ),
+        repo.uploadStagedImage(session, task.id),
         throwsStateError,
       );
       expect(api.imageUploadCalls, 0);
@@ -677,15 +658,7 @@ void main() {
       'later',
       '${imported.content} later',
     );
-    expect(
-      await repo.uploadStagedAttachment(
-        session,
-        task.id,
-        identity: 'u',
-        password: 'pass',
-      ),
-      true,
-    );
+    expect(await repo.uploadStagedAttachment(session, task.id), true);
     final current = (await db.searchableNote(
       account.cacheKey,
       imported.noteId,

@@ -302,8 +302,6 @@ void main() {
         server: server,
         token: owner.token,
         userId: owner.account.userId,
-        identity: 'admin',
-        password: 'gemsnote',
         noteId: draft.noteId,
         file: AttachmentUpload(name: 'shared-original.bin', bytes: bytes),
       );
@@ -718,8 +716,6 @@ void main() {
           server: server,
           token: token,
           userId: account.userId,
-          identity: 'admin',
-          password: 'gemsnote',
           noteId: draft.noteId,
           file: AttachmentUpload(name: '原件.bin', bytes: bytes),
         );

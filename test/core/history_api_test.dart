@@ -15,7 +15,7 @@ void main() {
         httpClient: MockClient((request) async {
           expect(request.method, 'POST');
           expect(request.url.path, '/api2/note/restoreHistory');
-          expect(request.headers.values, contains('Bearer ' + 'test'));
+          expect(request.headers.values, contains('Bearer test'));
           expect(request.bodyFields, {
             'noteId': 'n',
             'historyId': 'h',
@@ -65,7 +65,7 @@ void main() {
       httpClient: MockClient((request) async {
         expect(request.method, 'GET');
         expect(request.url.queryParameters['noteId'], 'note-id');
-        expect(request.headers.values, contains('Bearer ' + 'test'));
+        expect(request.headers.values, contains('Bearer test'));
         if (request.url.path == '/api2/note/getHistories') {
           return http.Response(
             jsonEncode({

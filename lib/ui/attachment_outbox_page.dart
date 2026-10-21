@@ -133,15 +133,9 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
             context: context,
             barrierDismissible: false,
             builder: (_) => NoteImageUploadDialog(
-              identity: widget.session.account.username,
               image: image,
-              upload: (identity, password) =>
-                  widget.repository.uploadStagedImage(
-                    widget.session,
-                    item.id,
-                    identity: identity,
-                    password: password,
-                  ),
+              upload: () =>
+                  widget.repository.uploadStagedImage(widget.session, item.id),
             ),
           );
         } else if (action == 'upload') {
@@ -149,15 +143,11 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
             context: context,
             barrierDismissible: false,
             builder: (_) => AttachmentUploadDialog(
-              identity: widget.session.account.username,
               file: file,
-              upload: (identity, password) =>
-                  widget.repository.uploadStagedAttachment(
-                    widget.session,
-                    item.id,
-                    identity: identity,
-                    password: password,
-                  ),
+              upload: () => widget.repository.uploadStagedAttachment(
+                widget.session,
+                item.id,
+              ),
             ),
           );
         }

@@ -65,7 +65,7 @@ void main() {
               );
             }
             expect(request.method, 'GET');
-            expect(request.headers.values, contains('Bearer ' + 'new-token'));
+            expect(request.headers.values, contains('Bearer new-token'));
             if (request.url.path.endsWith('getSyncState')) {
               return http.Response('{"LastSyncUsn":2}', 200);
             }

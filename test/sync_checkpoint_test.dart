@@ -196,7 +196,7 @@ void main() {
           httpClient: MockClient((request) async {
             expect(request.url.path, '/api2/user/getSyncState');
             expect(request.method, 'GET');
-            expect(request.headers.values, contains('Bearer ' + 'test-token'));
+            expect(request.headers.values, contains('Bearer test-token'));
             return http.Response(state, 200);
           }),
         ),

@@ -58,16 +58,9 @@ class _AccountPageState extends State<AccountPage> {
             context: context,
             barrierDismissible: false,
             builder: (_) => AvatarUploadDialog(
-              identity: _account.email.isEmpty
-                  ? _account.username
-                  : _account.email,
               bytes: bytes,
-              upload: (identity, password) => widget.repository.uploadAvatar(
-                widget.session,
-                identity: identity,
-                password: password,
-                bytes: bytes,
-              ),
+              upload: () =>
+                  widget.repository.uploadAvatar(widget.session, bytes: bytes),
             ),
           ) ==
           true;
@@ -224,15 +217,10 @@ class _AccountPageState extends State<AccountPage> {
                             context: context,
                             barrierDismissible: false,
                             builder: (_) => AccountFieldDialog(
-                              identity: _account.email.isEmpty
-                                  ? _account.username
-                                  : _account.email,
                               value: _account.username,
-                              save: (identity, password, username) =>
+                              save: (_, username) =>
                                   widget.repository.updateUsername(
                                     widget.session,
-                                    identity: identity,
-                                    password: password,
                                     username: username,
                                   ),
                             ),
@@ -256,14 +244,13 @@ class _AccountPageState extends State<AccountPage> {
                             barrierDismissible: false,
                             builder: (_) => AccountFieldDialog(
                               emailChange: true,
-                              identity: _account.email.isEmpty
-                                  ? _account.username
-                                  : _account.email,
                               value: '',
-                              save: (identity, password, email) =>
+                              save: (password, email) =>
                                   widget.repository.requestEmailChange(
                                     widget.session,
-                                    identity: identity,
+                                    identity: _account.email.isEmpty
+                                        ? _account.username
+                                        : _account.email,
                                     password: password,
                                     email: email,
                                   ),

@@ -74,7 +74,7 @@ void main() {
           if (request.url.path.endsWith('getSyncState')) {
             return http.Response('{"LastSyncUsn":100}', 200);
           }
-          expect(request.headers.values, contains('Bearer ' + 'test-token'));
+          expect(request.headers.values, contains('Bearer test-token'));
           if (request.method == 'POST') {
             writes++;
             expect(scenario, 'post conflict');

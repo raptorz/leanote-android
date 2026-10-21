@@ -123,7 +123,7 @@ void main() {
         final api = Api2Client(
           httpClient: MockClient((request) async {
             expect(request.followRedirects, isFalse);
-            expect(request.headers.values, contains('Bearer ' + 'token'));
+            expect(request.headers.values, contains('Bearer token'));
             if (request.url.path.endsWith('/content')) {
               bodyCalls++;
               if (mode == 'denied-before' ||

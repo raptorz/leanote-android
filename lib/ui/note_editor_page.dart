@@ -26,21 +26,14 @@ class NoteEditorPage extends StatefulWidget {
     this.stageImage,
     this.stageVisualImage,
     this.pickImage,
-    this.identity = '',
     super.key,
   });
 
   final Note note;
-  final String identity;
   final Future<NoteImageUpload?> Function()? pickImage;
   final Future<void> Function(NoteImageUpload image)? stageImage;
   final Future<String> Function(NoteImageUpload image)? stageVisualImage;
-  final Future<String> Function(
-    NoteImageUpload image,
-    String identity,
-    String password,
-  )?
-  uploadImage;
+  final Future<String> Function(NoteImageUpload image)? uploadImage;
   final Future<void> Function(String title, String content) saveText;
   // Preview is cache-only: editing arbitrary image URLs must never fetch them.
   final CachedImageLoader? loadCachedImage;
@@ -258,10 +251,8 @@ class _NoteEditorPageState extends State<NoteEditorPage>
             context: context,
             barrierDismissible: false,
             builder: (_) => NoteImageUploadDialog(
-              identity: widget.identity,
               image: image,
-              upload: (identity, password) =>
-                  widget.uploadImage!(image, identity, password),
+              upload: () => widget.uploadImage!(image),
             ),
           );
     return reference == null
@@ -283,10 +274,8 @@ class _NoteEditorPageState extends State<NoteEditorPage>
         context: context,
         barrierDismissible: false,
         builder: (_) => NoteImageUploadDialog(
-          identity: widget.identity,
           image: image,
-          upload: (identity, password) =>
-              widget.uploadImage!(image, identity, password),
+          upload: () => widget.uploadImage!(image),
         ),
       );
       if (!mounted || reference == null) return;

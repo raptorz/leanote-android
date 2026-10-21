@@ -48,9 +48,6 @@ void main() {
       final result = api.updateUsername(
         server: Uri.parse('https://notes.test'),
         token: 'test-token',
-        userId: 'u',
-        identity: 'old',
-        password: 'secret',
         username: 'new',
       );
       if (scenario == 'ok' || scenario == 'logout-failed') {
@@ -65,39 +62,28 @@ void main() {
       );
     });
   }
-  testWidgets(
-    'dialog validates required input, clears password on failure and permits retry',
-    (tester) async {
-      var calls = 0;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AccountFieldDialog(
-              identity: 'old',
-              value: 'new',
-              save: (identity, password, username) async {
-                calls++;
-                expect(password, 'secret');
-                throw StateError('failed');
-              },
-            ),
+  testWidgets('dialog submits username without requesting credentials', (
+    tester,
+  ) async {
+    var calls = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AccountFieldDialog(
+            value: 'new',
+            save: (_, username) async {
+              calls++;
+              throw StateError('failed');
+            },
           ),
         ),
-      );
-      await tester.tap(find.text('保存'));
-      await tester.pump();
-      expect(calls, 0);
-      expect(find.text('请填写全部字段'), findsOneWidget);
-      await tester.enterText(find.byType(TextField).at(1), 'secret');
-      await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle();
-      expect(calls, 1);
-      expect(
-        tester.widget<TextField>(find.byType(TextField).at(1)).controller!.text,
-        '',
-      );
-      expect(find.textContaining('修改失败'), findsOneWidget);
-      expect(find.text('取消'), findsOneWidget);
-    },
-  );
+      ),
+    );
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    expect(calls, 1);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.textContaining('修改失败'), findsOneWidget);
+    expect(find.text('取消'), findsOneWidget);
+  });
 }

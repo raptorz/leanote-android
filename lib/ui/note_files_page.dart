@@ -185,14 +185,11 @@ class _NoteFilesPageState extends State<NoteFilesPage> {
         context: context,
         barrierDismissible: false,
         builder: (_) => AttachmentUploadDialog(
-          identity: widget.session.account.username,
           file: file,
-          upload: (identity, password) => widget.repository.uploadAttachment(
+          upload: () => widget.repository.uploadAttachment(
             widget.session,
             widget.noteId,
             file,
-            identity: identity,
-            password: password,
           ),
         ),
       );

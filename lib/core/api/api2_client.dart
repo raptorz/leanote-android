@@ -40,9 +40,6 @@ class Api2Client {
   Future<void> updateUsername({
     required Uri server,
     required String token,
-    required String userId,
-    required String identity,
-    required String password,
     required String username,
   }) => _tokenFormAction(
     server: server,
@@ -82,9 +79,6 @@ class Api2Client {
   Future<void> uploadAvatar({
     required Uri server,
     required String token,
-    required String userId,
-    required String identity,
-    required String password,
     required Uint8List bytes,
   }) {
     if (bytes.isEmpty || bytes.length > 2 * 1024 * 1024) {
@@ -104,15 +98,11 @@ class Api2Client {
     required Uri server,
     required String token,
     required String userId,
-    required String identity,
-    required String password,
     required String noteId,
     required NoteImageUpload image,
     Future<void> Function()? beforeSend,
   }) async {
-    if (!RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(noteId) ||
-        identity.trim().isEmpty ||
-        password.isEmpty) {
+    if (!RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(noteId)) {
       throw const ApiException('invalidRequest');
     }
     final note = await _requestJson(
@@ -150,15 +140,11 @@ class Api2Client {
     required Uri server,
     required String token,
     required String userId,
-    required String identity,
-    required String password,
     required String noteId,
     required AttachmentUpload file,
     Future<void> Function()? beforeSend,
   }) async {
-    if (!RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(noteId) ||
-        identity.trim().isEmpty ||
-        password.isEmpty) {
+    if (!RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(noteId)) {
       throw const ApiException('invalidRequest');
     }
     // Token and operation-local cookie session must both belong to this owner.

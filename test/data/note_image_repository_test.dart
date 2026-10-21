@@ -22,8 +22,6 @@ class ImageApi extends UploadApi {
     required Uri server,
     required String token,
     required String userId,
-    required String identity,
-    required String password,
     required String noteId,
     required NoteImageUpload image,
     Future<void> Function()? beforeSend,
@@ -73,7 +71,7 @@ void main() {
   });
   tearDown(() => db.raw.close());
   Future<String> upload([String id = noteId]) =>
-      repo.uploadNoteImage(session, id, image, identity: 'user', password: 'p');
+      repo.uploadNoteImage(session, id, image);
 
   test('offline image uploads once, appends latest HTML and remains readable before sync', () async {
     final id = await repo.stageNoteImage(session, noteId, image);
@@ -84,10 +82,7 @@ void main() {
       'changed',
       '<p>newer &amp; safe</p>',
     );
-    expect(
-      await repo.uploadStagedImage(session, id, identity: 'u', password: 'p'),
-      reference,
-    );
+    expect(await repo.uploadStagedImage(session, id), reference);
     final current = (await db.notes(session.account.cacheKey)).single;
     expect(
       current.content,
@@ -117,10 +112,7 @@ void main() {
       (await db.notes(session.account.cacheKey)).single.content,
       current.content,
     );
-    await expectLater(
-      repo.uploadStagedImage(session, id, identity: 'u', password: 'p'),
-      throwsStateError,
-    );
+    await expectLater(repo.uploadStagedImage(session, id), throwsStateError);
     expect(api.uploads, 1);
     expect(await db.lastSyncUsn(session.account.cacheKey), 5);
   });
@@ -133,10 +125,7 @@ void main() {
         session.account.cacheKey,
         original.copyWith(isTrash: true),
       );
-      await expectLater(
-        repo.uploadStagedImage(session, id, identity: 'u', password: 'p'),
-        throwsStateError,
-      );
+      await expectLater(repo.uploadStagedImage(session, id), throwsStateError);
       expect((await repo.pendingAttachments(session)).single.state, 'uploaded');
       await db.saveLocalNote(
         session.account.cacheKey,
@@ -156,10 +145,7 @@ void main() {
     () async {
       final id = await repo.stageNoteImage(session, noteId, image);
       api.duringUpload = () async => throw StateError('timeout');
-      await expectLater(
-        repo.uploadStagedImage(session, id, identity: 'u', password: 'p'),
-        throwsStateError,
-      );
+      await expectLater(repo.uploadStagedImage(session, id), throwsStateError);
       expect(
         (await repo.pendingAttachments(session)).single.state,
         'uncertain',
@@ -170,7 +156,7 @@ void main() {
       );
       await expectLater(repo.insertStagedImage(session, id), throwsStateError);
       await expectLater(
-        repo.uploadStagedAttachment(session, id, identity: 'u', password: 'p'),
+        repo.uploadStagedAttachment(session, id),
         throwsStateError,
       );
       expect((await repo.stagedAttachment(session, id)).bytes, image.bytes);

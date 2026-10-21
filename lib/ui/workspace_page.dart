@@ -1110,17 +1110,12 @@ class _WorkspacePageState extends State<WorkspacePage>
       MaterialPageRoute(
         builder: (_) => NoteEditorPage(
           note: note,
-          identity: widget.session.account.email.isNotEmpty
-              ? widget.session.account.email
-              : widget.session.account.username,
-          uploadImage: (image, identity, password) async {
+          uploadImage: (image) async {
             await _stopFileCache();
             return widget.repository.uploadNoteImage(
               widget.session,
               note.noteId,
               image,
-              identity: identity,
-              password: password,
             );
           },
           stageImage: (image) async {

@@ -71,10 +71,9 @@ void main() {
                 onPressed: () => showDialog<bool>(
                   context: context,
                   builder: (_) => AccountFieldDialog(
-                    identity: 'old@test.com',
                     value: '',
                     emailChange: true,
-                    save: (identity, password, value) async {
+                    save: (password, value) async {
                       calls++;
                       expect(value, 'new+notes@test.com');
                       expect(password, 'secret');
@@ -90,14 +89,14 @@ void main() {
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
       expect(find.textContaining('邮箱才会变更'), findsOneWidget);
-      await tester.enterText(find.byType(TextField).at(1), 'secret');
-      await tester.enterText(find.byType(TextField).at(2), 'invalid');
+      await tester.enterText(find.byType(TextField).at(0), 'secret');
+      await tester.enterText(find.byType(TextField).at(1), 'invalid');
       await tester.tap(find.text('发送验证邮件'));
       await tester.pumpAndSettle();
       expect(calls, 0);
       expect(find.text('请输入有效的邮箱地址'), findsOneWidget);
       await tester.enterText(
-        find.byType(TextField).at(2),
+        find.byType(TextField).at(1),
         'new+notes@test.com',
       );
       await tester.tap(find.text('发送验证邮件'));

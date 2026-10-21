@@ -101,8 +101,6 @@ void main() {
           server: Uri.parse('https://example.com'),
           token: 'secret',
           userId: 'u',
-          identity: 'u',
-          password: 'p',
           noteId: noteId,
           image: await NoteImageUpload.normalize(png),
           beforeSend: () async {

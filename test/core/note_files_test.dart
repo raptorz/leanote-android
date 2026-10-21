@@ -30,7 +30,7 @@ void main() {
       final api = Api2Client(
         httpClient: MockClient((request) async {
           paths.add(request.url.path);
-          expect(request.headers.values, contains('Bearer ' + 'test'));
+          expect(request.headers.values, contains('Bearer test'));
           if (request.url.path == '/api2/note/getNote') {
             return http.Response(jsonEncode(metadata()), 200);
           }

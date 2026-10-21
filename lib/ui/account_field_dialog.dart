@@ -5,29 +5,24 @@ import 'package:flutter/material.dart';
 class AccountFieldDialog extends StatefulWidget {
   const AccountFieldDialog({
     super.key,
-    required this.identity,
     required this.value,
     required this.save,
     this.emailChange = false,
   });
-  final String identity;
   final String value;
   final bool emailChange;
-  final Future<void> Function(String identity, String password, String value)
-  save;
+  final Future<void> Function(String password, String value) save;
   @override
   State<AccountFieldDialog> createState() => _AccountFieldDialogState();
 }
 
 class _AccountFieldDialogState extends State<AccountFieldDialog> {
-  late final _identity = TextEditingController(text: widget.identity);
   late final _value = TextEditingController(text: widget.value);
   final _password = TextEditingController();
   bool _busy = false;
   String? _error;
   @override
   void dispose() {
-    _identity.dispose();
     _value.dispose();
     _password.dispose();
     super.dispose();
@@ -35,9 +30,8 @@ class _AccountFieldDialogState extends State<AccountFieldDialog> {
 
   Future<void> _save() async {
     if (_busy) return;
-    if (_identity.text.trim().isEmpty ||
-        _password.text.isEmpty ||
-        _value.text.trim().isEmpty) {
+    if (_value.text.trim().isEmpty ||
+        (widget.emailChange && _password.text.isEmpty)) {
       setState(() => _error = trNow(context, 'm0012'));
       return;
     }
@@ -51,11 +45,7 @@ class _AccountFieldDialogState extends State<AccountFieldDialog> {
       _error = null;
     });
     try {
-      await widget.save(
-        _identity.text.trim(),
-        _password.text,
-        _value.text.trim(),
-      );
+      await widget.save(_password.text, _value.text.trim());
       _password.clear();
       if (mounted) Navigator.pop(context, true);
     } on Object {
@@ -83,21 +73,17 @@ class _AccountFieldDialogState extends State<AccountFieldDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(tr(context, 'm0018')),
-            if (widget.emailChange) Text(tr(context, 'm0019')),
-            TextField(
-              controller: _identity,
-              enabled: !_busy,
-              decoration: InputDecoration(labelText: tr(context, 'm0020')),
-            ),
-            TextField(
-              controller: _password,
-              enabled: !_busy,
-              obscureText: true,
-              autocorrect: false,
-              enableSuggestions: false,
-              decoration: InputDecoration(labelText: tr(context, 'm0021')),
-            ),
+            if (widget.emailChange) ...[
+              Text(tr(context, 'm0019')),
+              TextField(
+                controller: _password,
+                enabled: !_busy,
+                obscureText: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                decoration: InputDecoration(labelText: tr(context, 'm0021')),
+              ),
+            ],
             TextField(
               controller: _value,
               enabled: !_busy,

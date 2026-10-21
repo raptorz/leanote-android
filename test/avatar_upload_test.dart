@@ -96,9 +96,6 @@ void main() {
       final result = api.uploadAvatar(
         server: Uri.parse('https://notes.test'),
         token: 'test-token',
-        userId: 'u',
-        identity: 'u',
-        password: 'secret-password',
         bytes: png,
       );
       if (scenario == 'ok') {
@@ -110,7 +107,7 @@ void main() {
       expect(paths.last, '/api2/avatar');
     });
   }
-  testWidgets('upload failure clears password and retains preview for retry', (
+  testWidgets('upload failure retains preview and reports error', (
     tester,
   ) async {
     var calls = 0;
@@ -118,9 +115,8 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: AvatarUploadDialog(
-            identity: 'u',
             bytes: png,
-            upload: (identity, password) async {
+            upload: () async {
               calls++;
               throw StateError('failed');
             },
@@ -130,15 +126,8 @@ void main() {
     );
     await tester.tap(find.text('上传'));
     await tester.pumpAndSettle();
-    expect(calls, 0);
-    await tester.enterText(find.byType(TextField).at(1), 'secret');
-    await tester.tap(find.text('上传'));
-    await tester.pumpAndSettle();
     expect(calls, 1);
-    expect(
-      tester.widget<TextField>(find.byType(TextField).at(1)).controller!.text,
-      '',
-    );
+    expect(find.byType(TextField), findsNothing);
     expect(find.textContaining('上传失败'), findsOneWidget);
     expect(find.byType(Image), findsOneWidget);
   });

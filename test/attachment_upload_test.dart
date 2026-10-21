@@ -105,8 +105,6 @@ void main() {
         server: Uri.parse('https://example.com'),
         token: 't',
         userId: 'u',
-        identity: 'admin',
-        password: 'pass',
         noteId: noteId,
         beforeSend: () async {
           if (scenario == 'journal-failure') throw StateError('disk full');

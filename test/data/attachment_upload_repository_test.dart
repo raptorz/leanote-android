@@ -65,8 +65,6 @@ class UploadApi extends Api2Client {
     required Uri server,
     required String token,
     required String userId,
-    required String identity,
-    required String password,
     required String noteId,
     required AttachmentUpload file,
     Future<void> Function()? beforeSend,
@@ -134,13 +132,7 @@ void main() {
     repo = AuthRepository(api, db, MemorySessions(), sync);
   });
   tearDown(() => db.raw.close());
-  Future<bool> upload() => repo.uploadAttachment(
-    session,
-    noteId,
-    file,
-    identity: 'u',
-    password: 'p',
-  );
+  Future<bool> upload() => repo.uploadAttachment(session, noteId, file);
   test(
     'upload refreshes note USN and files without skipping sync cursor',
     () async {
@@ -157,21 +149,13 @@ void main() {
   test('staged attachment is confirmed before failed refresh and never uploaded twice', () async {
     final id = await repo.stageAttachment(session, noteId, file);
     api.failRefresh = true;
-    expect(
-      await repo.uploadStagedAttachment(
-        session,
-        id,
-        identity: 'u',
-        password: 'p',
-      ),
-      isFalse,
-    );
+    expect(await repo.uploadStagedAttachment(session, id), isFalse);
     final item = (await repo.pendingAttachments(session)).single;
     expect(item.state, 'uploaded');
     expect(item.remoteId, fileId);
     expect((await repo.stagedAttachment(session, id)).bytes, [1]);
     await expectLater(
-      repo.uploadStagedAttachment(session, id, identity: 'u', password: 'p'),
+      repo.uploadStagedAttachment(session, id),
       throwsStateError,
     );
     expect(api.uploads, 1);
@@ -183,7 +167,7 @@ void main() {
       final id = await repo.stageAttachment(session, noteId, file);
       api.duringUpload = () async => throw StateError('timeout');
       await expectLater(
-        repo.uploadStagedAttachment(session, id, identity: 'u', password: 'p'),
+        repo.uploadStagedAttachment(session, id),
         throwsStateError,
       );
       expect(
@@ -191,21 +175,13 @@ void main() {
         'uncertain',
       );
       await expectLater(
-        repo.uploadStagedAttachment(session, id, identity: 'u', password: 'p'),
+        repo.uploadStagedAttachment(session, id),
         throwsStateError,
       );
       expect(api.uploads, 1);
       await repo.retryUncertainAttachment(session, id);
       api.duringUpload = null;
-      expect(
-        await repo.uploadStagedAttachment(
-          session,
-          id,
-          identity: 'u',
-          password: 'p',
-        ),
-        isTrue,
-      );
+      expect(await repo.uploadStagedAttachment(session, id), isTrue);
       expect(api.uploads, 2);
       expect((await repo.pendingAttachments(session)).single.state, 'uploaded');
     },
@@ -221,7 +197,7 @@ void main() {
       );
       api.failNoteSave = true;
       await expectLater(
-        repo.uploadStagedAttachment(session, id, identity: 'u', password: 'p'),
+        repo.uploadStagedAttachment(session, id),
         throwsStateError,
       );
       expect((await repo.pendingAttachments(session)).single.state, 'pending');
@@ -238,12 +214,7 @@ void main() {
         started.complete();
         return gate.future;
       };
-      final pending = repo.uploadStagedAttachment(
-        session,
-        id,
-        identity: 'u',
-        password: 'p',
-      );
+      final pending = repo.uploadStagedAttachment(session, id);
       await started.future;
       await expectLater(
         repo.removeStagedAttachment(session, id),
@@ -299,16 +270,7 @@ void main() {
       isMarkdown: true,
       content: 'new',
     );
-    expect(
-      await repo.uploadAttachment(
-        session,
-        created.noteId,
-        file,
-        identity: 'u',
-        password: 'p',
-      ),
-      isTrue,
-    );
+    expect(await repo.uploadAttachment(session, created.noteId, file), isTrue);
     expect(api.noteWrites, ['add:${created.noteId}']);
     expect(await db.pendingNoteIds(session.account.cacheKey), isEmpty);
   });

@@ -24,8 +24,6 @@ class UploadRepository extends AvatarRepository {
   @override
   Future<void> uploadAvatar(
     StoredSession session, {
-    required String identity,
-    required String password,
     required Uint8List bytes,
   }) async {
     uploads++;
@@ -87,7 +85,6 @@ void main() {
             );
             await tester.pump(const Duration(milliseconds: 50));
           }
-          await tester.enterText(find.byType(TextField).at(1), 'secret');
           await tester.tap(find.text('上传'));
           await tester.pumpAndSettle();
           expect(repo.uploads, 1);

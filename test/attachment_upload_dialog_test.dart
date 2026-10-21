@@ -7,19 +7,15 @@ import 'package:gemsnote/domain/models/attachment_upload.dart';
 import 'package:gemsnote/ui/attachment_upload_dialog.dart';
 
 void main() {
-  testWidgets('upload failure clears password and blocks repeated mutation', (
-    tester,
-  ) async {
+  testWidgets('upload failure blocks repeated mutation', (tester) async {
     var calls = 0;
     final pending = Completer<bool>();
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: AttachmentUploadDialog(
-            identity: 'u',
             file: AttachmentUpload(name: 'a.txt', bytes: Uint8List(1)),
-            upload: (_, password) {
-              expect(password, 'p');
+            upload: () {
               calls++;
               return pending.future;
             },
@@ -27,7 +23,6 @@ void main() {
         ),
       ),
     );
-    await tester.enterText(find.byType(TextField).last, 'p');
     await tester.tap(find.text('上传'));
     await tester.pump();
     expect(
@@ -38,10 +33,7 @@ void main() {
     );
     pending.completeError(StateError('network'));
     await tester.pumpAndSettle();
-    expect(
-      tester.widget<TextField>(find.byType(TextField).last).controller!.text,
-      '',
-    );
+    expect(find.byType(TextField), findsNothing);
     expect(
       tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
       isNull,

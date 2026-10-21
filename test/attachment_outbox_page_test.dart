@@ -69,14 +69,8 @@ class OutboxRepository extends FilesRepository {
   ) async =>
       AttachmentUpload(name: 'draft.txt', bytes: Uint8List.fromList([1, 2, 3]));
   @override
-  Future<bool> uploadStagedAttachment(
-    StoredSession session,
-    String id, {
-    required String identity,
-    required String password,
-  }) async {
+  Future<bool> uploadStagedAttachment(StoredSession session, String id) async {
     uploads++;
-    expect(password, 'secret');
     state = 'uploaded';
     return true;
   }
@@ -133,7 +127,6 @@ void main() {
       expect(repo.uploads, 0);
       expect(repo.writes, 1);
       await choose(tester, '上传附件');
-      await tester.enterText(find.byType(TextField).last, 'secret');
       await tester.tap(find.text('上传'));
       await tester.pumpAndSettle();
       expect(repo.uploads, 1);

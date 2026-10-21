@@ -7,48 +7,29 @@ import 'package:flutter/material.dart';
 class AvatarUploadDialog extends StatefulWidget {
   const AvatarUploadDialog({
     super.key,
-    required this.identity,
     required this.bytes,
     required this.upload,
   });
-  final String identity;
   final Uint8List bytes;
-  final Future<void> Function(String identity, String password) upload;
+  final Future<void> Function() upload;
   @override
   State<AvatarUploadDialog> createState() => _AvatarUploadDialogState();
 }
 
 class _AvatarUploadDialogState extends State<AvatarUploadDialog> {
-  late final _identity = TextEditingController(text: widget.identity);
-  final _password = TextEditingController();
   bool _busy = false;
   String? _error;
-  @override
-  void dispose() {
-    _identity.dispose();
-    _password.dispose();
-    super.dispose();
-  }
-
   Future<void> _upload() async {
     if (_busy) return;
-    if (_identity.text.trim().isEmpty || _password.text.isEmpty) {
-      setState(() => _error = trNow(context, 'm0088'));
-      return;
-    }
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      await widget.upload(_identity.text.trim(), _password.text);
-      _password.clear();
+      await widget.upload();
       if (mounted) Navigator.pop(context, true);
     } on Object {
-      _password.clear();
-      if (mounted) {
-        setState(() => _error = trNow(context, 'm0089'));
-      }
+      if (mounted) setState(() => _error = trNow(context, 'm0089'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -59,33 +40,17 @@ class _AvatarUploadDialogState extends State<AvatarUploadDialog> {
     canPop: !_busy,
     child: AlertDialog(
       title: Text(tr(context, 'm0038')),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.memory(widget.bytes, width: 96, height: 96),
-            Text(tr(context, 'm0090')),
-            TextField(
-              controller: _identity,
-              enabled: !_busy,
-              decoration: InputDecoration(labelText: tr(context, 'm0020')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Image.memory(widget.bytes, width: 96, height: 96),
+          if (_busy) const LinearProgressIndicator(),
+          if (_error != null)
+            Text(
+              trMessage(context, _error!),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
-            TextField(
-              controller: _password,
-              enabled: !_busy,
-              obscureText: true,
-              autocorrect: false,
-              enableSuggestions: false,
-              decoration: InputDecoration(labelText: tr(context, 'm0021')),
-            ),
-            if (_busy) const LinearProgressIndicator(),
-            if (_error != null)
-              Text(
-                trMessage(context, _error!),
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-          ],
-        ),
+        ],
       ),
       actions: [
         FilledButton(

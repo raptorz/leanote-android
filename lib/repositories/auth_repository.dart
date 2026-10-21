@@ -197,14 +197,9 @@ class AuthRepository {
     StoredSession session,
     String noteId,
     NoteImageUpload image, {
-    required String identity,
-    required String password,
     Future<void> Function()? beforeSend,
     Future<void> Function(String reference)? confirmed,
   }) async {
-    if (identity.trim().isEmpty || password.isEmpty) {
-      throw const FormatException('请输入当前账号和密码');
-    }
     late String reference;
     await _sync.runAttachmentUpload(
       () async {
@@ -224,8 +219,6 @@ class AuthRepository {
           server: session.account.server,
           token: session.token,
           userId: session.account.userId,
-          identity: identity,
-          password: password,
           noteId: noteId,
           image: image,
           beforeSend: beforeSend,
@@ -245,15 +238,10 @@ class AuthRepository {
     StoredSession session,
     String noteId,
     AttachmentUpload file, {
-    required String identity,
-    required String password,
     Future<void> Function()? beforeSend,
     Future<void> Function(String id)? confirmed,
   }) async {
     var refreshed = false;
-    if (identity.trim().isEmpty || password.isEmpty) {
-      throw const FormatException('请输入当前账号和密码');
-    }
     await _sync.runAttachmentUpload(
       () async {
         final local = (await _database.notes(session.account.cacheKey))
@@ -272,8 +260,6 @@ class AuthRepository {
           server: session.account.server,
           token: session.token,
           userId: session.account.userId,
-          identity: identity,
-          password: password,
           noteId: noteId,
           file: file,
           beforeSend: beforeSend,
@@ -395,12 +381,7 @@ class AuthRepository {
     }
   }
 
-  Future<String> uploadStagedImage(
-    StoredSession session,
-    String id, {
-    required String identity,
-    required String password,
-  }) async {
+  Future<String> uploadStagedImage(StoredSession session, String id) async {
     final outbox = _outbox(session);
     final item = (await outbox.list()).where((e) => e.id == id).firstOrNull;
     if (item == null || !item.isImage || item.state != 'pending') {
@@ -409,9 +390,6 @@ class AuthRepository {
     final file = await outbox.file(id);
     final image = await NoteImageUpload.normalize(file.bytes);
     if (await outbox.isLocalPlacement(id)) {
-      if (identity.trim().isEmpty || password.isEmpty) {
-        throw const FormatException('请输入当前账号和密码');
-      }
       late String reference;
       await _sync.runAttachmentUpload(
         () async {
@@ -445,8 +423,6 @@ class AuthRepository {
             server: session.account.server,
             token: session.token,
             userId: session.account.userId,
-            identity: identity,
-            password: password,
             noteId: item.noteId,
             image: image,
             beforeSend: () => outbox.markSending(id),
@@ -468,8 +444,6 @@ class AuthRepository {
       session,
       item.noteId,
       image,
-      identity: identity,
-      password: password,
       beforeSend: () => outbox.markSending(id),
       confirmed: (reference) async {
         final fileId = cachedImageFileId(
@@ -497,12 +471,7 @@ class AuthRepository {
     await _outbox(session).retryUncertain(id);
   }
 
-  Future<bool> uploadStagedAttachment(
-    StoredSession session,
-    String id, {
-    required String identity,
-    required String password,
-  }) async {
+  Future<bool> uploadStagedAttachment(StoredSession session, String id) async {
     final outbox = _outbox(session);
     final item = (await outbox.list()).where((e) => e.id == id).firstOrNull;
     if (item == null || item.isImage || item.state != 'pending') {
@@ -513,8 +482,6 @@ class AuthRepository {
       session,
       item.noteId,
       file,
-      identity: identity,
-      password: password,
       beforeSend: () => outbox.markSending(id),
       confirmed: (remoteId) => outbox.confirm(id, remoteId),
     );
@@ -1132,21 +1099,14 @@ class AuthRepository {
 
   Future<void> updateUsername(
     StoredSession session, {
-    required String identity,
-    required String password,
     required String username,
   }) {
-    if (identity.trim().isEmpty ||
-        password.isEmpty ||
-        username.trim().isEmpty) {
-      throw const FormatException('请填写登录账号、当前密码和新用户名');
+    if (username.trim().isEmpty) {
+      throw const FormatException('请填写新用户名');
     }
     return _api.updateUsername(
       server: session.account.server,
       token: session.token,
-      userId: session.account.userId,
-      identity: identity.trim(),
-      password: password,
       username: username.trim(),
     );
   }
@@ -1193,21 +1153,10 @@ class AuthRepository {
     );
   }
 
-  Future<void> uploadAvatar(
-    StoredSession session, {
-    required String identity,
-    required String password,
-    required Uint8List bytes,
-  }) {
-    if (identity.trim().isEmpty || password.isEmpty) {
-      throw const FormatException('请填写当前账号和密码');
-    }
+  Future<void> uploadAvatar(StoredSession session, {required Uint8List bytes}) {
     return _api.uploadAvatar(
       server: session.account.server,
       token: session.token,
-      userId: session.account.userId,
-      identity: identity.trim(),
-      password: password,
       bytes: bytes,
     );
   }

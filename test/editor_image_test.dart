@@ -24,7 +24,7 @@ void main() {
     Future<NoteImageUpload?> Function()? pick,
     Future<void> Function(NoteImageUpload)? stage,
     required Future<void> Function(String, String) save,
-    required Future<String> Function(NoteImageUpload, String, String) upload,
+    required Future<String> Function(NoteImageUpload) upload,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -35,7 +35,6 @@ void main() {
             'Content': 'Body',
             'IsMarkdown': markdown,
           }),
-          identity: 'user',
           pickImage: pick ?? () async => image,
           saveText: save,
           uploadImage: upload,
@@ -63,7 +62,7 @@ void main() {
           expect(picked.bytes, image.bytes);
           events.add('stage');
         },
-        upload: (_, _, _) async => throw StateError('must not upload'),
+        upload: (_) async => throw StateError('must not upload'),
       );
       await tester.enterText(find.byType(TextField).last, 'offline draft');
       await tester.tap(find.byTooltip('离线暂存图片'));
@@ -88,7 +87,7 @@ void main() {
         stage: (_) async {
           stages++;
         },
-        upload: (_, _, _) async => throw StateError('must not upload'),
+        upload: (_) async => throw StateError('must not upload'),
       );
       await tester.enterText(find.byType(TextField).last, 'offline draft');
       await tester.tap(find.byTooltip('离线暂存图片'));
@@ -99,15 +98,6 @@ void main() {
   );
 
   Future<void> submit(WidgetTester tester) async {
-    await tester.enterText(
-      find
-          .descendant(
-            of: find.byType(NoteImageUploadDialog),
-            matching: find.byType(TextField),
-          )
-          .last,
-      'password',
-    );
     await tester.tap(find.text('上传并插入'));
   }
 
@@ -121,9 +111,7 @@ void main() {
           tester,
           markdown: markdown,
           save: (_, body) async => saved.add(body),
-          upload: (_, identity, password) async {
-            expect(identity, 'user');
-            expect(password, 'password');
+          upload: (_) async {
             uploads++;
             return reference;
           },
@@ -154,11 +142,7 @@ void main() {
     (tester) async {
       var uploads = 0;
       final saved = <String>[];
-      Future<String> upload(
-        NoteImageUpload _,
-        String identity,
-        String password,
-      ) async {
+      Future<String> upload(NoteImageUpload _) async {
         uploads++;
         return reference;
       }
@@ -196,7 +180,7 @@ void main() {
     await open(
       tester,
       save: (_, _) async => throw StateError('disk full'),
-      upload: (_, _, _) async {
+      upload: (_) async {
         uploads++;
         return reference;
       },
@@ -220,7 +204,7 @@ void main() {
           if (fail) throw StateError('disk full');
           saved.add(body);
         },
-        upload: (_, _, _) async {
+        upload: (_) async {
           uploads++;
           return reference;
         },
@@ -249,7 +233,7 @@ void main() {
       await open(
         tester,
         save: (_, _) async {},
-        upload: (_, _, _) {
+        upload: (_) {
           uploads++;
           return gate.future;
         },
@@ -275,11 +259,13 @@ void main() {
             .onPressed,
         isNull,
       );
-      final fields = find.descendant(
-        of: find.byType(NoteImageUploadDialog),
-        matching: find.byType(TextField),
+      expect(
+        find.descendant(
+          of: find.byType(NoteImageUploadDialog),
+          matching: find.byType(TextField),
+        ),
+        findsNothing,
       );
-      expect(tester.widget<TextField>(fields.last).controller!.text, isEmpty);
       await tester.tap(find.text('关闭'));
       await tester.pumpAndSettle();
       expect(

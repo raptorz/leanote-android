@@ -32,7 +32,7 @@ void main() {
       var pages = 0;
       final api = Api2Client(
         httpClient: MockClient((request) async {
-          expect(request.headers.values, contains('Bearer ' + 'test'));
+          expect(request.headers.values, contains('Bearer test'));
           Object response;
           if (request.url.path.endsWith('/capabilities')) {
             response = {'Ok': true, 'ProtocolVersion': 1, 'Snapshot': true};
@@ -139,7 +139,7 @@ void main() {
     final api = Api2Client(
       httpClient: MockClient((request) async {
         expect(request.url.path, '/api2/note/copySharedNote');
-        expect(request.headers.values, contains('Bearer ' + 'test'));
+        expect(request.headers.values, contains('Bearer test'));
         expect(request.bodyFields['noteIds[0]'], id);
         expect(request.bodyFields['fromUserId'], data['OwnerUserId']);
         expect(request.bodyFields['notebookId'], '507f1f77bcf86cd799439099');
