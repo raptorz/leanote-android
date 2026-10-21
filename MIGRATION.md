@@ -12,7 +12,11 @@
 - 旧 Android 小组件保留为目标。深链、生物识别属于既有规划扩展，是否为旧功能对应项还需核对，不能冒充已迁移。
 - 注册、博客、演示账号、旧数据库迁移目前按原迁移方案排除；若发现与必要移动功能有依赖需重新记录。
 
-## 当前现场（2026-10-20）
+## 当前现场（2026-10-21）
+
+- iOS 对外分享收尾：普通 `lib/main.dart` 模拟器构建通过（59.2 秒），已覆盖安装并启动成功，随后正常关闭模拟器；独立 ReceiverHost 接收应用已卸载。日志 `/private/tmp/gemsnote-ios-outbound-restore.log`。本批没有生产源码变更，不重复上一批已通过的 787 项 Flutter 全套和 Android 构建。下一步继续附件外部打开和工作区完整流程；服务端 JWT/共享复制/历史更新仍按用户要求留待联合处理。
+
+- 上批 `347ddc5` 完成 Android 对外分享。本批 M22/M16 iOS 使用生产 NoteSharer/AttachmentSharer、真实系统面板及独立 ShareReceiver 扩展，**1 项 UI 测试通过（43 秒）**：Markdown/HTML 标题与原文完整一致，二进制/空附件的文件名及原件逐字节一致；点击紧凑分享面板外的背景后，先验证面板消失，再验证调用返回。只使用合成数据，没有真实账号、服务器或外部服务发送。静态分析通过（3.6 秒）。初次 UI 定位把扩展名当成实际显示的所属应用名，修正为 ReceiverHost；下拉手势未关闭紧凑面板，改为真实背景点击。一次构建发现生成 Swift 插件包依赖为空、file_picker_darwin 缺失，顺序重建恢复（145.4 秒），未改 SDK/生产逻辑。最终测试日志 `/private/tmp/gemsnote-ios-outbound-cancel.log`，工程和结果 `/var/folders/6h/jjvzsttd0ms0j80_cfqgvt8c0000gn/T/gemsnote-outbound-ios.Z43McO`；独立接收应用已卸载。仅测试/脚本/文档改动；iPad、其他接收应用、真机与工作区完整分享链路仍待验收。
 
 - 本批 Android 对外分享收尾：静态分析通过（3.6 秒），普通 APK 构建通过（10.5 秒）、覆盖安装及实际冷启动成功，随后正常关闭一次性模拟器。日志 `/private/tmp/gemsnote-outbound-{analyze,restore-build}.log`。仅测试/夹具改动，不重复此前 787 项全套及 iOS 构建。下一步验证 iOS 对外分享；现有服务端联合整改不变。
 
@@ -154,13 +158,13 @@ Swift 测试覆盖真实 PNG/JPEG、超尺寸 PNG、其他格式、损坏头部�
 | M13 共享笔记 | desktop-app/sharedsync/sharedsync.go、api/shared_api.go | api/ApiSharedController | 旧版无完整等价 | ui/shared_notes_page.dart、data/database shared cache；API2 | 安全只读列表/正文、图片/附件缓存、预览/保存/打开/分享及权限撤销清理已实现（schema v16）；共享统一只读，可经服务端复制正文和资源到本人笔记本后编辑 |
 | M14 图片缓存、预览、保存 | desktop-app/service/file_service.go | api/ApiFileController.GetImage | ui/PictureViewerActivity、service/NoteFileService | ui/cached_markdown_image.dart、services/image_exporter.dart；API2 | 已有缓存隔离/原始字节保存测试；原生文件窗口待验收 |
 | M15 图片上传与正文插入 | desktop-app/webapi/proxy.go | /api2/file/pasteImage → File.PasteImage | ui/edit/NoteEditActivity | services/note_image_picker.dart、ui/note_image_upload_dialog.dart；API2 | 在线原文插入、离线图片暂存、持久上传状态与中断恢复已实现；原文暂存图片确认后事务追加；可视化编辑器在线/离线选区插入已实现（schema v19，本地引用在原件确认后原位替换）；新建富文本笔记可离线插入，再安全创建笔记并上传图片，WebView 真机验证未完 |
-| M16 附件上传下载、打开、分享 | desktop-app/service/file_service.go、webapi/proxy.go | Api2.UploadAttachment、ApiFile.GetAttach | service/NoteFileService | ui/note_files_page.dart、services/attachment_*；API2 | 在线上传、下载、离线保存/分享/打开已实现；附件离线暂存、持久上传状态及结果不确定时手动恢复已实现（schema v11）；Android 原生 intent 及 iOS 文件面板/外部应用交互仍待验收 |
+| M16 附件上传下载、打开、分享 | desktop-app/service/file_service.go、webapi/proxy.go | Api2.UploadAttachment、ApiFile.GetAttach | service/NoteFileService | ui/note_files_page.dart、services/attachment_*；API2 | 在线上传、下载、离线保存/分享/打开已实现；附件离线暂存、持久上传状态及结果不确定时手动恢复已实现（schema v11）；Android/iOS 独立接收端已实际验证二进制和空附件分享；文件打开、其他接收应用及完整工作区链路仍待验收 |
 | M17 资源任务与缓存管理 | desktop-app/service/file_service.go | ApiNote.GetNote + ApiFile | background/NoteSyncService | services/account_file_cache.dart、background_tasks.dart、ui/file_cache_dialog.dart；API2 | 账号资源下载队列已持久化（schema v10），支持重启/暂停续传、逐文件失败恢复、失效快照拦截；64MiB 缓存与任务清理已实现；Android WorkManager 和 iOS BGProcessing 按账号偏好调度，跨引擎队列互斥；自动同步开关按账号持久化（schema v20），后台笔记同步按此偏好调度；系统后台唤醒及终止恢复待设备验收 |
 | M18 缓存偏好持久化 | desktop-app/db 配置、service/file_service.go | 无新增请求 | ui/SettingsActivity | app_database schema v8、workspace_page；本地 | 已提交 f524502；账号隔离、升级、读写失败/重试测试通过 |
 | M19 账号资料、头像、密码 | desktop-app/webapi/background_profile.go、proxy.go | Api2.UploadAvatar、User.UpdateUsername/UpdatePwd、web/emailChange | ui/SettingsActivity | ui/account_page.dart、avatar_upload_dialog.dart；API2 + 允许的公开头像 | 主要功能、头像裁剪、Android/iOS 相机入口与 PNG/JPEG/WebP/GIF/BMP 导入已实现；iOS 原生代码通过 SDK 类型检查，原生相机权限/方向/取消/进程恢复及帐号变更竞态真机验收待做 |
 | M20 默认编辑器、语言、关于 | desktop-app/webapi/about.go、应用配置 | 默认编辑器与语言本地；协议版本 API2 | ui/SettingsActivity、AboutActivity | default_editor_dialog.dart、about_dialog.dart；API2 | 编辑器/版本、Flutter 中英文与 system/zh/en 全设备语言设置已实现（schema v17）；Android 分享、拍照、小组件跟随选择；iOS 分享扩展与拍照错误提示已接入 App Group 偏好；仍需跨进程语言切换、输入法及原生入口真机验收 |
 | M21 多账号快速切换 | desktop-app/app.go、db 配置 | Api2.TokenLogin、ApiUser.Info | service/AccountService、ui/MainActivity | app.dart、data/session/session_store.dart | 本轮实现切换/添加账号、登录页恢复已登录账号；保留离线修改与多账号凭据，切换前等待资源任务、重建工作区；静态检查和全量 488 项测试通过；Android/iOS 原生安全存储及数据库重开验证已通过，完整账号切换生命周期仍待验收 |
-| M22 导入导出、对外分享 | desktop-app/webapi/local.go | 本地操作无需新接口 | ui/edit/NoteEditActivity | services/note_importer.dart、note_exporter.dart、note_sharer.dart | 原文导入导出及系统分享已实现；本地 .gemsnote 归档含摘要校验及持久上传队列；Android DocumentsUI 和 iOS 本地文件面板已验证 Markdown/HTML/二进制归档往返及取消，Android 另验证无效文件拒绝并修复归档灰显；云 provider、工作区完整流程及对外分享仍待验收 |
+| M22 导入导出、对外分享 | desktop-app/webapi/local.go | 本地操作无需新接口 | ui/edit/NoteEditActivity | services/note_importer.dart、note_exporter.dart、note_sharer.dart | 原文导入导出及系统分享已实现；本地 .gemsnote 归档含摘要校验及持久上传队列；Android DocumentsUI 和 iOS 本地文件面板已验证 Markdown/HTML/二进制归档往返及取消，Android 另验证无效文件拒绝并修复归档灰显；两端独立接收应用已实际核对分享原文/附件及取消返回；云 provider、其他接收应用及工作区完整流程仍待验收 |
 | M23 Android/iOS 分享接收 | Desktop 无平台等价 | 本地导入后 API2 笔记上传 | manifest ACTION_SEND、ui/edit/NoteEditActivity | services/shared_text_inbox.dart、Android MainActivity、ios/ShareExtension 与 Shared | Android 单项/多项接收已实现，真实跨应用 URI 授权的 PNG/bin/GIF/文本/说明文字、失败批次原子拒绝及导入对话框/确认清理已有设备证据；iOS 图片/文件/多项已接入同一收件箱，私有原件、整批发布与账号隔离有 Swift 测试；Safari 网页、PNG/二进制/GIF/纯文本文件混合分享已通过系统 UI 与正文/原件核对，原生认领及生产导入对话框已有设备验证，完整来源兼容性和工作区生命周期仍待验收 |
 | M24 Android 小组件 | Desktop 无等价 | 本地快照，无新接口 | appwidget/NoteAppWidget、WidgetService、RedirActivity | services/home_widget.dart、Android NoteWidget；本地快照 | 最近 30 条标题列表、新建/打开入口、默认隐私关闭、账号代次隔离和退出清理已实现；仅 home_screen，不提供锁屏组件；Android 35 模拟器已验证桌面添加、未登录入口、中英更新、原生虚拟账号列表/隐私/切换/退出及实际点击回传；独立 SQLite 工作区打开/延后新建/编辑保存/再次打开通过，并修复重复深链路由异常；其他启动器、生命周期与真机验收待做 |
 | M25 Android/iOS 发布与运行 | desktop-app/.github/workflows 为发布参考 | 无 | 旧 Android 构建参考 | android、ios、.github/workflows | 损坏 Gradle 包已修复，Android debug APK 已构建成功；iOS Debug 模拟器构建、安装和启动已通过，正式签名/发布暂缓，完整设备验收未完成；不自动发布 |

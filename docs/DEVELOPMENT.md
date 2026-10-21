@@ -526,6 +526,24 @@ Android 35 模拟器已通过；这不代表邮件/聊天软件的交付结果�
 附件下载到分享的完整流程或 iOS 分享验收。运行后需构建并覆盖安装普通
 `lib/main.dart` APK，避免设备停留在集成测试入口。
 
+### iOS 实际接收验证
+
+```sh
+DEVELOPER_DIR=/Volumes/LC128G/Applications/Xcode.app/Contents/Developer \
+  bash mobile-app/scripts/with_xcode.sh \
+  bash mobile-app/scripts/test_ios_outbound_share.sh <已启动的模拟器 UUID>
+```
+
+脚本构建只调用生产 NoteSharer/AttachmentSharer 的测试界面，以及独立 ReceiverHost
+应用和 ShareReceiver 测试扩展。系统面板使用所属应用名称 `ReceiverHost` 显示目标。
+扩展读取真实 NSItemProvider 的文本或临时文件，用 UI 中的 JSON 回执供 XCUITest
+精确核对原文、文件名、二进制及空附件；不会把选择目标或插件返回当作交付证据。
+接收端没有网络调用，不访问真实账号；这不代表邮件/聊天软件或 iPad 的验收。
+紧凑面板的取消通过点击背景验证，同时检查面板消失和调用返回。
+iPhone 12 mini / iOS 26.3 实际通过；成功后卸载接收应用。
+日志、生成工程和 DerivedData 在临时目录。结束后必须构建 `--target lib/main.dart`
+并覆盖安装普通应用，不能发布测试入口。
+
 ### 业务调用与临时文件
 
 个人笔记文件页的“分享附件”通过现有 share_plus 调用系统分享菜单。
