@@ -22,6 +22,8 @@ import '../repositories/auth_repository.dart';
 import '../services/note_exporter.dart';
 import '../services/shared_text_inbox.dart';
 import '../services/home_widget.dart';
+import '../services/deep_links.dart';
+import '../services/app_lock.dart';
 import 'shared_text_dialog.dart';
 import '../services/note_sharer.dart';
 import '../services/account_file_cache.dart';
@@ -56,6 +58,8 @@ class WorkspacePage extends StatefulWidget {
     this.refreshAvatarOnStart = false,
     this.sharedTextInbox,
     this.homeWidget,
+    this.deepLinks,
+    this.appLock,
     super.key,
   });
 
@@ -66,6 +70,8 @@ class WorkspacePage extends StatefulWidget {
   final bool refreshAvatarOnStart;
   final SharedTextInbox? sharedTextInbox;
   final HomeWidgetController? homeWidget;
+  final DeepLinkController? deepLinks;
+  final AppLockController? appLock;
 
   @override
   State<WorkspacePage> createState() => _WorkspacePageState();
@@ -73,6 +79,66 @@ class WorkspacePage extends StatefulWidget {
 
 class _WorkspacePageState extends State<WorkspacePage>
     with WidgetsBindingObserver {
+  bool _deepLinkBusy = false;
+
+  void _deepLinkChanged() {
+    if (_deepLinkBusy || !mounted || _signedOut || _loggingOut) return;
+    final target = widget.deepLinks?.pending;
+    if (target == null) return;
+    _deepLinkBusy = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!mounted || _signedOut) return;
+        final strings = AppStrings.snapshot(context);
+        if (!target.matches(
+          widget.session.account.server,
+          widget.session.account.userId,
+        )) {
+          throw StateError(strings.text('deepLinkWrongAccount'));
+        }
+        widget.deepLinks!.acknowledge(target);
+        if (target.kind == DeepLinkKind.shared) {
+          if (!mounted) return;
+          await Navigator.of(context).push<void>(
+            MaterialPageRoute(
+              builder: (_) => SharedNotesPage(
+                repository: widget.repository,
+                session: widget.session,
+                initialNoteId: target.noteId,
+              ),
+            ),
+          );
+          return;
+        }
+        var note = (await widget.repository.notes(
+          widget.session.account.cacheKey,
+        )).where((item) => item.noteId == target.noteId).firstOrNull;
+        if (note == null) {
+          await widget.repository.synchronize(widget.session);
+          note = (await widget.repository.notes(
+            widget.session.account.cacheKey,
+          )).where((item) => item.noteId == target.noteId).firstOrNull;
+        }
+        if (note == null || note.isDeleted) {
+          throw StateError(strings.text('deepLinkMissing'));
+        }
+        if (mounted) await _openReader(note);
+      } on Object catch (failure) {
+        widget.deepLinks?.acknowledge(target);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(trNow(context, 'deepLinkOpenFailed', [failure])),
+            ),
+          );
+        }
+      } finally {
+        _deepLinkBusy = false;
+        if (widget.deepLinks?.pending != null) _deepLinkChanged();
+      }
+    });
+  }
+
   bool _widgetActionBusy = false;
 
   Future<List<Note>> _widgetNotes() =>
@@ -542,6 +608,8 @@ class _WorkspacePageState extends State<WorkspacePage>
   @override
   void initState() {
     super.initState();
+    widget.deepLinks?.addListener(_deepLinkChanged);
+    _deepLinkChanged();
     widget.homeWidget?.addListener(_homeWidgetChanged);
     _homeWidgetChanged();
     _shareInbox = widget.sharedTextInbox ?? SharedTextInbox();
@@ -561,6 +629,7 @@ class _WorkspacePageState extends State<WorkspacePage>
 
   @override
   void dispose() {
+    widget.deepLinks?.removeListener(_deepLinkChanged);
     widget.homeWidget?.removeListener(_homeWidgetChanged);
     _fileQueue?.cancel();
     _autoSyncTimer?.cancel();
@@ -725,6 +794,7 @@ class _WorkspacePageState extends State<WorkspacePage>
           builder: (_) => AccountPage(
             repository: widget.repository,
             session: widget.session,
+            appLock: widget.appLock,
           ),
         ),
       );

@@ -11,6 +11,9 @@ import 'ui/login_page.dart';
 import 'ui/workspace_page.dart';
 import 'services/home_widget.dart';
 import 'services/native_language.dart';
+import 'services/deep_links.dart';
+import 'services/app_lock.dart';
+import 'ui/app_lock_gate.dart';
 
 class GemsnoteApp extends StatefulWidget {
   const GemsnoteApp({required this.repository, super.key});
@@ -111,6 +114,8 @@ class _RootGate extends StatefulWidget {
 
 class _RootGateState extends State<_RootGate> {
   final _homeWidget = HomeWidgetController();
+  final _deepLinks = DeepLinkController();
+  late final AppLockController _appLock;
   StoredSession? _session;
   var _ready = false;
   bool _freshLogin = false;
@@ -119,6 +124,11 @@ class _RootGateState extends State<_RootGate> {
   @override
   void initState() {
     super.initState();
+    _appLock = AppLockController(
+      load: widget.repository.appLockEnabled,
+      save: widget.repository.setAppLockEnabled,
+    );
+    unawaited(_deepLinks.start());
     _restore();
   }
 
@@ -147,6 +157,8 @@ class _RootGateState extends State<_RootGate> {
   @override
   void dispose() {
     _homeWidget.dispose();
+    _deepLinks.dispose();
+    _appLock.dispose();
     super.dispose();
   }
 
@@ -170,22 +182,30 @@ class _RootGateState extends State<_RootGate> {
         }),
       );
     }
-    return WorkspacePage(
-      homeWidget: _homeWidget,
-      key: ValueKey((_session!.account.cacheKey, _sessionGeneration)),
-      onSessionChanged: (session) => setState(() {
-        _bindWidget(session);
-        _sessionGeneration++;
-        _session = session;
-        _freshLogin = false;
-      }),
-      repository: widget.repository,
-      session: _session!,
-      refreshAvatarOnStart: _freshLogin,
-      onSignedOut: () => setState(() {
-        _bindWidget(null);
-        _session = null;
-      }),
+    return AppLockGate(
+      controller: _appLock,
+      child: WorkspacePage(
+        homeWidget: _homeWidget,
+        deepLinks: _deepLinks,
+        appLock: _appLock,
+        key: ValueKey((_session!.account.cacheKey, _sessionGeneration)),
+        onSessionChanged: (session) => setState(() {
+          _bindWidget(session);
+          _sessionGeneration++;
+          _session = session;
+          _freshLogin = false;
+        }),
+        repository: widget.repository,
+        session: _session!,
+        refreshAvatarOnStart: _freshLogin,
+        onSignedOut: () {
+          unawaited(_appLock.clear());
+          setState(() {
+            _bindWidget(null);
+            _session = null;
+          });
+        },
+      ),
     );
   }
 }

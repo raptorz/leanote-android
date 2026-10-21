@@ -464,6 +464,21 @@ class AppDatabase {
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
+  Future<bool> appLockEnabled() async {
+    final rows = await raw.query(
+      'app_preferences',
+      columns: ['value'],
+      where: 'name=?',
+      whereArgs: ['app_lock'],
+    );
+    return rows.isNotEmpty && rows.single['value'] == 'true';
+  }
+
+  Future<void> setAppLockEnabled(bool value) => raw.insert('app_preferences', {
+    'name': 'app_lock',
+    'value': value.toString(),
+  }, conflictAlgorithm: ConflictAlgorithm.replace);
+
   static const _appPreferencesSchema =
       'CREATE TABLE IF NOT EXISTS app_preferences (name TEXT PRIMARY KEY, value TEXT NOT NULL)';
 

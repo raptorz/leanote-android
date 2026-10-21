@@ -12,6 +12,7 @@ import 'password_change_dialog.dart';
 import 'avatar_upload_dialog.dart';
 import 'avatar_crop_dialog.dart';
 import '../services/avatar_picker.dart';
+import '../services/app_lock.dart';
 
 class AccountPage extends StatefulWidget {
   const AccountPage({
@@ -19,10 +20,12 @@ class AccountPage extends StatefulWidget {
     required this.repository,
     required this.session,
     this.avatarPicker,
+    this.appLock,
   });
   final AuthRepository repository;
   final StoredSession session;
   final AvatarPicker? avatarPicker;
+  final AppLockController? appLock;
   @override
   State<AccountPage> createState() => _AccountPageState();
 }
@@ -33,6 +36,22 @@ class _AccountPageState extends State<AccountPage> {
   String? _error;
   Uint8List? _avatar;
   bool _passwordChanged = false;
+
+  void _appLockChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _toggleAppLock(bool enabled) async {
+    final lock = widget.appLock;
+    if (lock == null) return;
+    final changed = await lock.setEnabled(
+      enabled,
+      trNow(context, enabled ? 'appLockEnableReason' : 'appLockDisableReason'),
+    );
+    if (!changed && mounted && lock.error != null) {
+      setState(() => _error = lock.error);
+    }
+  }
 
   Future<void> _uploadAvatar({bool camera = false}) async {
     if (_busy || _passwordChanged) return;
@@ -100,8 +119,15 @@ class _AccountPageState extends State<AccountPage> {
   @override
   void initState() {
     super.initState();
+    widget.appLock?.addListener(_appLockChanged);
     _account = widget.session.account;
     _loadCache();
+  }
+
+  @override
+  void dispose() {
+    widget.appLock?.removeListener(_appLockChanged);
+    super.dispose();
   }
 
   Future<void> _loadCache() async {
@@ -265,6 +291,25 @@ class _AccountPageState extends State<AccountPage> {
                   child: Text(tr(context, 'm0016')),
                 ),
                 _field(tr(context, 'm0045'), _account.userId),
+                if (widget.appLock case final lock?)
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    secondary: const Icon(Icons.fingerprint),
+                    title: Text(tr(context, 'appLockSetting')),
+                    subtitle: Text(
+                      tr(
+                        context,
+                        lock.supported
+                            ? 'appLockSettingDescription'
+                            : 'appLockUnavailable',
+                      ),
+                    ),
+                    value: lock.enabled,
+                    onChanged:
+                        lock.ready && lock.supported && !lock.authenticating
+                        ? _toggleAppLock
+                        : null,
+                  ),
                 OutlinedButton(
                   onPressed: _busy
                       ? null

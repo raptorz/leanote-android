@@ -1512,4 +1512,38 @@ const messages = <String, (String, String)>{
     "恢复失败，请刷新笔记并检查历史记录后重试",
     "Restore failed. Refresh the note and check history before retrying.",
   ),
+  "invalidDeepLink": ("链接格式无效", "The link format is invalid."),
+  "deepLinkReadFailed": ("无法读取应用链接", "Could not read the app link."),
+  "deepLinkWrongAccount": (
+    "链接不属于当前服务器或账号",
+    "This link belongs to another server or account.",
+  ),
+  "deepLinkMissing": (
+    "链接指向的笔记不存在或无权访问",
+    "The linked note is unavailable or access was removed.",
+  ),
+  "deepLinkOpenFailed": ("无法打开链接：{0}", "Could not open link: {0}"),
+  "appLockSetting": ("应用锁", "App lock"),
+  "appLockSettingDescription": (
+    "使用生物识别或系统凭据解锁",
+    "Unlock with biometrics or the device credential.",
+  ),
+  "appLockReason": ("解锁 Gemsnote", "Unlock Gemsnote"),
+  "appLockEnableReason": (
+    "验证身份以启用应用锁",
+    "Verify your identity to enable app lock.",
+  ),
+  "appLockDisableReason": (
+    "验证身份以关闭应用锁",
+    "Verify your identity to disable app lock.",
+  ),
+  "appLocked": ("Gemsnote 已锁定", "Gemsnote is locked"),
+  "appUnlock": ("解锁", "Unlock"),
+  "appLockUnavailable": (
+    "此设备未配置可用的生物识别或系统锁屏凭据",
+    "No supported biometric or device credential is configured.",
+  ),
+  "appLockCancelled": ("身份验证已取消", "Authentication was cancelled."),
+  "appLockFailed": ("身份验证失败", "Authentication failed."),
+  "appLockSaveFailed": ("无法保存应用锁设置", "Could not save the app lock setting."),
 };

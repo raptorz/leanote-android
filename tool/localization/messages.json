@@ -3202,5 +3202,69 @@
   "historyRestoreFailed": {
     "zh": "恢复失败，请刷新笔记并检查历史记录后重试",
     "en": "Restore failed. Refresh the note and check history before retrying."
+  },
+  "invalidDeepLink": {
+    "zh": "链接格式无效",
+    "en": "The link format is invalid."
+  },
+  "deepLinkReadFailed": {
+    "zh": "无法读取应用链接",
+    "en": "Could not read the app link."
+  },
+  "deepLinkWrongAccount": {
+    "zh": "链接不属于当前服务器或账号",
+    "en": "This link belongs to another server or account."
+  },
+  "deepLinkMissing": {
+    "zh": "链接指向的笔记不存在或无权访问",
+    "en": "The linked note is unavailable or access was removed."
+  },
+  "deepLinkOpenFailed": {
+    "zh": "无法打开链接：{0}",
+    "en": "Could not open link: {0}"
+  },
+  "appLockSetting": {
+    "zh": "应用锁",
+    "en": "App lock"
+  },
+  "appLockSettingDescription": {
+    "zh": "使用生物识别或系统凭据解锁",
+    "en": "Unlock with biometrics or the device credential."
+  },
+  "appLockReason": {
+    "zh": "解锁 Gemsnote",
+    "en": "Unlock Gemsnote"
+  },
+  "appLockEnableReason": {
+    "zh": "验证身份以启用应用锁",
+    "en": "Verify your identity to enable app lock."
+  },
+  "appLockDisableReason": {
+    "zh": "验证身份以关闭应用锁",
+    "en": "Verify your identity to disable app lock."
+  },
+  "appLocked": {
+    "zh": "Gemsnote 已锁定",
+    "en": "Gemsnote is locked"
+  },
+  "appUnlock": {
+    "zh": "解锁",
+    "en": "Unlock"
+  },
+  "appLockUnavailable": {
+    "zh": "此设备未配置可用的生物识别或系统锁屏凭据",
+    "en": "No supported biometric or device credential is configured."
+  },
+  "appLockCancelled": {
+    "zh": "身份验证已取消",
+    "en": "Authentication was cancelled."
+  },
+  "appLockFailed": {
+    "zh": "身份验证失败",
+    "en": "Authentication failed."
+  },
+  "appLockSaveFailed": {
+    "zh": "无法保存应用锁设置",
+    "en": "Could not save the app lock setting."
   }
 }

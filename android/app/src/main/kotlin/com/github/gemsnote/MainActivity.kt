@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import android.widget.Toast
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import org.json.JSONArray
@@ -21,7 +21,7 @@ import org.json.JSONObject
 import java.util.UUID
 import java.io.File
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     companion object {
         private val readers = Executors.newFixedThreadPool(2)
         private val timeouts = Executors.newSingleThreadScheduledExecutor()

@@ -725,6 +725,9 @@ class AuthRepository {
   Future<String> languagePreference() => _database.languagePreference();
   Future<void> setLanguagePreference(String value) =>
       _database.setLanguagePreference(value);
+  Future<bool> appLockEnabled() => _database.appLockEnabled();
+  Future<void> setAppLockEnabled(bool value) =>
+      _database.setAppLockEnabled(value);
 
   Future<List<Account>> savedAccounts() async {
     final result = <Account>[];

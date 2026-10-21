@@ -8,6 +8,8 @@ val releaseStorePath = System.getenv("ANDROID_KEYSTORE_PATH")
 val releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
 val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
 val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+val appLinkHost = providers.gradleProperty("GEMSNOTE_LINK_HOST")
+    .orElse("links.gemsnote.invalid")
 
 // Debug builds never require production credentials; release cannot fall back.
 gradle.taskGraph.whenReady {
@@ -43,6 +45,7 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["gemsnoteLinkHost"] = appLinkHost.get()
     }
 
     signingConfigs {

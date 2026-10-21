@@ -14,9 +14,11 @@ class SharedNotesPage extends StatefulWidget {
     super.key,
     required this.repository,
     required this.session,
+    this.initialNoteId,
   });
   final AuthRepository repository;
   final StoredSession session;
+  final String? initialNoteId;
   @override
   State<SharedNotesPage> createState() => _SharedNotesPageState();
 }
@@ -28,6 +30,7 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
   String? _error;
   bool _cachedOnly = false;
   int _generation = 0;
+  bool _initialOpened = false;
 
   Future<void> _copy(SharedNote note) async {
     final books = (await widget.repository.notebooks(
@@ -82,7 +85,21 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
         widget.session,
         cachedOnly: _cachedOnly,
       );
-      if (mounted && generation == _generation) setState(() => _notes = notes);
+      if (mounted && generation == _generation) {
+        setState(() => _notes = notes);
+        final initial = widget.initialNoteId;
+        final target = initial == null
+            ? null
+            : notes.where((item) => item.note.noteId == initial).firstOrNull;
+        if (!_initialOpened && initial != null) {
+          _initialOpened = true;
+          if (target == null) {
+            setState(() => _error = trNow(context, 'deepLinkMissing'));
+          } else {
+            await _open(target);
+          }
+        }
+      }
     } on Object catch (error) {
       if (mounted && generation == _generation) {
         setState(() => _error = trNow(context, 'm0373', [error]));
