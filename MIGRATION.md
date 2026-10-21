@@ -14,6 +14,15 @@
 
 ## 当前现场（2026-10-21）
 
+- M16 Android 附件原生打开专项 **1 项通过**：生产 `AttachmentOpener` 通过
+  `open_filex` 和系统“打开方式”面板将二进制及空附件交给独立本地接收 Activity，
+  宿主核对安全文件名、`application/octet-stream`、`content://` URI、临时读取授权和
+  原件字节完全一致。测试不登录、不联网，也不代表其他文件类型、第三方应用或真机兼容性。
+  证据 `/private/tmp/gemsnote-android-attachment-open-final.log` 和
+  `/var/folders/6h/jjvzsttd0ms0j80_cfqgvt8c0000gn/T/gemsnote-attachment-open-1adoml57`。
+  静态分析无问题，附件打开回归 **11 项通过**；普通 APK 构建通过（13.0 秒），覆盖安装及
+  冷启动成功。下一步继续 iOS DocumentInteraction 外部打开验证；服务端联合整改不变。
+
 - iOS 对外分享收尾：普通 `lib/main.dart` 模拟器构建通过（59.2 秒），已覆盖安装并启动成功，随后正常关闭模拟器；独立 ReceiverHost 接收应用已卸载。日志 `/private/tmp/gemsnote-ios-outbound-restore.log`。本批没有生产源码变更，不重复上一批已通过的 787 项 Flutter 全套和 Android 构建。下一步继续附件外部打开和工作区完整流程；服务端 JWT/共享复制/历史更新仍按用户要求留待联合处理。
 
 - 上批 `347ddc5` 完成 Android 对外分享。本批 M22/M16 iOS 使用生产 NoteSharer/AttachmentSharer、真实系统面板及独立 ShareReceiver 扩展，**1 项 UI 测试通过（43 秒）**：Markdown/HTML 标题与原文完整一致，二进制/空附件的文件名及原件逐字节一致；点击紧凑分享面板外的背景后，先验证面板消失，再验证调用返回。只使用合成数据，没有真实账号、服务器或外部服务发送。静态分析通过（3.6 秒）。初次 UI 定位把扩展名当成实际显示的所属应用名，修正为 ReceiverHost；下拉手势未关闭紧凑面板，改为真实背景点击。一次构建发现生成 Swift 插件包依赖为空、file_picker_darwin 缺失，顺序重建恢复（145.4 秒），未改 SDK/生产逻辑。最终测试日志 `/private/tmp/gemsnote-ios-outbound-cancel.log`，工程和结果 `/var/folders/6h/jjvzsttd0ms0j80_cfqgvt8c0000gn/T/gemsnote-outbound-ios.Z43McO`；独立接收应用已卸载。仅测试/脚本/文档改动；iPad、其他接收应用、真机与工作区完整分享链路仍待验收。

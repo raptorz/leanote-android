@@ -24,7 +24,8 @@ public final class ReceivingActivity extends Activity {
             record.put("type", intent.getType());
             record.put("text", intent.getStringExtra(Intent.EXTRA_TEXT));
             record.put("subject", intent.getStringExtra(Intent.EXTRA_SUBJECT));
-            Uri stream = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            Uri stream = Intent.ACTION_VIEW.equals(intent.getAction())
+                ? intent.getData() : intent.getParcelableExtra(Intent.EXTRA_STREAM);
             record.put("hasStream", stream != null);
             if (stream != null) {
                 record.put("scheme", stream.getScheme());

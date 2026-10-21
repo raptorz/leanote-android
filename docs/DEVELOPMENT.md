@@ -622,8 +622,20 @@ AttachmentOpener 再次限制 32 MiB（允许空附件），在 getTemporaryDire
 不在原生返回时立即删除副本，失败/不确定交接的副本也等待过期清理。
 这些文件不属于 SQLite 的 64 MiB 配额，系统也可能提前回收；超过一天的副本不保证继续可读。
 Android 使用私有缓存路径与插件 FileProvider，Manifest 合并显式移除插件自带的共享存储/媒体读取权限，
-不需要扫描用户文件目录。iOS 使用插件 DocumentInteraction。原生测试仍待设备验收；
-本机原有 Gradle 压缩包损坏问题已修复，Android debug APK 已构建通过；aapt 验证合并权限无共享存储/媒体读取权限。原生外部应用打开仍待真机验收。
+不需要扫描用户文件目录。iOS 使用插件 DocumentInteraction。
+
+Android 模拟器专项先构建只在测试中使用的本地接收应用，再调用生产打开服务：
+
+```sh
+fixture=$(scripts/build_android_share_fixture.sh)
+python3 scripts/test_android_attachment_open.py emulator-5554 "$fixture"
+```
+
+脚本拒绝真机，重新安装独立夹具后分别触发二进制和空附件，实际操作系统“打开方式”面板；
+接收 Activity 从授权 URI 读取并记录文件，宿主精确核对安全文件名、MIME、读取授权和字节。
+运行集成入口会覆盖普通应用 APK，结束后必须重新构建并安装 `lib/main.dart`。该专项不联网、
+不使用账号，也不代表第三方应用、其他文件类型或真机兼容性。iOS 外部打开仍待设备验收。
+本机原有 Gradle 压缩包损坏问题已修复；aapt 验证合并权限无共享存储/媒体读取权限。
 
 ## 同步后资源缓存偏好
 
