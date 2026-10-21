@@ -63,7 +63,7 @@ void main() {
     );
     expect(oversized.read, false);
   });
-  for (final scenario in ['ok', 'wrong-user', 'rejected']) {
+  for (final scenario in ['ok', 'rejected']) {
     test('avatar session multipart contract: $scenario', () async {
       var uploads = 0;
       final paths = <String>[];
@@ -71,26 +71,11 @@ void main() {
         httpClient: MockClient((r) async {
           paths.add(r.url.path);
           expect(r.followRedirects, false);
-          expect(r.headers['X-Requested-With'], 'XMLHttpRequest');
           expect(r.url.queryParameters, isEmpty);
           switch (r.url.path) {
-            case '/api2/auth/session':
-              return http.Response(
-                '{"Ok":true}',
-                200,
-                headers: {'set-cookie': 'session=abc; Path=/'},
-              );
-            case '/api2/bootstrap':
-              return http.Response(
-                jsonEncode({
-                  'Ok': true,
-                  'User': {'UserId': scenario == 'wrong-user' ? 'other' : 'u'},
-                }),
-                200,
-              );
             case '/api2/avatar':
               uploads++;
-              expect(r.headers['cookie'], 'session=abc');
+              expect(r.headers.values, contains('Bearer test-token'));
               expect(
                 r.headers['content-type'],
                 startsWith('multipart/form-data; boundary='),
@@ -103,8 +88,6 @@ void main() {
                 jsonEncode({'Ok': scenario == 'ok', 'Id': 'file-id'}),
                 200,
               );
-            case '/api2/logout':
-              return http.Response('{"Ok":true}', 200);
             default:
               fail('unexpected request');
           }
@@ -112,6 +95,7 @@ void main() {
       );
       final result = api.uploadAvatar(
         server: Uri.parse('https://notes.test'),
+        token: 'test-token',
         userId: 'u',
         identity: 'u',
         password: 'secret-password',
@@ -122,8 +106,8 @@ void main() {
       } else {
         await expectLater(result, throwsA(isA<ApiException>()));
       }
-      expect(uploads, scenario == 'wrong-user' ? 0 : 1);
-      expect(paths.last, '/api2/logout');
+      expect(uploads, 1);
+      expect(paths.last, '/api2/avatar');
     });
   }
   testWidgets('upload failure clears password and retains preview for retry', (

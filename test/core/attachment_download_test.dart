@@ -30,7 +30,7 @@ void main() {
       final api = Api2Client(
         httpClient: MockClient.streaming((request, _) async {
           expect(request.method, 'GET');
-          expect(request.url.queryParameters['token'], 'test');
+          expect(request.headers.values, contains('Bearer ' + 'test'));
           if (request.url.path == '/api2/note/getNote') {
             expect(request.url.queryParameters['noteId'], 'note');
             return http.StreamedResponse(

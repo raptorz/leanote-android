@@ -16,7 +16,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'data/cached_login_test.dart' show MemorySessions;
 
 void main() {
-  for (final scenario in ['ok', 'wrong-user', 'rejected']) {
+  for (final scenario in ['ok', 'rejected']) {
     test(
       'password change checks account and does not retry: $scenario',
       () async {
@@ -26,27 +26,9 @@ void main() {
             expect(r.followRedirects, false);
             expect(r.url.queryParameters, isEmpty);
             switch (r.url.path) {
-              case '/api2/auth/session':
-                expect(jsonDecode(r.body), {'email': 'u', 'pwd': 'old&pwd'});
-                return http.Response(
-                  '{"Ok":true}',
-                  200,
-                  headers: {'set-cookie': 'session=abc; Path=/'},
-                );
-              case '/api2/bootstrap':
-                return http.Response(
-                  jsonEncode({
-                    'Ok': true,
-                    'User': {
-                      'UserId': scenario == 'wrong-user' ? 'other' : 'u',
-                    },
-                  }),
-                  200,
-                );
               case '/api2/user/updatePwd':
-                expect(r.headers['X-Requested-With'], 'XMLHttpRequest');
+                expect(r.headers.values, contains('Bearer test-token'));
                 writes++;
-                expect(r.headers['cookie'], 'session=abc');
                 expect(Uri.splitQueryString(r.body), {
                   'oldPwd': 'old&pwd',
                   'pwd': 'new&pwd',
@@ -55,8 +37,6 @@ void main() {
                   jsonEncode({'Ok': scenario != 'rejected'}),
                   200,
                 );
-              case '/api2/logout':
-                return http.Response('{"Ok":false,"Msg":"NOTLOGIN"}', 401);
               default:
                 fail('unexpected request');
             }
@@ -64,6 +44,7 @@ void main() {
         );
         final change = api.changePassword(
           server: Uri.parse('https://notes.test'),
+          token: 'test-token',
           userId: 'u',
           identity: 'u',
           oldPassword: 'old&pwd',
@@ -74,7 +55,7 @@ void main() {
         } else {
           await expectLater(change, throwsA(isA<ApiException>()));
         }
-        expect(writes, scenario == 'wrong-user' ? 0 : 1);
+        expect(writes, 1);
       },
     );
   }

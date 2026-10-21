@@ -52,12 +52,7 @@ void main() {
       throwsA(isA<Object>()),
     );
   });
-  for (final scenario in [
-    'ok',
-    'foreign-note',
-    'wrong-session',
-    'missing-id',
-  ]) {
+  for (final scenario in ['ok', 'foreign-note', 'missing-id']) {
     test(
       'image API2 upload uses PNG, note permission and temporary session: $scenario',
       () async {
@@ -68,9 +63,6 @@ void main() {
         var logouts = 0;
         final api = Api2Client(
           httpClient: MockClient((request) async {
-            if (request.method == 'POST') {
-              expect(request.headers['X-Requested-With'], 'XMLHttpRequest');
-            }
             switch (request.url.path) {
               case '/api2/note/getNote':
                 return http.Response(
@@ -80,27 +72,11 @@ void main() {
                   }),
                   200,
                 );
-              case '/api2/auth/session':
-                return http.Response(
-                  '{"Ok":true}',
-                  200,
-                  headers: {'set-cookie': 'session=s; Path=/; HttpOnly'},
-                );
-              case '/api2/bootstrap':
-                return http.Response(
-                  jsonEncode({
-                    'Ok': true,
-                    'User': {
-                      'UserId': scenario == 'wrong-session' ? 'other' : 'u',
-                    },
-                  }),
-                  200,
-                );
               case '/api2/file/pasteImage':
                 expect(markedSending, isTrue);
                 uploads++;
                 expect(request.followRedirects, false);
-                expect(request.headers['Cookie'], 'session=s');
+                expect(request.headers.values, contains('Bearer secret'));
                 expect(request.url.queryParameters, isEmpty);
                 expect(
                   request.headers['content-type'],
@@ -117,9 +93,6 @@ void main() {
                   }),
                   200,
                 );
-              case '/api2/logout':
-                logouts++;
-                return http.Response('{"Ok":true}', 200);
             }
             throw StateError('Unexpected request');
           }),
@@ -141,15 +114,9 @@ void main() {
         } else {
           await expectLater(future, throwsA(isA<ApiException>()));
         }
-        expect(
-          uploads,
-          ['foreign-note', 'wrong-session'].contains(scenario) ? 0 : 1,
-        );
-        expect(logouts, scenario == 'foreign-note' ? 0 : 1);
-        expect(
-          markedSending,
-          !['foreign-note', 'wrong-session'].contains(scenario),
-        );
+        expect(uploads, scenario == 'foreign-note' ? 0 : 1);
+        expect(logouts, 0);
+        expect(markedSending, scenario != 'foreign-note');
       },
     );
   }

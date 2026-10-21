@@ -15,7 +15,7 @@ void main() {
       httpClient: MockClient((request) async {
         calls++;
         expect(request.method, 'POST');
-        expect(request.url.queryParameters['token'], 'test-token');
+        expect(request.headers.values, contains('Bearer ' + 'test-token'));
         final fields = request.bodyFields;
         expect(fields['parentNotebookId'], parent);
         if (calls == 1) {

@@ -105,7 +105,7 @@ void main() {
       final api = Api2Client(
         httpClient: MockClient((request) async {
           expect(request.url.origin, server.origin);
-          expect(request.url.queryParameters['token'], 'token');
+          expect(request.headers.values, contains('Bearer ' + 'token'));
           expect(request.followRedirects, isFalse);
           if (request.url.path == '/api2/note/getHistoryContent') {
             expect(request.url.queryParameters['historyId'], 'h');

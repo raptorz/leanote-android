@@ -49,7 +49,6 @@ void main() {
   for (final scenario in [
     'ok',
     'foreign-note',
-    'wrong-session',
     'rejected',
     'unknown-result',
     'journal-failure',
@@ -65,7 +64,7 @@ void main() {
           paths.add(request.url.path);
           switch (request.url.path) {
             case '/api2/note/getNote':
-              expect(request.url.queryParameters['token'], 't');
+              expect(request.headers.values, contains('Bearer t'));
               return http.Response(
                 jsonEncode({
                   'NoteId': noteId,
@@ -73,30 +72,12 @@ void main() {
                 }),
                 200,
               );
-            case '/api2/auth/session':
-              expect(request.followRedirects, false);
-              return http.Response(
-                '{"Ok":true}',
-                200,
-                headers: {'set-cookie': 'session=s; Path=/; HttpOnly'},
-              );
-            case '/api2/bootstrap':
-              return http.Response(
-                jsonEncode({
-                  'Ok': true,
-                  'User': {
-                    'UserId': scenario == 'wrong-session' ? 'other' : 'u',
-                  },
-                }),
-                200,
-              );
             case '/api2/attachments/upload':
-              expect(request.headers['X-Requested-With'], 'XMLHttpRequest');
+              expect(request.headers.values, contains('Bearer t'));
               expect(markedSending, isTrue);
               uploads++;
               expect(request.method, 'POST');
               expect(request.followRedirects, false);
-              expect(request.headers['Cookie'], 'session=s');
               expect(
                 request.headers['content-type'],
                 startsWith('multipart/form-data'),
@@ -116,8 +97,6 @@ void main() {
                 }),
                 200,
               );
-            case '/api2/logout':
-              return http.Response('{"Ok":true}', 200);
           }
           throw StateError('Unexpected request ${request.url.path}');
         }),
@@ -147,19 +126,15 @@ void main() {
       }
       expect(
         uploads,
-        ['foreign-note', 'wrong-session', 'journal-failure'].contains(scenario)
-            ? 0
-            : 1,
+        ['foreign-note', 'journal-failure'].contains(scenario) ? 0 : 1,
       );
       expect(
         markedSending,
-        ![
-          'foreign-note',
-          'wrong-session',
-          'journal-failure',
-        ].contains(scenario),
+        !['foreign-note', 'journal-failure'].contains(scenario),
       );
-      if (scenario != 'foreign-note') expect(paths.last, '/api2/logout');
+      if (!['foreign-note', 'journal-failure'].contains(scenario)) {
+        expect(paths.last, '/api2/attachments/upload');
+      }
     });
   }
 }

@@ -20,31 +20,10 @@ void main() {
             expect(request.followRedirects, false);
             expect(request.url.queryParameters, isEmpty);
             switch (request.url.path) {
-              case '/api2/auth/session':
-                expect(jsonDecode(request.body), {
-                  'email': 'old@test.com',
-                  'pwd': 'p&=secret',
-                });
-                return http.Response(
-                  '{"Ok":true}',
-                  200,
-                  headers: {'set-cookie': 'session=private; Path=/'},
-                );
-              case '/api2/bootstrap':
-                expect(request.headers['cookie'], 'session=private');
-                return http.Response(
-                  jsonEncode({
-                    'Ok': true,
-                    'User': {
-                      'UserId': scenario == 'wrong-user' ? 'other' : 'u',
-                    },
-                  }),
-                  200,
-                );
               case '/api2/web/emailChange':
-                expect(request.headers['X-Requested-With'], 'XMLHttpRequest');
+                expect(request.headers.values, contains('Bearer test-token'));
                 expect(request.method, 'POST');
-                expect(request.headers['cookie'], 'session=private');
+                expect(request.headers.containsKey('cookie'), isFalse);
                 expect(
                   request.headers['content-type'],
                   startsWith('application/x-www-form-urlencoded'),
@@ -57,8 +36,6 @@ void main() {
                   jsonEncode({'Ok': scenario == 'sent', 'Msg': 'smtpError'}),
                   200,
                 );
-              case '/api2/logout':
-                return http.Response('{"Ok":true}', 200);
               default:
                 fail('unexpected path');
             }
@@ -66,6 +43,7 @@ void main() {
         );
         final result = api.requestEmailChange(
           server: Uri.parse('https://notes.test'),
+          token: 'test-token',
           userId: 'u',
           identity: 'old@test.com',
           password: 'p&=secret',
@@ -76,11 +54,8 @@ void main() {
         } else {
           await expectLater(result, throwsA(isA<ApiException>()));
         }
-        expect(paths.last, '/api2/logout');
-        expect(
-          paths.where((p) => p == '/api2/web/emailChange').length,
-          scenario == 'wrong-user' ? 0 : 1,
-        );
+        expect(paths.last, '/api2/web/emailChange');
+        expect(paths.where((p) => p == '/api2/web/emailChange').length, 1);
       },
     );
   }

@@ -66,7 +66,7 @@ void main() {
           requests.add(request.url.path);
           if (request.url.path == '/api2/user/info') {
             expect(request.method, 'GET');
-            expect(request.url.queryParameters['token'], 'fresh-token');
+            expect(request.headers.values, contains('Bearer ' + 'fresh-token'));
             return http.Response(
               jsonEncode({
                 'UserId': wrongUser ? 'another-user' : account.userId,

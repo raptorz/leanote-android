@@ -87,7 +87,7 @@ void main() {
           return http.Response('{"LastSyncUsn":100}', 200);
         }
         expect(request.url.path, '/api2/tag/addTag');
-        expect(request.url.queryParameters['token'], 'token');
+        expect(request.headers.values, contains('Bearer ' + 'token'));
         expect(request.method, 'POST');
         expect(request.bodyFields, {'tag': 'x,y & 中文'});
         expect(request.followRedirects, isFalse);

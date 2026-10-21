@@ -54,7 +54,7 @@ void main() {
     final api = Api2Client(
       httpClient: MockClient((request) async {
         expect(request.url.path, startsWith('/api2/'));
-        expect(request.url.queryParameters['token'], 'token');
+        expect(request.headers.values, contains('Bearer ' + 'token'));
         Object? result;
         final route = request.url.path.split('/').last;
         if (request.method == 'POST') {

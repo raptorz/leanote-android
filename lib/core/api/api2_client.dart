@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
 import 'dart:typed_data';
-import 'dart:io' show Cookie;
 
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart' as crypto;
@@ -38,54 +37,51 @@ class Api2Client {
   static const clientVersion = '1.0.0';
   final http.Client _http;
 
-  /// Operation-local browser session; never persist cookies or passwords.
   Future<void> updateUsername({
     required Uri server,
+    required String token,
     required String userId,
     required String identity,
     required String password,
     required String username,
-  }) => _accountFormAction(
+  }) => _tokenFormAction(
     server: server,
-    userId: userId,
-    identity: identity,
-    password: password,
+    token: token,
     path: '/api2/user/updateUsername',
     fields: {'username': username},
   );
 
   Future<void> requestEmailChange({
     required Uri server,
+    required String token,
     required String userId,
     required String identity,
     required String password,
     required String email,
-  }) => _accountFormAction(
+  }) => _tokenFormAction(
     server: server,
-    userId: userId,
-    identity: identity,
-    password: password,
+    token: token,
     path: '/api2/web/emailChange',
     fields: {'email': email, 'pwd': password},
   );
 
   Future<void> changePassword({
     required Uri server,
+    required String token,
     required String userId,
     required String identity,
     required String oldPassword,
     required String password,
-  }) => _accountFormAction(
+  }) => _tokenFormAction(
     server: server,
-    userId: userId,
-    identity: identity,
-    password: oldPassword,
+    token: token,
     path: '/api2/user/updatePwd',
     fields: {'oldPwd': oldPassword, 'pwd': password},
   );
 
   Future<void> uploadAvatar({
     required Uri server,
+    required String token,
     required String userId,
     required String identity,
     required String password,
@@ -94,11 +90,9 @@ class Api2Client {
     if (bytes.isEmpty || bytes.length > 2 * 1024 * 1024) {
       throw const ApiException('invalidAvatarSize');
     }
-    return _accountFormAction(
+    return _tokenFormAction(
       server: server,
-      userId: userId,
-      identity: identity,
-      password: password,
+      token: token,
       path: '/api2/avatar',
       fields: {},
       avatar: bytes,
@@ -134,11 +128,9 @@ class Api2Client {
         note['IsTrash'] == true) {
       throw const ApiException('noPermission');
     }
-    final result = await _accountFormAction(
+    final result = await _tokenFormAction(
       server: server,
-      userId: userId,
-      identity: identity,
-      password: password,
+      token: token,
       path: '/api2/file/pasteImage',
       fields: {'noteId': noteId},
       avatar: image.bytes,
@@ -183,11 +175,9 @@ class Api2Client {
         note['IsTrash'] == true) {
       throw const ApiException('noPermission');
     }
-    final result = await _accountFormAction(
+    final result = await _tokenFormAction(
       server: server,
-      userId: userId,
-      identity: identity,
-      password: password,
+      token: token,
       path: '/api2/attachments/upload',
       fields: {'noteId': noteId},
       avatar: file.bytes,
@@ -201,112 +191,38 @@ class Api2Client {
     return id;
   }
 
-  Future<Map<String, Object?>> _accountFormAction({
+  Future<Map<String, Object?>> _tokenFormAction({
     required Uri server,
-    required String userId,
-    required String identity,
-    required String password,
+    required String token,
     required String path,
     required Map<String, String> fields,
     Uint8List? avatar,
     String filename = 'avatar.png',
     Future<void> Function()? beforeSend,
   }) async {
-    final cookies = <String, String>{};
-    Future<Map<String, Object?>> call(
-      String path, {
-      Map<String, String>? body,
-      bool form = false,
-      Uint8List? upload,
-    }) async {
-      final http.BaseRequest request;
-      if (upload != null) {
-        request = http.MultipartRequest('POST', server.resolve(path))
-          ..fields.addAll(body ?? {})
-          ..files.add(
-            http.MultipartFile.fromBytes('file', upload, filename: filename),
-          );
-      } else {
-        final plain = http.Request(
-          body == null ? 'GET' : 'POST',
-          server.resolve(path),
+    final http.BaseRequest request;
+    if (avatar != null) {
+      request = http.MultipartRequest('POST', server.resolve(path))
+        ..fields.addAll(fields)
+        ..files.add(
+          http.MultipartFile.fromBytes('file', avatar, filename: filename),
         );
-        if (body != null) {
-          if (form) {
-            plain.bodyFields = body;
-          } else {
-            plain.headers['Content-Type'] = 'application/json';
-            plain.body = jsonEncode(body);
-          }
-        }
-        request = plain;
-      }
-      request.followRedirects = false;
-      // API2's cookie-session write guard requires this header, as does the
-      // desktop proxy. Apply it to multipart and regular session requests.
-      request.headers['X-Requested-With'] = 'XMLHttpRequest';
-      if (cookies.isNotEmpty) {
-        request.headers['Cookie'] = cookies.entries
-            .map((e) => '${e.key}=${e.value}')
-            .join('; ');
-      }
-      late http.Response response;
-      try {
-        response = await (() async => http.Response.fromStream(
-          await _http.send(request),
-        ))().timeout(const Duration(seconds: 60));
-      } on Exception {
-        throw const ApiException('networkUnavailable');
-      }
-      final header = response.headers['set-cookie'];
-      if (header != null) {
-        // Split combined cookie fields, but not commas within Expires dates.
-        for (final part in header.split(RegExp(r',(?=\s*[^\s;,=]+=)'))) {
-          try {
-            final cookie = Cookie.fromSetCookieValue(part.trim());
-            cookies[cookie.name] = cookie.value;
-          } on FormatException {
-            throw const ApiException('invalidSessionCookie');
-          }
-        }
-      }
-      return _decodeMapResponse(response);
+    } else {
+      request = http.Request('POST', server.resolve(path))..bodyFields = fields;
     }
-
+    request.followRedirects = false;
+    request.headers['Authorization'] = 'Bearer $token';
+    await beforeSend?.call();
     try {
-      final login = await call(
-        '/api2/auth/session',
-        body: {'email': identity, 'pwd': password},
-      );
-      if (login['Ok'] != true || cookies.isEmpty) {
-        throw const ApiException('invalidSession');
-      }
-      final bootstrap = await call('/api2/bootstrap');
-      final user = bootstrap['User'];
-      if (bootstrap['Ok'] != true || user is! Map || user['UserId'] != userId) {
-        throw const ApiException('accountMismatch');
-      }
-      await beforeSend?.call();
-      final result = await call(
-        path,
-        body: fields,
-        upload: avatar,
-        form: true, // This API2 v1 action still uses Revel form binding, like Web.
-      );
+      final response = await http.Response.fromStream(await _http.send(request))
+          .timeout(const Duration(seconds: 60));
+      final result = _decodeMapResponse(response);
       if (result['Ok'] != true) throw const ApiException('invalidResponse');
       return result;
-    } finally {
-      if (cookies.isNotEmpty) {
-        try {
-          await call(
-            '/api2/logout',
-            body: {},
-          ).timeout(const Duration(seconds: 5));
-        } on Object {
-          /* best effort; do not retry a mutation */
-        }
-      }
-      cookies.clear();
+    } on ApiException {
+      rethrow;
+    } on Exception {
+      throw const ApiException('networkUnavailable');
     }
   }
 
@@ -397,15 +313,18 @@ class Api2Client {
     String token,
     String fileId,
   ) async {
-    final request = http.Request(
-      'GET',
-      _uri(
-        server,
-        '/api2/file/getImage',
-        token: token,
-        query: {'fileId': fileId},
-      ),
-    )..followRedirects = false;
+    final request =
+        http.Request(
+            'GET',
+            _uri(
+              server,
+              '/api2/file/getImage',
+              token: token,
+              query: {'fileId': fileId},
+            ),
+          )
+          ..followRedirects = false
+          ..headers['Authorization'] = 'Bearer $token';
     try {
       final response = await _http
           .send(request)
@@ -464,15 +383,18 @@ class Api2Client {
         !files.any((item) => item.id == file.id && item.isAttachment)) {
       throw const ApiException('attachmentNotInNote');
     }
-    final request = http.Request(
-      'GET',
-      _uri(
-        server,
-        '/api2/file/getAttach',
-        token: token,
-        query: {'fileId': file.id},
-      ),
-    )..followRedirects = false;
+    final request =
+        http.Request(
+            'GET',
+            _uri(
+              server,
+              '/api2/file/getAttach',
+              token: token,
+              query: {'fileId': file.id},
+            ),
+          )
+          ..followRedirects = false
+          ..headers['Authorization'] = 'Bearer $token';
     try {
       final response = await _http
           .send(request)
@@ -875,14 +797,17 @@ class Api2Client {
       throw const ApiException('sharedFileTooLarge');
     }
     await sharedContent(server: server, token: token, shared: shared);
-    final request = http.Request(
-      'GET',
-      _uri(
-        server,
-        '/api2/shared/notes/${file.noteId}/files/${file.fileId}',
-        token: token,
-      ),
-    )..followRedirects = false;
+    final request =
+        http.Request(
+            'GET',
+            _uri(
+              server,
+              '/api2/shared/notes/${file.noteId}/files/${file.fileId}',
+              token: token,
+            ),
+          )
+          ..followRedirects = false
+          ..headers['Authorization'] = 'Bearer $token';
     try {
       final response = await _http
           .send(request)
@@ -1287,6 +1212,7 @@ class Api2Client {
     try {
       final request = http.Request('POST', uri)
         ..followRedirects = false
+        ..headers['Authorization'] = 'Bearer $token'
         ..bodyFields = fields;
       response = await (() async => http.Response.fromStream(
         await _http.send(request),
@@ -1345,6 +1271,9 @@ class Api2Client {
     late http.Response response;
     try {
       final request = http.Request(method, uri)..followRedirects = false;
+      if (token != null && token.isNotEmpty) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
       if (method == 'POST') {
         request.headers['Content-Type'] = 'application/json';
         request.body = jsonEncode(body);
@@ -1368,7 +1297,6 @@ class Api2Client {
       .replace(
         queryParameters: <String, String>{
           ...query,
-          'token': ?token,
           'v': 'mobile_$clientVersion',
         },
       );

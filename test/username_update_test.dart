@@ -26,54 +26,19 @@ void main() {
           expect(request.url.queryParameters.containsKey('token'), false);
           expect(request.followRedirects, false);
           switch (request.url.path) {
-            case '/api2/auth/session':
-              expect(request.headers.containsKey('cookie'), false);
-              expect(jsonDecode(request.body), {
-                'email': 'old',
-                'pwd': 'secret',
-              });
-              if (scenario == 'wrong-password') {
-                return http.Response('{"Ok":false}', 200);
-              }
-              if (scenario == 'redirect') {
-                return http.Response(
-                  '',
-                  302,
-                  headers: {'location': 'https://evil.test/'},
-                );
-              }
-              return http.Response(
-                '{"Ok":true}',
-                200,
-                headers: {
-                  'set-cookie': 'session=abc; Path=/; HttpOnly; Expires=Wed, 01 Jan 2031 00:00:00 GMT, locale=zh; Path=/',
-                },
-              );
-            case '/api2/bootstrap':
-              expect(request.headers['cookie'], contains('session=abc'));
-              return http.Response(
-                jsonEncode({
-                  'Ok': true,
-                  'User': {'UserId': scenario == 'wrong-user' ? 'other' : 'u'},
-                }),
-                200,
-              );
             case '/api2/user/updateUsername':
               expect(request.method, 'POST');
-              expect(request.headers['X-Requested-With'], 'XMLHttpRequest');
+              expect(request.headers['authorization'], 'Bearer test-token');
               expect(
                 request.headers['content-type'],
                 startsWith('application/x-www-form-urlencoded'),
               );
               expect(Uri.splitQueryString(request.body), {'username': 'new'});
               return http.Response(
-                jsonEncode({'Ok': scenario != 'rejected'}),
+                jsonEncode({
+                  'Ok': scenario == 'ok' || scenario == 'logout-failed',
+                }),
                 200,
-              );
-            case '/api2/logout':
-              return http.Response(
-                '{"Ok":true}',
-                scenario == 'logout-failed' ? 503 : 200,
               );
             default:
               fail('unexpected endpoint');
@@ -82,6 +47,7 @@ void main() {
       );
       final result = api.updateUsername(
         server: Uri.parse('https://notes.test'),
+        token: 'test-token',
         userId: 'u',
         identity: 'old',
         password: 'secret',
@@ -92,12 +58,7 @@ void main() {
       } else {
         await expectLater(result, throwsA(isA<ApiException>()));
       }
-      if (scenario == 'wrong-user') {
-        expect(paths, isNot(contains('/api2/user/updateUsername')));
-      }
-      if (scenario != 'wrong-password' && scenario != 'redirect') {
-        expect(paths.last, '/api2/logout');
-      }
+      expect(paths, ['/api2/user/updateUsername']);
       expect(
         paths.where((p) => p == '/api2/user/updateUsername').length,
         lessThanOrEqualTo(1),

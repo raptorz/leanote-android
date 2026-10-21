@@ -1143,6 +1143,7 @@ class AuthRepository {
     }
     return _api.updateUsername(
       server: session.account.server,
+      token: session.token,
       userId: session.account.userId,
       identity: identity.trim(),
       password: password,
@@ -1165,6 +1166,7 @@ class AuthRepository {
     // Do not update cached email until the user confirms the emailed link.
     return _api.requestEmailChange(
       server: session.account.server,
+      token: session.token,
       userId: session.account.userId,
       identity: identity.trim(),
       password: password,
@@ -1183,6 +1185,7 @@ class AuthRepository {
     }
     return _api.changePassword(
       server: session.account.server,
+      token: session.token,
       userId: session.account.userId,
       identity: identity.trim(),
       oldPassword: oldPassword,
@@ -1201,6 +1204,7 @@ class AuthRepository {
     }
     return _api.uploadAvatar(
       server: session.account.server,
+      token: session.token,
       userId: session.account.userId,
       identity: identity.trim(),
       password: password,
