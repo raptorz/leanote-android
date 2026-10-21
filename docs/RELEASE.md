@@ -51,16 +51,28 @@ flutter test --no-pub
 
 通过本地安全方式设置以下环境变量（不要把密码写进脚本、命令历史或文档）：
 `ANDROID_KEYSTORE_PATH`（keystore 绝对路径）、`ANDROID_KEYSTORE_PASSWORD`、
-`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`。然后执行：
+`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`。然后执行统一脚本：
 
 ```sh
-flutter build apk --release --no-pub
-flutter build appbundle --release --no-pub
+bash scripts/build_release.sh android
 ```
 
 输出分别是 `build/app/outputs/flutter-apk/app-release.apk` 和
 `build/app/outputs/bundle/release/app-release.aab`。Gradle 不读取 `key.properties`，
 只使用上述环境变量；debug 构建不需要正式签名参数。
+
+在 macOS 上完成 Apple Team、证书和 provisioning profile 配置后，可直接构建 IPA：
+
+```sh
+DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer \
+  bash scripts/build_release.sh ios
+```
+
+使用 `all` 会依次构建 Android 和 iOS。脚本默认执行锁文件校验、静态检查和完整测试；
+已经完成同一提交的检查时可设置 `SKIP_CHECKS=1`。IPA 默认使用 `app-store` 导出方式，
+也可通过 `IOS_EXPORT_METHOD` 或 `IOS_EXPORT_OPTIONS_PLIST` 调整。所有产物复制到
+`release/` 并生成 `SHA256SUMS`。正式 HTTPS 深链接域名可通过
+`GEMSNOTE_LINK_HOST=notes.example` 传入。
 
 配置签名后先本地验证，再提交版本变更并推送新 tag：
 
