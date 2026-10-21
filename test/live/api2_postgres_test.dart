@@ -75,6 +75,32 @@ void main() {
     databaseFactory = databaseFactoryFfi;
   });
   test(
+    'real API2 rejects invalid and revoked bearer tokens',
+    () async {
+      final client = _Api2OnlyClient();
+      addTearDown(client.close);
+      final api = Api2Client(httpClient: client);
+      final server = Uri.parse('http://127.0.0.1:19090/');
+      await expectLater(
+        api.userInfo(server: server, token: 'invalid-token'),
+        throwsA(isA<ApiException>()),
+      );
+      final login = await api.login(
+        server: server,
+        identity: 'admin',
+        password: 'gemsnote',
+      );
+      await api.logout(server: server, token: login.token);
+      await expectLater(
+        api.userInfo(server: server, token: login.token),
+        throwsA(isA<ApiException>()),
+      );
+    },
+    skip: enabled
+        ? false
+        : 'Requires an explicitly disposable local API2 server',
+  );
+  test(
     'real API2 account switching isolates offline drafts and credentials',
     () async {
       final client = _Api2OnlyClient();

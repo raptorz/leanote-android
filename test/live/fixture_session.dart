@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -10,15 +9,16 @@ class FixtureSession {
   FixtureSession(this.client, this.server);
   final http.Client client;
   final Uri server;
-  final _cookies = <String, String>{};
+  String _token = '';
 
   Future<void> login(String identity, String password) async {
-    final result = await request('/api2/auth/session', {
+    final result = await request('/api2/auth/login', {
       'email': identity,
       'pwd': password,
     }, json: true);
     expect(result['Ok'], isTrue);
-    expect(_cookies, isNotEmpty);
+    _token = result['Token'] as String? ?? '';
+    expect(_token, isNotEmpty);
   }
 
   Future<Map<String, dynamic>> request(
@@ -45,10 +45,8 @@ class FixtureSession {
     final request = http.Request('POST', server.resolve(path))
       ..followRedirects = false
       ..headers['X-Requested-With'] = 'XMLHttpRequest';
-    if (_cookies.isNotEmpty) {
-      request.headers['Cookie'] = _cookies.entries
-          .map((e) => '${e.key}=${e.value}')
-          .join('; ');
+    if (_token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $_token';
     }
     if (json) {
       request.headers['Content-Type'] = 'application/json';
@@ -58,19 +56,12 @@ class FixtureSession {
     }
     final response = await http.Response.fromStream(await client.send(request))
         .timeout(const Duration(seconds: 30));
-    final header = response.headers['set-cookie'];
-    if (header != null) {
-      for (final part in header.split(RegExp(r',(?=\s*[^\s;,=]+=)'))) {
-        final cookie = Cookie.fromSetCookieValue(part.trim());
-        _cookies[cookie.name] = cookie.value;
-      }
-    }
     expect(response.statusCode, 200);
     return jsonDecode(response.body);
   }
 
   Future<void> close() async {
     await _request('/api2/logout', {});
-    _cookies.clear();
+    _token = '';
   }
 }
