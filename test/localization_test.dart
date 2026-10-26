@@ -16,6 +16,8 @@ import 'package:gemsnote/services/native_language.dart';
 import 'package:gemsnote/ui/login_page.dart';
 
 class LanguageRepository implements AuthRepository {
+  @override
+  Future<bool> appLockEnabled() async => false;
   String preference = 'system';
   bool fail = false;
   @override

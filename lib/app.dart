@@ -24,9 +24,14 @@ class GemsnoteApp extends StatefulWidget {
 
 class _GemsnoteAppState extends State<GemsnoteApp> {
   late final LanguageController _language;
+  late final AppLockController _appLock;
   @override
   void initState() {
     super.initState();
+    _appLock = AppLockController(
+      load: widget.repository.appLockEnabled,
+      save: widget.repository.setAppLockEnabled,
+    );
     _language = LanguageController(
       load: widget.repository.languagePreference,
       save: widget.repository.setLanguagePreference,
@@ -38,6 +43,7 @@ class _GemsnoteAppState extends State<GemsnoteApp> {
   @override
   void dispose() {
     _language.dispose();
+    _appLock.dispose();
     super.dispose();
   }
 
@@ -92,11 +98,13 @@ class _GemsnoteAppState extends State<GemsnoteApp> {
                   ),
                 ),
               ),
-            Expanded(child: child!),
+            Expanded(
+              child: AppLockGate(controller: _appLock, child: child!),
+            ),
           ],
         ),
         home: _language.ready
-            ? _RootGate(repository: widget.repository)
+            ? _RootGate(repository: widget.repository, appLock: _appLock)
             : const Scaffold(body: Center(child: CircularProgressIndicator())),
       ),
     ),
@@ -104,9 +112,10 @@ class _GemsnoteAppState extends State<GemsnoteApp> {
 }
 
 class _RootGate extends StatefulWidget {
-  const _RootGate({required this.repository});
+  const _RootGate({required this.repository, required this.appLock});
 
   final AuthRepository repository;
+  final AppLockController appLock;
 
   @override
   State<_RootGate> createState() => _RootGateState();
@@ -115,7 +124,6 @@ class _RootGate extends StatefulWidget {
 class _RootGateState extends State<_RootGate> {
   final _homeWidget = HomeWidgetController();
   final _deepLinks = DeepLinkController();
-  late final AppLockController _appLock;
   StoredSession? _session;
   var _ready = false;
   bool _freshLogin = false;
@@ -124,10 +132,6 @@ class _RootGateState extends State<_RootGate> {
   @override
   void initState() {
     super.initState();
-    _appLock = AppLockController(
-      load: widget.repository.appLockEnabled,
-      save: widget.repository.setAppLockEnabled,
-    );
     unawaited(_deepLinks.start());
     _restore();
   }
@@ -158,7 +162,6 @@ class _RootGateState extends State<_RootGate> {
   void dispose() {
     _homeWidget.dispose();
     _deepLinks.dispose();
-    _appLock.dispose();
     super.dispose();
   }
 
@@ -182,30 +185,27 @@ class _RootGateState extends State<_RootGate> {
         }),
       );
     }
-    return AppLockGate(
-      controller: _appLock,
-      child: WorkspacePage(
-        homeWidget: _homeWidget,
-        deepLinks: _deepLinks,
-        appLock: _appLock,
-        key: ValueKey((_session!.account.cacheKey, _sessionGeneration)),
-        onSessionChanged: (session) => setState(() {
-          _bindWidget(session);
-          _sessionGeneration++;
-          _session = session;
-          _freshLogin = false;
-        }),
-        repository: widget.repository,
-        session: _session!,
-        refreshAvatarOnStart: _freshLogin,
-        onSignedOut: () {
-          unawaited(_appLock.clear());
-          setState(() {
-            _bindWidget(null);
-            _session = null;
-          });
-        },
-      ),
+    return WorkspacePage(
+      homeWidget: _homeWidget,
+      deepLinks: _deepLinks,
+      appLock: widget.appLock,
+      key: ValueKey((_session!.account.cacheKey, _sessionGeneration)),
+      onSessionChanged: (session) => setState(() {
+        _bindWidget(session);
+        _sessionGeneration++;
+        _session = session;
+        _freshLogin = false;
+      }),
+      repository: widget.repository,
+      session: _session!,
+      refreshAvatarOnStart: _freshLogin,
+      onSignedOut: () {
+        unawaited(widget.appLock.clear());
+        setState(() {
+          _bindWidget(null);
+          _session = null;
+        });
+      },
     );
   }
 }

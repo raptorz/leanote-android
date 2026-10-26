@@ -47,6 +47,8 @@ class SwitchRepository implements AuthRepository {
 
 class RootSwitchRepository extends ForegroundRepository {
   @override
+  Future<bool> appLockEnabled() async => false;
+  @override
   Future<String> languagePreference() async => 'zh';
 
   bool loggedOut = false;

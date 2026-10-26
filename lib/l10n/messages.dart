@@ -1545,5 +1545,9 @@ const messages = <String, (String, String)>{
   ),
   "appLockCancelled": ("身份验证已取消", "Authentication was cancelled."),
   "appLockFailed": ("身份验证失败", "Authentication failed."),
+  "appLockLoadFailed": (
+    "无法读取应用锁设置，请重试解锁",
+    "Could not read app lock settings. Retry unlocking.",
+  ),
   "appLockSaveFailed": ("无法保存应用锁设置", "Could not save the app lock setting."),
 };

@@ -54,10 +54,27 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final hidden = !widget.controller.ready || widget.controller.locked;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Keep Navigator and editors mounted, including routes pushed above home.
+        Offstage(
+          offstage: hidden,
+          child: TickerMode(
+            enabled: !hidden,
+            child: ExcludeFocus(excluding: hidden, child: widget.child),
+          ),
+        ),
+        if (hidden) Positioned.fill(child: _lockedScreen(context)),
+      ],
+    );
+  }
+
+  Widget _lockedScreen(BuildContext context) {
     if (!widget.controller.ready) {
       return const Scaffold(body: Center(child: Icon(Icons.lock_outline)));
     }
-    if (!widget.controller.locked) return widget.child;
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -71,7 +88,7 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
                 Text(tr(context, 'appLocked')),
                 if (widget.controller.error != null) ...[
                   const SizedBox(height: 8),
-                  Text(trMessage(context, widget.controller.error!)),
+                  Text(tr(context, widget.controller.error!)),
                 ],
                 const SizedBox(height: 16),
                 FilledButton.icon(

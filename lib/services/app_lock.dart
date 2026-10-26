@@ -42,29 +42,40 @@ class AppLockController extends ChangeNotifier {
   bool locked = false;
   bool authenticating = false;
   String? error;
+  bool _preferenceLoaded = false;
+  Future<void>? _initializing;
+  bool _checkingSupport = false;
 
-  Future<void> initialize(String reason) async {
-    if (ready) return;
+  Future<void> initialize(String reason) =>
+      _initializing ??= _initialize(reason)
+          .whenComplete(() => _initializing = null);
+
+  Future<void> _initialize(String reason) async {
+    if (_preferenceLoaded) return;
     try {
       final stored = await load();
+      _preferenceLoaded = true;
+      enabled = stored;
+      locked = stored;
+      ready = true;
+      error = null;
+      notifyListeners();
       if (!stored) {
-        ready = true;
-        notifyListeners();
         await _detectSupport();
         return;
       }
       supported = await _authenticator.supported();
-      enabled = supported;
-      locked = enabled;
-      ready = true;
+      if (!supported) error = 'appLockUnavailable';
       notifyListeners();
-      if (locked) await unlock(reason);
+      if (supported) await unlock(reason);
     } on Object {
-      error = 'appLockUnavailable';
+      error = _preferenceLoaded ? 'appLockUnavailable' : 'appLockLoadFailed';
       ready = true;
       supported = false;
-      enabled = false;
-      locked = false;
+      // An unknown preference or temporarily unavailable authenticator must
+      // never silently expose a previously protected session.
+      enabled = true;
+      locked = true;
       notifyListeners();
     }
   }
@@ -104,9 +115,29 @@ class AppLockController extends ChangeNotifier {
   }
 
   Future<bool> unlock(String reason) async {
+    if (!_preferenceLoaded) {
+      await initialize(reason);
+      return _preferenceLoaded && !locked;
+    }
+    if (authenticating || _checkingSupport) return false;
     if (!enabled) {
       locked = false;
       return true;
+    }
+    if (!supported) {
+      _checkingSupport = true;
+      try {
+        supported = await _authenticator.supported();
+      } on Object {
+        supported = false;
+      } finally {
+        _checkingSupport = false;
+      }
+      if (!supported) {
+        error = 'appLockUnavailable';
+        notifyListeners();
+        return false;
+      }
     }
     final ok = await _verify(reason);
     if (ok) {
@@ -136,10 +167,11 @@ class AppLockController extends ChangeNotifier {
   }
 
   Future<void> clear() async {
+    await save(false);
+    _preferenceLoaded = true;
     enabled = false;
     locked = false;
     error = null;
     notifyListeners();
-    await save(false);
   }
 }

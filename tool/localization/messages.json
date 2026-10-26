@@ -3263,6 +3263,10 @@
     "zh": "身份验证失败",
     "en": "Authentication failed."
   },
+  "appLockLoadFailed": {
+    "zh": "无法读取应用锁设置，请重试解锁",
+    "en": "Could not read app lock settings. Retry unlocking."
+  },
   "appLockSaveFailed": {
     "zh": "无法保存应用锁设置",
     "en": "Could not save the app lock setting."
