@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerate only the Flutter app's launcher icons, never legacy-android assets.
+# Regenerate Flutter Android/iOS launcher icons from the project branding asset.
 set -euo pipefail
 project_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 if [[ "${1:-}" == --help ]]; then

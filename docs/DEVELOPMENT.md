@@ -163,6 +163,19 @@ DEVELOPER_DIR=/Volumes/LC128G/Applications/Xcode.app/Contents/Developer \
 确保编辑发生在已挂载的原生视图上；离屏视图的 WebKit 撤销行为不能作为界面验收。
 普通 `flutter test` 仍只运行 `test/`，不自动启动模拟器。
 
+Android 可一次运行原生存储/WebView 和应用锁导航检查（从 mobile-app 目录执行）：
+
+```sh
+flutter test --no-pub --no-uninstall integration_test/android_runtime_test.dart \
+  -d emulator-5554 --reporter expanded
+```
+
+此入口复用应用锁页面场景，在设备上核对已打开的编辑页和弹窗被锁屏遮住、取消解锁
+继续隐藏、解锁后保留草稿及导航，以及读取锁设置失败后的重试。认证结果由测试提供，
+不会配置设备 PIN 或触发生物识别系统弹窗；不作为真实认证弹窗、系统锁屏或最近任务
+截图的验收证据。`--no-uninstall` 保留安装与已有数据，测试只清理自己的夹具。
+结束后仍需重新构建并覆盖安装普通入口，不能把测试入口当作日常客户端使用。
+
 ### iOS 原生权限文案
 
 相机权限用途说明位于 `ios/Runner/{en,zh-Hans,zh-Hant}.lproj/InfoPlist.strings`，
@@ -262,7 +275,7 @@ flutter test test/launcher_icons_test.dart
 ```
 
 脚本可从任意工作目录调用，支持 ImageMagick 6 的 `convert` 和 7 的 `magick`，
-不下载外部资源，只覆盖 Flutter Android/iOS 的图标 PNG，不修改 `legacy-android/`。
+不下载外部资源，只覆盖当前 Flutter Android/iOS 工程的图标 PNG。
 生成物提交到 Git，因此普通构建无需安装 ImageMagick。
 
 Android 提供五档密度的传统图标和前景图，以及 API 26+ 自适应图标 XML。
