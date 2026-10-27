@@ -28,6 +28,8 @@ class PendingAttachment {
     'uncertain' => '上传结果待确认',
     'uploaded' => '已上传，本地副本保留',
     'inserted' => '已插入本地正文',
+    'cleaned' => '服务端图片已清理，本地原件保留',
+    'cleaning' => '图片清理结果待确认，本地原件保留',
     _ => '状态异常，请导出保留',
   };
 }
@@ -257,15 +259,22 @@ class AttachmentOutbox {
   Future<void> retryUncertain(String id) =>
       _transition(id, 'uncertain', 'pending');
 
+  Future<void> beginImageCleanup(String id) =>
+      _transition(id, 'uploaded', 'cleaning');
+  Future<void> cancelImageCleanup(String id) =>
+      _transition(id, 'cleaning', 'uploaded');
+  Future<void> markImageCleaned(String id) =>
+      _transition(id, 'cleaning', 'cleaned');
+
   Future<void> _transition(
     String id,
     String from,
     String to, {
-    String remoteId = '',
+    String? remoteId,
   }) async {
     final count = await database.update(
       'attachment_outbox',
-      {'state': to, 'remote_id': remoteId},
+      {'state': to, 'remote_id': ?remoteId},
       where: 'account_id = ? AND id = ? AND state = ?',
       whereArgs: [account.cacheKey, id, from],
     );

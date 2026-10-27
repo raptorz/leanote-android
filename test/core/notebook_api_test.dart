@@ -7,6 +7,31 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('creation key must be acknowledged with the same notebook ID', () async {
+    const id = '507f1f77bcf86cd799439012';
+    final client = Api2Client(
+      httpClient: MockClient((request) async {
+        expect(request.bodyFields['clientNotebookId'], id);
+        return http.Response(
+          jsonEncode({
+            'NotebookId': '507f1f77bcf86cd799439013',
+            'Title': 'book',
+            'Usn': 5,
+          }),
+          200,
+        );
+      }),
+    );
+    await expectLater(
+      client.saveNotebook(
+        server: Uri.parse('https://notes.example.test'),
+        token: 't',
+        title: 'book',
+        clientNotebookId: id,
+      ),
+      throwsA(isA<ApiException>()),
+    );
+  });
   test('create child and rename retain server identity and parent', () async {
     const id = '507f1f77bcf86cd799439012';
     const parent = '507f1f77bcf86cd799439013';

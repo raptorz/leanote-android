@@ -301,12 +301,18 @@ class SyncCoordinator {
       final local = (await _database.notebooks(account.cacheKey))
           .firstWhere((book) => book.notebookId == queued.notebookId);
       if (local.usn == 0) {
-        final request = await creations.begin(local.notebookId);
+        final request = await creations.begin(
+          local.notebookId,
+          idempotent: account.supportsUploadReceipts,
+        );
         final remote = await _api.saveNotebook(
           server: account.server,
           token: token,
           title: request.title,
           parentNotebookId: request.parentNotebookId,
+          clientNotebookId: account.supportsUploadReceipts
+              ? request.notebookId
+              : null,
         );
         await creations.confirm(request, remote);
         continue;

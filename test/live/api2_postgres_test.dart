@@ -7,6 +7,7 @@ import 'package:gemsnote/core/api/api_exception.dart';
 import 'package:gemsnote/data/database/app_database.dart';
 import 'package:gemsnote/data/session/session_store.dart';
 import 'package:gemsnote/domain/models/attachment_upload.dart';
+import 'package:gemsnote/services/note_image_picker.dart';
 import 'package:gemsnote/repositories/auth_repository.dart';
 import 'package:gemsnote/sync/sync_coordinator.dart';
 import 'package:http/http.dart' as http;
@@ -20,6 +21,7 @@ class _Api2OnlyClient extends http.BaseClient {
   final _inner = http.Client();
   final paths = <String>[];
   bool loseNextCreateResponse = false;
+  bool loseNextNotebookResponse = false;
   bool offline = false;
   String? copyContentType;
   int? copyStatus;
@@ -35,6 +37,12 @@ class _Api2OnlyClient extends http.BaseClient {
     paths.add(request.url.path);
     if (offline) throw StateError('Offline operation attempted HTTP');
     final response = await _inner.send(request);
+    if (loseNextNotebookResponse &&
+        request.url.path == '/api2/client/notebook/add') {
+      loseNextNotebookResponse = false;
+      await response.stream.drain<void>();
+      throw const SocketException('Injected lost notebook response');
+    }
     if (request.url.path == '/api2/note/copySharedNote') {
       copyContentType = response.headers['content-type'];
       copyStatus = response.statusCode;
@@ -74,6 +82,257 @@ void main() {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   });
+  test(
+    'real API2 creation receipts recover notebooks and safely clean unused images',
+    () async {
+      final client = _Api2OnlyClient();
+      addTearDown(client.close);
+      final api = Api2Client(httpClient: client);
+      final server = Uri.parse('http://127.0.0.1:19090/');
+      final login = await api.login(
+        server: server,
+        identity: 'admin',
+        password: 'gemsnote',
+      );
+      expect(login.account.supportsUploadReceipts, true);
+      final db = await AppDatabase.open(databasePath: inMemoryDatabasePath);
+      addTearDown(db.raw.close);
+      await db.replaceSnapshot(
+        account: login.account,
+        notebooks: [],
+        notes: [],
+        tags: [],
+        lastSyncUsn: 0,
+      );
+      final sync = SyncCoordinator(api, db);
+      final repo = AuthRepository(api, db, _MemorySessions(), sync);
+      final session = StoredSession(account: login.account, token: login.token);
+      final book = await repo.createOfflineNotebook(
+        session,
+        'Receipt test',
+        '',
+      );
+      client.loseNextNotebookResponse = true;
+      await expectLater(
+        sync.uploadPending(account: login.account, token: login.token),
+        throwsA(anything),
+      );
+      await sync.uploadPending(account: login.account, token: login.token);
+      final books = await api.getNotebooks(
+        server: server,
+        token: login.token,
+        afterUsn: 0,
+      );
+      expect(
+        books.where((item) => item.notebookId == book.notebookId).length,
+        1,
+      );
+      final savedBook = books.singleWhere(
+        (item) => item.notebookId == book.notebookId,
+      );
+      final repeated = await api.saveNotebook(
+        server: server,
+        token: login.token,
+        title: 'A retry must not rename',
+        clientNotebookId: book.notebookId,
+      );
+      expect(repeated.title, 'Receipt test');
+      expect(repeated.usn, savedBook.usn);
+
+      final key = DateTime.now().microsecondsSinceEpoch
+          .toRadixString(16)
+          .padLeft(24, '0');
+      final concurrent = await Future.wait(
+        List.generate(
+          6,
+          (_) => api.saveNotebook(
+            server: server,
+            token: login.token,
+            title: 'Concurrent creation',
+            clientNotebookId: key,
+          ),
+        ),
+      );
+      expect(concurrent.map((book) => book.notebookId).toSet(), {key});
+      expect(concurrent.map((book) => book.usn).toSet().length, 1);
+      await api.deleteNotebook(
+        server: server,
+        token: login.token,
+        notebook: concurrent.first,
+      );
+      await expectLater(
+        api.saveNotebook(
+          server: server,
+          token: login.token,
+          title: 'Cannot resurrect',
+          clientNotebookId: key,
+        ),
+        throwsA(
+          isA<ApiException>().having(
+            (error) => error.code,
+            'reason',
+            'creationKeyDeleted',
+          ),
+        ),
+      );
+
+      final fixture = FixtureSession(client, server);
+      await fixture.login('admin', 'gemsnote');
+      addTearDown(fixture.close);
+      final email =
+          'receipt-${DateTime.now().microsecondsSinceEpoch}@example.test';
+      const password = 'disposable-receipt-password';
+      expect(
+        (await fixture.request('/api2/web/adminRegister', {
+          'email': email,
+          'pwd': password,
+        }))['Ok'],
+        true,
+      );
+      final other = await api.login(
+        server: server,
+        identity: email,
+        password: password,
+      );
+      await expectLater(
+        api.saveNotebook(
+          server: server,
+          token: other.token,
+          title: 'Cannot take ownership',
+          clientNotebookId: book.notebookId,
+        ),
+        throwsA(
+          isA<ApiException>().having(
+            (error) => error.code,
+            'reason',
+            'creationKeyUnavailable',
+          ),
+        ),
+      );
+
+      final local = await db.createLocalNote(
+        account: login.account,
+        notebookId: book.notebookId,
+        isMarkdown: true,
+      );
+      await sync.uploadPending(account: login.account, token: login.token);
+      final image = await NoteImageUpload.normalize(
+        File('assets/images/gemsnote_s.png').readAsBytesSync(),
+      );
+      final uploadId = 'receipt_${DateTime.now().microsecondsSinceEpoch}';
+      Future<String> upload(String key) => api.uploadNoteImage(
+        server: server,
+        token: login.token,
+        userId: login.account.userId,
+        noteId: local.noteId,
+        image: image,
+        uploadId: key,
+      );
+      final ref = await upload(uploadId);
+      expect(await upload(uploadId), ref);
+      final pending = await api.imageUploadStatus(
+        server: server,
+        token: login.token,
+        uploadId: uploadId,
+      );
+      expect(pending.canCleanup, true);
+      await expectLater(
+        api.imageUploadStatus(
+          server: server,
+          token: other.token,
+          uploadId: uploadId,
+        ),
+        throwsA(
+          isA<ApiException>().having(
+            (error) => error.code,
+            'reason',
+            'uploadNotFound',
+          ),
+        ),
+      );
+      await expectLater(
+        api.cleanupImageUpload(
+          server: server,
+          token: other.token,
+          fileId: pending.fileId,
+        ),
+        throwsA(
+          isA<ApiException>().having(
+            (error) => error.code,
+            'reason',
+            'uploadNotFound',
+          ),
+        ),
+      );
+      await api.cleanupImageUpload(
+        server: server,
+        token: login.token,
+        fileId: pending.fileId,
+      );
+      await api.cleanupImageUpload(
+        server: server,
+        token: login.token,
+        fileId: pending.fileId,
+      );
+      expect(
+        (await api.imageUploadStatus(
+          server: server,
+          token: login.token,
+          uploadId: uploadId,
+        )).state,
+        'deleted',
+      );
+      await expectLater(upload(uploadId), throwsA(isA<ApiException>()));
+
+      final usedKey = '${uploadId}_used';
+      final usedRef = await upload(usedKey);
+      var current = (await api.getConflictSnapshot(
+        server: server,
+        token: login.token,
+        noteId: local.noteId,
+      )).note;
+      await api.updateNote(
+        server: server,
+        token: login.token,
+        note: current.copyWith(content: '![image]($usedRef)'),
+      );
+      final retained = await api.imageUploadStatus(
+        server: server,
+        token: login.token,
+        uploadId: usedKey,
+      );
+      expect(retained.state, 'retained');
+      await expectLater(
+        api.cleanupImageUpload(
+          server: server,
+          token: login.token,
+          fileId: retained.fileId,
+        ),
+        throwsA(isA<ApiException>()),
+      );
+      current = (await api.getConflictSnapshot(
+        server: server,
+        token: login.token,
+        noteId: local.noteId,
+      )).note;
+      await api.updateNote(
+        server: server,
+        token: login.token,
+        note: current.copyWith(content: 'image removed from current body'),
+      );
+      await expectLater(
+        api.cleanupImageUpload(
+          server: server,
+          token: login.token,
+          fileId: retained.fileId,
+        ),
+        throwsA(isA<ApiException>()),
+      );
+    },
+    skip: enabled
+        ? false
+        : 'Requires an explicitly disposable local API2 server',
+  );
   test(
     'real API2 rejects invalid and revoked bearer tokens',
     () async {

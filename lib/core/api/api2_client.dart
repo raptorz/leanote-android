@@ -101,6 +101,7 @@ class Api2Client {
     required String noteId,
     required NoteImageUpload image,
     Future<void> Function()? beforeSend,
+    String? uploadId,
   }) async {
     if (!RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(noteId)) {
       throw const ApiException('invalidRequest');
@@ -122,7 +123,7 @@ class Api2Client {
       server: server,
       token: token,
       path: '/api2/file/pasteImage',
-      fields: {'noteId': noteId},
+      fields: {'noteId': noteId, 'uploadId': ?uploadId},
       avatar: image.bytes,
       filename: 'image.png',
       beforeSend: beforeSend,
@@ -133,6 +134,61 @@ class Api2Client {
     }
     // Never embed a token, cookie or user-supplied URL in note content.
     return '/api2/file/getImage?fileId=$id';
+  }
+
+  Future<
+    ({
+      String fileId,
+      String noteId,
+      String digest,
+      String state,
+      bool canCleanup,
+    })
+  >
+  imageUploadStatus({
+    required Uri server,
+    required String token,
+    required String uploadId,
+  }) async {
+    final data = await _requestJson(
+      server: server,
+      path: '/api2/file/imageUpload',
+      method: 'GET',
+      token: token,
+      query: {'uploadId': uploadId},
+    );
+    final item = _map(data['Item']);
+    final id = _string(item, 'FileId');
+    final noteId = _string(item, 'NoteId');
+    final digest = _string(item, 'Digest');
+    final state = _string(item, 'State');
+    if (!RegExp(r'^[0-9a-f]{24}$').hasMatch(id) ||
+        !RegExp(r'^[0-9a-f]{24}$').hasMatch(noteId) ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(digest) ||
+        !{'pending', 'retained', 'deleting', 'deleted'}.contains(state) ||
+        item['CanCleanup'] != (state == 'pending' || state == 'deleting')) {
+      throw const ApiException('invalidResponse');
+    }
+    return (
+      fileId: id,
+      noteId: noteId,
+      digest: digest,
+      state: state,
+      canCleanup: item['CanCleanup'] == true,
+    );
+  }
+
+  Future<void> cleanupImageUpload({
+    required Uri server,
+    required String token,
+    required String fileId,
+  }) async {
+    await _requestFormJson(
+      server: server,
+      path: '/api2/file/cleanupImageUpload',
+      token: token,
+      fields: {'fileId': fileId},
+    );
   }
 
   /// Explicit online mutation; callers must not automatically retry on timeout.
@@ -498,7 +554,11 @@ class Api2Client {
     }
     return LoginResult(
       token: token,
-      account: Account.fromJson(user, server: server),
+      account: Account.fromJson(
+        user,
+        server: server,
+        apiVersion: _string(version, 'Version'),
+      ),
       serverVersion: _string(version, 'Version'),
       minimumClientVersion: version['MinVersion']?.toString() ?? '',
     );
@@ -990,6 +1050,7 @@ class Api2Client {
     required String title,
     String? parentNotebookId,
     Notebook? existing,
+    String? clientNotebookId,
   }) async {
     final data = await _requestFormJson(
       server: server,
@@ -1004,6 +1065,8 @@ class Api2Client {
         'seq': '${existing?.sequence ?? 0}',
         if (existing != null) 'notebookId': existing.notebookId,
         if (existing != null) 'usn': '${existing.usn}',
+        if (existing == null && clientNotebookId != null)
+          'clientNotebookId': clientNotebookId,
       },
     );
     final notebook = Notebook.fromJson(data);
@@ -1011,6 +1074,9 @@ class Api2Client {
         notebook.usn <= 0 ||
         (existing != null && notebook.notebookId != existing.notebookId)) {
       throw const ApiException('invalidResponse');
+    }
+    if (clientNotebookId != null && notebook.notebookId != clientNotebookId) {
+      throw const ApiException('creationKeyNotAcknowledged');
     }
     return notebook;
   }

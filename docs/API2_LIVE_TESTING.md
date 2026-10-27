@@ -8,10 +8,20 @@
 bash mobile-app/scripts/test_api2_postgres.sh
 ```
 
-前置依赖为已安装的 PostgreSQL 18、Go、Python 3 和 Flutter。脚本不安装任何软件。
+前置依赖为已安装的 PostgreSQL 16+、Go、Python 3 和 Flutter。脚本不安装任何软件。
 可用 `PG_BIN`、`GO_BIN`、`FLUTTER_BIN` 指定已有工具。
 
-脚本将服务端源文件复制到 `/private/tmp/gemsnote-api2-live.*`，只读取
+也可以使用一次性 PostgreSQL 容器，特别适用于只安装了数据库客户端的 Linux 环境：
+
+```sh
+PG_DOCKER_IMAGE=postgres:16-alpine \
+FLUTTER_BIN="$HOME/develop/flutter/bin/flutter" \
+bash mobile-app/scripts/test_api2_postgres.sh
+```
+
+该模式要求已有 Docker 和镜像，退出时停止本脚本创建的 `--rm` 容器；不用真实数据库。
+
+脚本将服务端源文件复制到 `${TMPDIR:-/tmp}/gemsnote-api2-live.*`，只读取
 `conf/app.conf-default`，不复制真实 `app.conf`、上传目录或修改服务端工作区。
 使用随机会话密钥、独立 PostgreSQL 数据目录和内置安装种子；仅监听
 `127.0.0.1:15438`（数据库）和 `127.0.0.1:19090`（API2）。
@@ -27,7 +37,7 @@ bash mobile-app/scripts/test_api2_postgres.sh
 客户端限制请求为指定本机地址的 `/api2/` 路径，不记录密码、token 或响应正文。
 这些测试会创建笔记本、笔记和附件，不得指向真实用户数据。
 
-只运行不依赖历史更新的两项：
+只运行双客户端同步专项：
 
 ```sh
 bash mobile-app/scripts/test_api2_postgres.sh --plain-name 'real API2 two-client sync'
@@ -48,29 +58,14 @@ SQLite 数据库分别保存待同步 Markdown/富文本草稿，重建仓库对
 此前原生存储跨进程测试另见下文。日志 `/private/tmp/gemsnote-api2-account-isolation.log`，
 临时环境 `/private/tmp/gemsnote-api2-live.6g6oZR` 已由脚本退出清理停止。
 
-### 共享复制的 JWT 鉴权阻塞（2026-10-20）
+### 共享只读复制与 Bearer 认证（已修复）
 
 运行 `bash mobile-app/scripts/test_api2_postgres.sh --plain-name 'real API2 shared note'`。
-测试已实际验证两个账号的共享正文读取、附件原件一致，以及接收者不能修改原文。
-随后 token-only `/api2/note/copySharedNote` 返回 **302 → /login**，用例保留失败，
-不会将此响应当作成功，也不增加移动端 Cookie 回退。
-复制后的所有权、附件独立 ID、副本编辑不影响原文、撤销共享后副本仍可用的
-断言已经编写，但尚未执行到，不能计为通过。
-
-服务端该路由仍指向 `Note.CopySharedNote`，控制器与拦截器从 Web Session
-读取用户身份；桌面端通过 `ensureSession()` 调用。修复需要真正的 JWT 鉴权入口，
-并保持目标笔记本归登录者所有、源共享可读和原文只读的校验。
-未获服务端修改授权，本批只修改移动端测试与文档。
-管理员 Cookie 夹具仅负责临时账号和共享授权，不作为移动端业务实现。
-
-用户明确要求 API2 统一 JWT。现有移动端 `_accountFormAction` 还用于用户名、
-邮箱、密码、头像、正文图片及附件上传；这些既有 Cookie 调用也应列入后续
-服务端和客户端联合整改，不能因路径以 `/api2/` 开头便宣称已统一 JWT。
-需要保留敏感操作必要的密码确认，但身份认证不应因此改回 Cookie。
-当前未直接删除这些功能或将其改到不存在的 token 接口。
-
-最终复现日志 `/private/tmp/gemsnote-api2-shared-live.log`，
-临时环境 `/private/tmp/gemsnote-api2-live.Zzrc1X`；进程由退出清理停止。
+2026-10-20 最初发现的 `302 → /login` 已修复。当前移动端、联调夹具、资料修改、
+图片/附件上传及共享复制均使用 Bearer 请求头，不创建 Cookie 回退会话。
+token 为服务端密码学随机值并可撤销，不要求 JWT 编码。共享原文只读，复制
+校验目标归属并生成独立资源，副本编辑不影响原文，撤销共享后副本仍可用。
+相关测试已实际通过，旧失败记录不再作为当前阻塞项。
 
 - 目录管理使用真实增量同步：父子笔记本创建、子目录重命名、含子目录删除拒绝、
   过期 USN 删除拒绝、删除子目录及父目录后本地目录消失。标签删除同步 tombstone，
@@ -78,7 +73,7 @@ SQLite 数据库分别保存待同步 Markdown/富文本草稿，重建仓库对
   复现：为脚本追加 `--plain-name 'real API2 notebook and tag deletion'`。
 - 使用生产 `Api2Client`、`SyncCoordinator` 和两个独立 SQLite 库验证离线创建、
   服务端上传及另一客户端增量拉取，包含中文、emoji 和 Markdown 格式。
-- 通过真实 Cookie 会话上传二进制附件，再经 API2 下载并逐字节核对。
+- 通过真实 Bearer 请求上传二进制附件，再经 API2 下载并逐字节核对。
 - 在服务端成功处理创建请求后主动丢弃响应；确认本地待同步记录保留，
   重试前先用另一客户端的独立缓存确认远端已经保存原 ID 与正文；
   下次同步收敛到同一笔记 ID，另一客户端只有一份对应笔记。
@@ -87,9 +82,26 @@ SQLite 数据库分别保存待同步 Markdown/富文本草稿，重建仓库对
   服务端失败时保持测试失败，不跳过内部断言或把失败算为客户端验收。
 - 宿主进程联调，不代表模拟器 UI、系统后台或真机验收。
 
-当前四项用例中，目录管理、双客户端同步/附件、创建响应丢失恢复三项已分别
-在全新 PostgreSQL 库中通过；后续编辑/历史恢复一项仍受下面的服务端问题阻塞。
-普通回归默认跳过四项，连同原有浏览器与性能专项共六个条件跳过项。
+原有七项真实用例已完成验收，包括无效/已撤销 token、账号隔离、共享复制、
+目录及标签管理、双客户端同步、笔记响应丢失恢复和完整历史恢复。
+普通回归有条件跳过真实联网用例，不将跳过项计为通过。
+
+## API2 1.1.0 增强专项
+
+`real API2 creation receipts recover notebooks and safely clean unused images` 使用生产
+API 客户端与 SQLite，主动丢失笔记本创建响应，验证原创建键重试和目录唯一性；
+核对图片上传同键幂等、回执查询、显式重复清理、清理后的键不可复活，及当前
+正文采用后、移除图片但仍有历史记录时的原件保护。安全清理不是后台扫描旧资源。
+
+服务端另有 `TestPostgresImageUploadLifecycle`，使用独立临时 PostgreSQL
+验证清理/引用竞争、所有权和旧资源保护；不能指向真实数据库。
+
+2026-10-27：使用 `PG_DOCKER_IMAGE=postgres:16-alpine` 和独立源码副本，
+真实 API2 全部 **8 项通过**。新增专项随后再次通过，包含并发创建相同键、
+跨账号创建/回执/清理拒绝、tombstone 不可复活及最终上传回执响应。
+服务端 PostgreSQL 原子状态测试经 `go test -race` 通过，包括唯一上传键和
+24 轮引用/清理竞争。后续只要求 PostgreSQL 验收，MongoDB 支持计划移除。
+测试进程和临时 API2/数据库由脚本退出清理，未连接真实服务或改动真实账号。
 
 ## Android/iOS 原生登录与进程重启
 
@@ -149,21 +161,17 @@ ADB 反复握手的环境问题。原 AVD 的失败不算业务通过，也未�
 待 AVD 正常启动后，应覆盖安装 `build/app/outputs/flutter-apk/app-debug.apk`。
 隔离 AVD 已安装并启动普通 APK 后正常关闭；两者均未清空数据。
 
-## 2026-10-20 发现的问题
+## 2026-10-20 问题复盘（均已修复）
 
-### 移动端 Cookie 会话写请求
+### 上传会话认证混用
 
-真实附件上传原先返回 HTTP 403 / `invalidRequest`。
-服务端 `Api2.RequireSession` 要求写请求携带
-`X-Requested-With: XMLHttpRequest`，desktop 的代理已发送该头；
-移动端 `_accountFormAction` 未发送。现统一补齐 JSON、表单和 multipart
-会话请求，覆盖资料修改、密码/邮箱修改、头像、正文图片和附件。
-相应六类接口单元测试已加入请求头断言。
+早期上传依赖 Cookie，曾因缺少浏览器请求头返回 403。临时补请求头方案已被
+统一 Bearer 方案替代。现有上传/资料修改直接使用保存的 token，邮箱和密码
+修改仅保留业务必要的密码确认，不再重复登录创建浏览器会话。
 
-### PostgreSQL 历史记录更新阻塞
+### PostgreSQL 历史记录字段映射
 
-在全新安装种子库中，新建笔记、第一次历史快照及附件上传可以成功。
-随后编辑该笔记时返回 `historySaveFailed`，PostgreSQL 实际错误为：
+早期编辑已有历史的笔记曾返回 `historySaveFailed`，错误为：
 
 ```text
 column "note_id" of relation "note_content_histories" does not exist
@@ -172,10 +180,6 @@ WHERE user_id = $4 AND id = $5
 ```
 
 `database/schema.sql` 中该表主键为 `id`。
-服务端 `NoteContentHistoryService.AddHistory` 更新已有快照时，经 PostgreSQL
-更新字段映射产生 `note_id`。需要后续服务端修复并回归已有历史更新与完整恢复。
-该问题发生在共享服务层，不能以更换移动端接口规避，也不能据此声称
-desktop/Web 已实际验收。本轮没有修改服务端代码或测试库表结构。
-
-因此，先前“完整历史恢复已实现”仍指客户端代码与模拟合同测试；
-真实 PostgreSQL 后续编辑及完整恢复尚受此问题阻塞。
+服务端已修复 PostgreSQL 更新映射，遵循 `db`/`bson` 主键标签，使用 `id`。
+新增映射回归测试；真实 PostgreSQL 已验证后续编辑、历史文件和完整恢复。
+不得继续把本节历史错误当作尚未完成的服务端事项。

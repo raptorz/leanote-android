@@ -2,6 +2,8 @@ import '../data/database/note_creation_journal.dart';
 
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart' as crypto;
+
 import '../domain/models/note_bundle.dart';
 import '../domain/models/note_creation_review.dart';
 import '../domain/models/notebook_conflict.dart';
@@ -199,6 +201,7 @@ class AuthRepository {
     NoteImageUpload image, {
     Future<void> Function()? beforeSend,
     Future<void> Function(String reference)? confirmed,
+    String? uploadId,
   }) async {
     late String reference;
     await _sync.runAttachmentUpload(
@@ -222,6 +225,7 @@ class AuthRepository {
           noteId: noteId,
           image: image,
           beforeSend: beforeSend,
+          uploadId: uploadId,
         );
         await confirmed?.call(reference);
       },
@@ -426,6 +430,7 @@ class AuthRepository {
             noteId: item.noteId,
             image: image,
             beforeSend: () => outbox.markSending(id),
+            uploadId: session.account.supportsUploadReceipts ? id : null,
           );
           final fileId = cachedImageFileId(
             Uri.parse(reference),
@@ -453,6 +458,7 @@ class AuthRepository {
         if (fileId == null) throw StateError('图片地址无效');
         await outbox.confirm(id, fileId);
       },
+      uploadId: session.account.supportsUploadReceipts ? id : null,
     );
     await insertStagedImage(session, id);
     return reference;
@@ -461,6 +467,106 @@ class AuthRepository {
   Future<void> removeStagedAttachment(StoredSession session, String id) async {
     if (_sync.isBusy) throw StateError('请等待当前同步或上传完成');
     await _outbox(session).remove(id);
+  }
+
+  Future<void> recoverStagedImageUpload(
+    StoredSession session,
+    String id,
+  ) async {
+    if (!session.account.supportsUploadReceipts) {
+      throw const ApiException('serverUpgradeRequired');
+    }
+    await _sync.runMetadataUpdate(
+      () async {
+        final outbox = _outbox(session);
+        final item = (await outbox.list())
+            .where((item) => item.id == id)
+            .firstOrNull;
+        if (item == null || !item.isImage || item.state != 'uncertain') {
+          throw StateError('imageTaskChanged');
+        }
+        final file = await outbox.file(id);
+        final image = await NoteImageUpload.normalize(file.bytes);
+        final receipt = await _api.imageUploadStatus(
+          server: session.account.server,
+          token: session.token,
+          uploadId: id,
+        );
+        if (receipt.noteId != item.noteId ||
+            receipt.digest != crypto.sha256.convert(image.bytes).toString()) {
+          throw StateError('imageReceiptMismatch');
+        }
+        if (receipt.state != 'pending' && receipt.state != 'retained') {
+          throw StateError('uploadAlreadyCleaned');
+        }
+        await outbox.confirm(id, receipt.fileId);
+      },
+      account: session.account,
+      token: session.token,
+    );
+  }
+
+  Future<void> cleanupStagedImageUpload(
+    StoredSession session,
+    String id,
+  ) async {
+    if (!session.account.supportsUploadReceipts) {
+      throw const ApiException('serverUpgradeRequired');
+    }
+    await _sync.runMetadataUpdate(
+      () async {
+        final outbox = _outbox(session);
+        final item = (await outbox.list())
+            .where((item) => item.id == id)
+            .firstOrNull;
+        if (item == null ||
+            !item.isImage ||
+            !{'uploaded', 'cleaning'}.contains(item.state) ||
+            await outbox.hasBinding(id)) {
+          throw StateError('imageTaskChanged');
+        }
+        final localReferences = await _database.raw.query(
+          'notes',
+          columns: ['server_id'],
+          where: 'account_id = ? AND INSTR(content, ?) > 0',
+          whereArgs: [session.account.cacheKey, item.remoteId],
+          limit: 1,
+        );
+        if (localReferences.isNotEmpty) {
+          throw StateError('imageAlreadyReferenced');
+        }
+        final receipt = await _api.imageUploadStatus(
+          server: session.account.server,
+          token: session.token,
+          uploadId: id,
+        );
+        if (receipt.fileId != item.remoteId || receipt.noteId != item.noteId) {
+          throw StateError('imageReceiptMismatch');
+        }
+        if (!receipt.canCleanup && receipt.state != 'deleted') {
+          if (item.state == 'cleaning') await outbox.cancelImageCleanup(id);
+          throw const ApiException('imageAlreadyReferenced');
+        }
+        // Persist before deletion: a lost response must not leave an insert
+        // action pointing at an already deleted server resource.
+        if (item.state == 'uploaded') await outbox.beginImageCleanup(id);
+        try {
+          await _api.cleanupImageUpload(
+            server: session.account.server,
+            token: session.token,
+            fileId: receipt.fileId,
+          );
+        } on ApiException catch (error) {
+          if (error.code == 'imageAlreadyReferenced') {
+            await outbox.cancelImageCleanup(id);
+          }
+          rethrow;
+        }
+        await outbox.markImageCleaned(id);
+      },
+      account: session.account,
+      token: session.token,
+    );
   }
 
   Future<void> retryUncertainAttachment(

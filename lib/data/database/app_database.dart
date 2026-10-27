@@ -35,7 +35,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 21;
+  static const schemaVersion = 22;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -55,6 +55,27 @@ class AppDatabase {
         }
       },
       onUpgrade: (db, oldVersion, _) async {
+        if (oldVersion < 22) {
+          final accountColumns = await db.rawQuery(
+            'PRAGMA table_info(accounts)',
+          );
+          if (!accountColumns.any((row) => row['name'] == 'api_version')) {
+            await db.execute(
+              "ALTER TABLE accounts ADD COLUMN api_version TEXT NOT NULL DEFAULT ''",
+            );
+          }
+          // Old uncertain requests have no creation key and remain manual.
+          if (oldVersion >= 13) {
+            final columns = await db.rawQuery(
+              'PRAGMA table_info(notebook_creations)',
+            );
+            if (!columns.any((row) => row['name'] == 'request_json')) {
+              await db.execute(
+                "ALTER TABLE notebook_creations ADD COLUMN request_json TEXT NOT NULL DEFAULT ''",
+              );
+            }
+          }
+        }
         if (oldVersion < 2) await db.execute(_historySchema);
         if (oldVersion < 3) await db.execute(_avatarSchema);
         if (oldVersion < 4) await db.execute(_sharedSchema);
@@ -425,6 +446,7 @@ class AppDatabase {
             username: row['username']! as String,
             email: row['email']! as String,
             logo: row['logo']! as String,
+            apiVersion: row['api_version']! as String,
           ),
         )
         .toList();
@@ -440,6 +462,7 @@ class AppDatabase {
       username: row['username']! as String,
       email: row['email']! as String,
       logo: row['logo']! as String,
+      apiVersion: row['api_version']! as String,
     );
   }
 
@@ -636,6 +659,7 @@ class AppDatabase {
       username: row['username'] as String,
       email: row['email'] as String,
       logo: row['logo'] as String,
+      apiVersion: row['api_version'] as String,
     );
   }
 
@@ -687,6 +711,7 @@ class AppDatabase {
           'username': account.username,
           'email': account.email,
           'logo': account.logo,
+          'api_version': account.apiVersion,
         },
         where: 'account_id = ?',
         whereArgs: [account.cacheKey],
@@ -755,6 +780,7 @@ class AppDatabase {
         'email': account.email,
         'logo': account.logo,
         'last_sync_usn': lastSyncUsn,
+        'api_version': account.apiVersion,
         'is_active': 1,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
       for (final table in ['notebooks', 'notes', 'tags']) {
@@ -2367,6 +2393,7 @@ class AppDatabase {
       username TEXT NOT NULL,
       email TEXT NOT NULL,
       logo TEXT NOT NULL DEFAULT '',
+      api_version TEXT NOT NULL DEFAULT '',
       last_sync_usn INTEGER NOT NULL DEFAULT 0,
       is_active INTEGER NOT NULL DEFAULT 0
     )''',

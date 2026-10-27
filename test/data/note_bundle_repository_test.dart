@@ -70,6 +70,7 @@ class BundleApi extends Api2Client {
     required String noteId,
     required NoteImageUpload image,
     Future<void> Function()? beforeSend,
+    String? uploadId,
   }) async {
     await beforeSend?.call();
     imageUploadCalls++;

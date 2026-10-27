@@ -8,7 +8,9 @@ server_root=$(dirname "$mobile_root")
 pg_bin=${PG_BIN:-/opt/homebrew/opt/postgresql@18/bin}
 flutter_bin=${FLUTTER_BIN:-"$HOME/opt/flutter/bin/flutter"}
 go_bin=${GO_BIN:-go}
-for executable in "$pg_bin/initdb" "$pg_bin/pg_ctl" "$pg_bin/createdb" "$flutter_bin" "$go_bin" python3; do
+pg_tools=("$pg_bin/initdb" "$pg_bin/pg_ctl" "$pg_bin/createdb")
+if [[ -n "${PG_DOCKER_IMAGE:-}" ]]; then pg_tools=(docker); fi
+for executable in "${pg_tools[@]}" "$flutter_bin" "$go_bin" python3; do
   command -v "$executable" >/dev/null || { echo "Missing dependency: $executable" >&2; exit 1; }
 done
 if [[ -n "${API2_IOS_SIMULATOR:-}" && -n "${API2_ANDROID_EMULATOR:-}" ]]; then
@@ -44,10 +46,11 @@ for port in (15438, 19090):
         probe.bind(("127.0.0.1", port))
 PY
 # Keep PostgreSQL's Unix socket path below macOS's length limit.
-test_work=$(mktemp -d /private/tmp/gemsnote-api2-live.XXXXXX)
+test_work=$(mktemp -d "${TMPDIR:-/tmp}/gemsnote-api2-live.XXXXXX")
 echo "Temporary test data and logs: $test_work"
 server_pid=
 postgres_started=false
+pg_container=
 cleanup() {
   if [[ -n "$server_pid" ]]; then
     kill "$server_pid" 2>/dev/null || true
@@ -56,6 +59,7 @@ cleanup() {
   if [[ "$postgres_started" == true ]]; then
     "$pg_bin/pg_ctl" -D "$test_work/pgdata" -m fast -w stop >> "$test_work/postgres-stop.log" 2>&1 || true
   fi
+  if [[ -n "$pg_container" ]]; then docker stop "$pg_container" >> "$test_work/postgres-stop.log" 2>&1 || true; fi
 }
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -96,15 +100,27 @@ index = next(i for i, line in enumerate(lines) if line.startswith("["))
 lines[index:index] = [key + "=" + value for key, value in values.items()]
 (server / "conf/app.conf").write_text("\n".join(lines) + "\n")
 PY
-"$pg_bin/initdb" -D "$test_work/pgdata" -U gemsnote_test --auth=trust --no-locale -E UTF8 > "$test_work/initdb.log" 2>&1
-"$pg_bin/pg_ctl" -D "$test_work/pgdata" -l "$test_work/postgres.log" \
-  -o "-h 127.0.0.1 -p 15438 -k $test_work" -w start
-postgres_started=true
-"$pg_bin/createdb" -h 127.0.0.1 -p 15438 -U gemsnote_test gemsnote
+if [[ -n "${PG_DOCKER_IMAGE:-}" ]]; then
+  pg_container="gemsnote-api2-test-$$-$RANDOM"
+  docker run -d --rm --name "$pg_container" -e POSTGRES_USER=gemsnote_test \
+    -e POSTGRES_DB=gemsnote -e POSTGRES_HOST_AUTH_METHOD=trust \
+    -p 127.0.0.1:15438:5432 "$PG_DOCKER_IMAGE" > "$test_work/initdb.log"
+  for attempt in {1..100}; do
+    if docker exec "$pg_container" pg_isready -h 127.0.0.1 -U gemsnote_test -d gemsnote >/dev/null 2>&1; then break; fi
+    sleep .1
+  done
+  docker exec "$pg_container" pg_isready -h 127.0.0.1 -U gemsnote_test -d gemsnote
+else
+  "$pg_bin/initdb" -D "$test_work/pgdata" -U gemsnote_test --auth=trust --no-locale -E UTF8 > "$test_work/initdb.log" 2>&1
+  "$pg_bin/pg_ctl" -D "$test_work/pgdata" -l "$test_work/postgres.log" \
+    -o "-h 127.0.0.1 -p 15438 -k $test_work" -w start
+  postgres_started=true
+  "$pg_bin/createdb" -h 127.0.0.1 -p 15438 -U gemsnote_test gemsnote
+fi
 (
   cd "$test_work/server"
   "$go_bin" run ./app/cmd build . "$test_work/revel" prod
-  "$go_bin" build -o "$test_work/gemsnote" ./app/tmp
+  "$go_bin" build -buildvcs=false -o "$test_work/gemsnote" ./app/tmp
 ) > "$test_work/build.log" 2>&1
 revel_dir=$(cd "$test_work/server" && "$go_bin" list -m -f '{{.Dir}}' github.com/revel/revel)
 mkdir -p "$test_work/runtime/github.com/gemsnote" "$test_work/runtime/github.com/revel"

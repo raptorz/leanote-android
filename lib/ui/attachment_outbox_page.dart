@@ -102,6 +102,21 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
             item.id,
           );
         }
+      } else if (action == 'recoverImage') {
+        await widget.repository.recoverStagedImageUpload(
+          widget.session,
+          item.id,
+        );
+      } else if (action == 'cleanupImage') {
+        if (await _confirm(
+          trNow(context, 'cleanupImage'),
+          trNow(context, 'cleanupImageConfirm'),
+        )) {
+          await widget.repository.cleanupStagedImageUpload(
+            widget.session,
+            item.id,
+          );
+        }
       } else if (action == 'insert') {
         await widget.repository.insertStagedImage(widget.session, item.id);
       } else if (action == 'retry') {
@@ -211,6 +226,20 @@ class _AttachmentOutboxPageState extends State<AttachmentOutboxPage> {
                           tooltip: tr(context, 'm0068'),
                           onSelected: (value) => _action(item, value),
                           itemBuilder: (_) => [
+                            if (item.isImage &&
+                                widget.session.account.supportsUploadReceipts &&
+                                item.state == 'uncertain')
+                              PopupMenuItem(
+                                value: 'recoverImage',
+                                child: Text(tr(context, 'recoverImage')),
+                              ),
+                            if (item.isImage &&
+                                widget.session.account.supportsUploadReceipts &&
+                                {'uploaded', 'cleaning'}.contains(item.state))
+                              PopupMenuItem(
+                                value: 'cleanupImage',
+                                child: Text(tr(context, 'cleanupImage')),
+                              ),
                             if (item.state == 'pending')
                               PopupMenuItem(
                                 value: 'upload',

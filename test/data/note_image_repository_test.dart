@@ -25,6 +25,7 @@ class ImageApi extends UploadApi {
     required String noteId,
     required NoteImageUpload image,
     Future<void> Function()? beforeSend,
+    String? uploadId,
   }) async {
     await beforeSend?.call();
     uploads++;

@@ -30,11 +30,18 @@ class CreationApi extends Api2Client {
     required String title,
     String? parentNotebookId,
     Notebook? existing,
+    String? clientNotebookId,
   }) async {
     expect(existing, isNull);
+    if (clientNotebookId != null &&
+        books.any((book) => book.notebookId == clientNotebookId)) {
+      return books.singleWhere((book) => book.notebookId == clientNotebookId);
+    }
     creates++;
     final book = Notebook(
-      notebookId: (100 + creates).toRadixString(16).padLeft(24, '0'),
+      notebookId:
+          clientNotebookId ??
+          (100 + creates).toRadixString(16).padLeft(24, '0'),
       parentNotebookId: parentNotebookId ?? '',
       title: title,
       sequence: 0,
@@ -126,6 +133,37 @@ void main() {
   tearDown(() async {
     await db.raw.close();
     await directory.delete(recursive: true);
+  });
+
+  test('API2 1.1 retries the durable creation key after restart without duplicates', () async {
+    final enhanced = Account(
+      userId: account.userId,
+      server: account.server,
+      username: account.username,
+      email: '',
+      logo: '',
+      apiVersion: '1.1.0',
+    );
+    await db.activateCachedAccount(enhanced);
+    final book = await repo.createOfflineNotebook(
+      StoredSession(account: enhanced, token: 't'),
+      'Safe retry',
+      '',
+    );
+    api.loseResponse = true;
+    await expectLater(
+      sync.uploadPending(account: enhanced, token: 't'),
+      throwsStateError,
+    );
+    expect(api.books.single.notebookId, book.notebookId);
+    await reopen();
+    expect((await db.activeAccount())!.apiVersion, '1.1.0');
+    api.loseResponse = false;
+    await sync.uploadPending(account: enhanced, token: 't');
+    expect(api.creates, 1);
+    expect(api.books.length, 1);
+    expect(await journal.state(book.notebookId), 'complete');
+    expect((await db.notebooks(enhanced.cacheKey)).single.isDirty, false);
   });
 
   test('offline hierarchy survives restart; create uploads parents then remaps children and notes', () async {

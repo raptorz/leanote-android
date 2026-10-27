@@ -1549,5 +1549,39 @@ const messages = <String, (String, String)>{
     "无法读取应用锁设置，请重试解锁",
     "Could not read app lock settings. Retry unlocking.",
   ),
+  "recoverImage": ("查询并恢复上传结果", "Recover upload receipt"),
+  "cleanupImage": ("清理未引用的服务端图片", "Clean up unused server image"),
+  "cleanupImageConfirm": (
+    "仅清理尚未保存到服务端笔记的图片，并保留本地原件。正文或历史版本已引用的图片不会删除。",
+    "Remove only an unreferenced upload and keep the local original. Images used by saved notes or history will be retained.",
+  ),
+  "imageCleaned": (
+    "服务端图片已清理，本地原件保留",
+    "Server image removed; local original retained",
+  ),
+  "imageCleaning": (
+    "图片清理结果待确认，本地原件保留",
+    "Image cleanup pending confirmation; local original retained",
+  ),
+  "imageAlreadyReferenced": (
+    "图片已被笔记或历史版本引用，不能清理",
+    "The image is used by a note or history and cannot be removed.",
+  ),
+  "imageUploadMissing": (
+    "未找到该图片的上传回执，请核实后重试",
+    "Upload receipt not found. Check the upload before retrying.",
+  ),
+  "imageUploadCleaned": (
+    "此上传已经清理，请用本地原件新建上传任务",
+    "This upload was cleaned up. Create a new upload task from the local original.",
+  ),
+  "creationKeyDeleted": (
+    "该笔记本已在服务端删除，请核实本地创建任务",
+    "This notebook was deleted on the server. Review the local creation task.",
+  ),
+  "creationKeyUnavailable": (
+    "笔记本创建键不可用，请核实本地创建任务",
+    "Notebook creation key unavailable. Review the local creation task.",
+  ),
   "appLockSaveFailed": ("无法保存应用锁设置", "Could not save the app lock setting."),
 };

@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart';
 
@@ -11,6 +12,7 @@ class NotebookCreationJournal {
   static const schema = '''CREATE TABLE IF NOT EXISTS notebook_creations (
     account_id TEXT NOT NULL, local_id TEXT NOT NULL,
     state TEXT NOT NULL DEFAULT 'pending', remote_id TEXT NOT NULL DEFAULT '',
+    request_json TEXT NOT NULL DEFAULT '',
     PRIMARY KEY(account_id, local_id),
     FOREIGN KEY(account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
   )''';
@@ -88,33 +90,65 @@ class NotebookCreationJournal {
         return _book(row);
       });
 
-  Future<Notebook> begin(String id) => database.transaction((txn) async {
-    if (await state(id, transaction: txn) != 'pending') {
-      throw StateError('笔记本创建结果待确认，请从笔记本菜单核实恢复，不会自动重复创建');
-    }
-    final rows = await txn.query(
-      'notebooks',
-      where: 'account_id = ? AND server_id = ? AND usn = 0',
-      whereArgs: [accountId, id],
-    );
-    if (rows.isEmpty) throw StateError('localNotebookMissing');
-    final book = _book(rows.single);
-    if (book.parentNotebookId.isNotEmpty) {
-      final parents = await txn.query(
-        'notebooks',
-        where: 'account_id = ? AND server_id = ? AND usn > 0',
-        whereArgs: [accountId, book.parentNotebookId],
-      );
-      if (parents.isEmpty) throw StateError('请先同步父笔记本');
-    }
-    await txn.update(
-      'notebook_creations',
-      {'state': 'uncertain'},
-      where: 'account_id = ? AND local_id = ?',
-      whereArgs: [accountId, id],
-    );
-    return book;
-  });
+  Future<Notebook> begin(String id, {bool idempotent = false}) =>
+      database.transaction((txn) async {
+        final tasks = await txn.query(
+          'notebook_creations',
+          where: 'account_id = ? AND local_id = ?',
+          whereArgs: [accountId, id],
+        );
+        if (tasks.isNotEmpty &&
+            tasks.single['state'] == 'uncertain' &&
+            idempotent &&
+            tasks.single['request_json'] != '') {
+          final request = jsonDecode(
+            tasks.single['request_json'] as String,
+          ) as Map<String, dynamic>;
+          return Notebook(
+            notebookId: id,
+            parentNotebookId: request['parent'] as String,
+            title: request['title'] as String,
+            sequence: request['seq'] as int,
+            usn: 0,
+            numberNotes: 0,
+            isDeleted: false,
+          );
+        }
+        if (await state(id, transaction: txn) != 'pending') {
+          throw StateError('笔记本创建结果待确认，请从笔记本菜单核实恢复，不会自动重复创建');
+        }
+        final rows = await txn.query(
+          'notebooks',
+          where: 'account_id = ? AND server_id = ? AND usn = 0',
+          whereArgs: [accountId, id],
+        );
+        if (rows.isEmpty) throw StateError('localNotebookMissing');
+        final book = _book(rows.single);
+        if (book.parentNotebookId.isNotEmpty) {
+          final parents = await txn.query(
+            'notebooks',
+            where: 'account_id = ? AND server_id = ? AND usn > 0',
+            whereArgs: [accountId, book.parentNotebookId],
+          );
+          if (parents.isEmpty) throw StateError('请先同步父笔记本');
+        }
+        await txn.update(
+          'notebook_creations',
+          {
+            'state': 'uncertain',
+            'request_json': idempotent
+                ? jsonEncode({
+                    'title': book.title,
+                    'parent': book.parentNotebookId,
+                    'seq': book.sequence,
+                  })
+                : '',
+          },
+          where: 'account_id = ? AND local_id = ?',
+          whereArgs: [accountId, id],
+        );
+        return book;
+      });
 
   Future<void> retry(String id) async {
     final changed = await database.update(
