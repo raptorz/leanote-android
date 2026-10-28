@@ -56,7 +56,7 @@ Android 系统文件选择器实测发现并修复 `.gemsnote` 归档无法选�
 这是宿主测试，设备 UI 切换和长期生命周期仍待验收。本批全套 Flutter **787 项通过、
 8 项条件跳过**（6 项真实联网用例及浏览器/性能 2 项），静态分析通过。
 
-服务端联合处理结果及 token 安全要求见 [SERVER_FOLLOW_UP.md](SERVER_FOLLOW_UP.md)。API2
+服务端接口及 token 安全要求见[服务端 API2 规范](https://github.com/gemsnote/gemsnote/blob/main/docs/development/API2.md)。API2
 不要求 JWT 格式，但 token 必须由密码学安全随机源生成、不可预测、可撤销，并且只通过
 Bearer Header 传输。
 
@@ -181,7 +181,9 @@ SQLite v22 记录登录获得的服务端版本和笔记本创建快照。1.1.0 
 图片暂存菜单提供上传回执查询与显式安全清理，核对笔记和摘要，保留本地原件。
 正文或历史已经引用的图片、旧资源、头像和附件不清理。上述两项已取代前文
 “缺少安全清理合同”的历史限制，不属于尚未迁移的旧 Android 功能。
-详细边界见 [SERVER_FOLLOW_UP.md](SERVER_FOLLOW_UP.md)。
+协议边界见[服务端 API2 规范](https://github.com/gemsnote/gemsnote/blob/main/docs/development/API2.md)，
+移动端恢复与清理流程见根目录 [MIGRATION.md](../MIGRATION.md)，
+真实接口验收见 [API2_LIVE_TESTING.md](API2_LIVE_TESTING.md)。已完成的服务端整改清单不再单独维护。
 
 ## 维护规则
 
