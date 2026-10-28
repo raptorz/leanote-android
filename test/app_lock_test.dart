@@ -3,6 +3,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'dart:async';
 
 import 'package:gemsnote/services/app_lock.dart';
+import 'package:local_auth/local_auth.dart';
+
+class _LocalAuthentication extends LocalAuthentication {
+  bool? persistsAcrossBackgrounding;
+  bool? onlyBiometrics;
+  @override
+  Future<bool> authenticate({
+    required String localizedReason,
+    Iterable<Object> authMessages = const [],
+    bool biometricOnly = false,
+    bool sensitiveTransaction = true,
+    bool persistAcrossBackgrounding = false,
+  }) async {
+    persistsAcrossBackgrounding = persistAcrossBackgrounding;
+    onlyBiometrics = biometricOnly;
+    return true;
+  }
+}
 
 class _Authenticator implements DeviceAuthenticator {
   _Authenticator({this.available = true});
@@ -27,6 +45,23 @@ class _Authenticator implements DeviceAuthenticator {
 }
 
 void main() {
+  test(
+    'app lifecycle owns retries instead of native sticky authentication',
+    () async {
+      final native = _LocalAuthentication();
+      expect(
+        await LocalDeviceAuthenticator(native).authenticate('unlock'),
+        true,
+      );
+      expect(native.persistsAcrossBackgrounding, false);
+      expect(
+        native.onlyBiometrics,
+        false,
+        reason: 'system passcode fallback remains available',
+      );
+    },
+  );
+
   test('enabled lock protects cold start and foreground return', () async {
     final authenticator = _Authenticator()..responses.addAll([true, true]);
     bool saved = true;

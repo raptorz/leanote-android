@@ -16,9 +16,17 @@ class AppLockGate extends StatefulWidget {
 }
 
 class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
+  bool _backgrounded = false;
+  bool _authenticationReturnPending = false;
+  bool _unlockOnResume = false;
+
   @override
   void initState() {
     super.initState();
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _backgrounded =
+        lifecycle == AppLifecycleState.paused ||
+        lifecycle == AppLifecycleState.hidden;
     WidgetsBinding.instance.addObserver(this);
     widget.controller.addListener(_changed);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -35,13 +43,36 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive) {
+      if (widget.controller.authenticating) {
+        _authenticationReturnPending = true;
+      }
+      return;
+    }
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
-      widget.controller.backgrounded();
-    } else if (state == AppLifecycleState.resumed &&
-        widget.controller.locked &&
-        !widget.controller.authenticating) {
-      unawaited(widget.controller.unlock(trNow(context, 'appLockReason')));
+      _backgrounded = true;
+      // Credential activities can deliver their result before the final
+      // hidden/paused notifications. Keep that entire lifecycle transition
+      // attached to the original verification, even after its Future ends.
+      if (widget.controller.authenticating || _authenticationReturnPending) {
+        _authenticationReturnPending = true;
+      } else {
+        widget.controller.backgrounded();
+        _unlockOnResume = widget.controller.locked;
+      }
+      _changed();
+    } else if (state == AppLifecycleState.resumed) {
+      final shouldUnlock = _unlockOnResume && !_authenticationReturnPending;
+      _backgrounded = false;
+      _authenticationReturnPending = false;
+      _unlockOnResume = false;
+      _changed();
+      if (shouldUnlock &&
+          widget.controller.locked &&
+          !widget.controller.authenticating) {
+        unawaited(widget.controller.unlock(trNow(context, 'appLockReason')));
+      }
     }
   }
 
@@ -54,7 +85,10 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final hidden = !widget.controller.ready || widget.controller.locked;
+    final hidden =
+        !widget.controller.ready ||
+        widget.controller.locked ||
+        (_backgrounded && widget.controller.enabled);
     return Stack(
       fit: StackFit.expand,
       children: [

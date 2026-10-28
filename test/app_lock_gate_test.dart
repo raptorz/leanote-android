@@ -8,13 +8,138 @@ import 'package:gemsnote/ui/app_lock_gate.dart';
 
 class _Device implements DeviceAuthenticator {
   bool accepted = true;
+  int calls = 0;
+  Completer<bool>? pending;
   @override
   Future<bool> supported() async => true;
   @override
-  Future<bool> authenticate(String reason) async => accepted;
+  Future<bool> authenticate(String reason) async {
+    calls++;
+    return pending?.future ?? accepted;
+  }
 }
 
 void main() {
+  for (final completesBeforePause in [true, false]) {
+    testWidgets(
+      'authentication return does not request a second unlock; completed before pause=$completesBeforePause',
+      (tester) async {
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        final result = Completer<bool>();
+        final device = _Device()..pending = result;
+        final lock = AppLockController(
+          load: () async => true,
+          save: (_) async {},
+          authenticator: device,
+        );
+        addTearDown(lock.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            localizationsDelegates: const [AppStrings.delegate],
+            locale: const Locale('en'),
+            builder: (_, child) => AppLockGate(controller: lock, child: child!),
+            home: const Scaffold(body: Text('private notebooks')),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(device.calls, 1);
+        expect(find.text('private notebooks'), findsNothing);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.inactive,
+        );
+        if (completesBeforePause) {
+          result.complete(true);
+          await tester.pumpAndSettle();
+        }
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        if (!completesBeforePause) {
+          result.complete(true);
+          await tester.idle();
+        }
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.inactive,
+        );
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          device.calls,
+          1,
+          reason: 'system authentication dismissal is not a new app return',
+        );
+        expect(find.text('private notebooks'), findsOneWidget);
+
+        // A later genuine background must still lock immediately, with no
+        // grace period that could expose notes after leaving the application.
+        final next = Completer<bool>();
+        device.pending = next;
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.inactive,
+        );
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        expect(lock.locked, true);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.inactive,
+        );
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await tester.pumpAndSettle();
+        expect(device.calls, 2);
+        expect(find.text('private notebooks'), findsNothing);
+        next.complete(true);
+        await tester.pumpAndSettle();
+        expect(find.text('private notebooks'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
+  testWidgets(
+    'cancelled system prompt waits for explicit retry instead of reopening on resume',
+    (tester) async {
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      final result = Completer<bool>();
+      final device = _Device()..pending = result;
+      final lock = AppLockController(
+        load: () async => true,
+        save: (_) async {},
+        authenticator: device,
+      );
+      addTearDown(lock.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: const [AppStrings.delegate],
+          locale: const Locale('en'),
+          builder: (_, child) => AppLockGate(controller: lock, child: child!),
+          home: const Scaffold(body: Text('private notebooks')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      result.complete(false);
+      await tester.pumpAndSettle();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(device.calls, 1);
+      expect(find.text('private notebooks'), findsNothing);
+      expect(find.text('Authentication was cancelled.'), findsOneWidget);
+      device.pending = null;
+      await tester.tap(find.text('Unlock'));
+      await tester.pumpAndSettle();
+      expect(device.calls, 2);
+      expect(find.text('private notebooks'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets(
     'lock covers pushed editor and dialogs, preserves draft and navigation',
     (tester) async {

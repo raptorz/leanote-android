@@ -20,7 +20,9 @@ class LocalDeviceAuthenticator implements DeviceAuthenticator {
     localizedReason: reason,
     biometricOnly: false,
     sensitiveTransaction: true,
-    persistAcrossBackgrounding: true,
+    // AppLockGate owns foreground retries. Native sticky authentication also
+    // retries on Activity resume and can reopen a completed system prompt.
+    persistAcrossBackgrounding: false,
   );
 }
 
