@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/domain/models/note.dart';
+import 'package:gemsnote/domain/models/notebook.dart';
+import 'package:archive/archive.dart';
 import 'package:gemsnote/services/note_exporter.dart';
 import 'package:gemsnote/ui/note_reader_page.dart';
 
@@ -19,19 +21,46 @@ void main() {
     'IsMarkdown': md,
   });
   for (final md in [true, false]) {
-    test('exports exact UTF8 source and matching type: markdown=$md', () async {
+    test('exports Hugo Markdown from source: markdown=$md', () async {
       const content = '<script>example()</script>\n# **珠玑**\n';
       final exporter = NoteExporter(
         save: ({required fileName, required bytes, required mimeType}) async {
-          expect(fileName, md ? '珠玑笔记.md' : '珠玑笔记.html');
-          expect(utf8.decode(bytes), content);
-          expect(mimeType, md ? 'text/markdown' : 'text/html');
+          expect(fileName, md ? '珠玑笔记.md' : '珠玑笔记.rtf');
+          expect(
+            utf8.decode(bytes),
+            startsWith(md ? '---\ntitle:' : r'{\rtf1'),
+          );
+          if (md) expect(utf8.decode(bytes), endsWith(content));
+          if (!md) expect(utf8.decode(bytes), isNot(contains('<script>')));
+          expect(mimeType, md ? 'text/markdown' : 'application/rtf');
           return Uri.parse('content://provider/result');
         },
       );
       expect(await exporter.export(note(md: md, content: content)), isTrue);
     });
   }
+  test('notebook exporter saves ZIP via native callback and propagates cancellation', () async {
+    final book = Notebook.fromJson({'NotebookId': 'b', 'Title': 'Book'});
+    for (final cancelled in [false, true]) {
+      final exporter = NoteExporter(
+        save: ({required fileName, required bytes, required mimeType}) async {
+          expect(fileName, 'Book.zip');
+          expect(mimeType, 'application/zip');
+          final zip = ZipDecoder().decodeBytes(bytes);
+          expect(zip.files.where((f) => f.isFile).length, 1);
+          return cancelled ? null : Uri.parse('content://provider/zip');
+        },
+      );
+      expect(
+        await exporter.exportNotebook(
+          book,
+          [book],
+          [note().copyWith(notebookId: 'b')],
+        ),
+        !cancelled,
+      );
+    }
+  });
   test(
     'safe file names retain Unicode, remove separators and bound length',
     () {
@@ -81,7 +110,7 @@ void main() {
       );
       await tester.tap(find.byType(PopupMenuButton<String>));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('导出原文'));
+      await tester.tap(find.text('导出笔记'));
       await tester.pumpAndSettle();
       expect(calls, 1);
       await tester.tap(find.byType(PopupMenuButton<String>));

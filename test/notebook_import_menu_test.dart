@@ -84,6 +84,7 @@ void main() {
     );
     await tester.tap(menu);
     await tester.pumpAndSettle();
+    expect(find.text('导出笔记本（ZIP）'), findsOneWidget);
     await tester.tap(find.text('导入笔记原文'));
     await tester.pumpAndSettle();
     final dialog = tester.widget<ImportNoteDialog>(

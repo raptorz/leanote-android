@@ -77,6 +77,8 @@ class _ImportNoteDialogState extends State<ImportNoteDialog> {
             ),
             if (_note != null) ...[
               Text(_note!.title),
+              if (_note!.warning != null)
+                Text(trMessage(context, _note!.warning!)),
               if (_note!.bundle != null)
                 Text(
                   tr(context, 'bundleImportInfo', [

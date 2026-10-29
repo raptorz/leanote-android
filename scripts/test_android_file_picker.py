@@ -80,7 +80,7 @@ def main():
                 click(lambda n: n.get("text", "").casefold() == "save",
                       f"save-{kind}")
                 wait_stage(f"import:{kind}")
-                filename = f"gemsnote-{run}-{kind}.{kind}"
+                filename = f"gemsnote-{run}-{kind}.{'gemsnote' if kind == 'gemsnote' else 'rtf' if kind == 'html' else 'md'}"
                 click(lambda n: n.get("text") == filename, f"import-{kind}")
             wait_stage("invalid")
             click(lambda n: n.get("text") == invalid.name, "invalid")
@@ -98,8 +98,12 @@ def main():
             html = "<p>原文 &amp; emoji 📝</p>\n<table><tr><td>保留</td></tr></table>"
             for kind, expected in [("md", markdown), ("html", html)]:
                 actual = adb("exec-out", "cat",
-                             f"/sdcard/Download/gemsnote-{run}-{kind}.{kind}")
-                assert actual == expected.encode(), f"Exported {kind} bytes changed"
+                             f"/sdcard/Download/gemsnote-{run}-{kind}.{'gemsnote' if kind == 'gemsnote' else 'rtf' if kind == 'html' else 'md'}")
+                text = actual.decode()
+                if kind == 'md':
+                    assert text.startswith('---\ntitle: ') and text.endswith(markdown)
+                else:
+                    assert text.startswith(r'{\rtf1') and r'\u' in text and r'\trowd' in text
             archive = json.loads(adb(
                 "exec-out", "cat",
                 f"/sdcard/Download/gemsnote-{run}-gemsnote.gemsnote"))
@@ -110,7 +114,7 @@ def main():
             assert not any(name.startswith(f"gemsnote-{run}-cancel") for name in listing)
             # Remove only files created by this run after all assertions pass.
             for kind in ["md", "html", "gemsnote"]:
-                adb("shell", "rm", f"/sdcard/Download/gemsnote-{run}-{kind}.{kind}")
+                adb("shell", "rm", f"/sdcard/Download/gemsnote-{run}-{kind}.{'gemsnote' if kind == 'gemsnote' else 'rtf' if kind == 'html' else 'md'}")
             adb("shell", "rm", f"/sdcard/gemsnote-picker-{run}.xml")
             adb("shell", "rm", f"/sdcard/Download/{invalid.name}")
             print("PASS: exact source/binary round trips; unsupported file rejected; both cancels.")

@@ -1,4 +1,5 @@
 import '../domain/models/note_bundle.dart';
+import 'rich_document.dart';
 
 import 'dart:ui' show Locale;
 
@@ -11,8 +12,15 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 
 class ImportedNote {
-  const ImportedNote(this.title, this.content, this.isMarkdown, {this.bundle});
+  const ImportedNote(
+    this.title,
+    this.content,
+    this.isMarkdown, {
+    this.bundle,
+    this.warning,
+  });
   final NoteBundle? bundle;
+  final String? warning;
   final String title;
   final String content;
   final bool isMarkdown;
@@ -36,7 +44,7 @@ class NoteImporter {
       type: android ? FileType.any : FileType.custom,
       allowedExtensions: android
           ? null
-          : ['md', 'markdown', 'txt', 'html', 'htm', 'gemsnote'],
+          : ['md', 'markdown', 'txt', 'html', 'htm', 'rtf', 'docx', 'gemsnote'],
     );
   }
 
@@ -52,9 +60,13 @@ class NoteImporter {
       'txt',
       'html',
       'htm',
+      'rtf',
+      'docx',
       'gemsnote',
     ].contains(extension)) {
-      throw const FormatException('仅支持 Markdown、TXT、HTML 或 .gemsnote 资源归档');
+      throw const FormatException(
+        '仅支持 Markdown、TXT、HTML、RTF、DOCX 或 .gemsnote 资源归档',
+      );
     }
     final limit = extension == 'gemsnote'
         ? NoteBundle.maxArchiveBytes
@@ -80,7 +92,16 @@ class NoteImporter {
         bundle: bundle,
       );
     }
-    var content = utf8.decode(bytes.takeBytes());
+    final isRich = extension == 'rtf' || extension == 'docx';
+    var content = isRich
+        ? await compute(importRichDocument, (
+            extension: extension,
+            bytes: bytes.takeBytes(),
+          ))
+        : utf8.decode(bytes.takeBytes());
+    if (utf8.encode(content).length > maxBytes) {
+      throw const FormatException('文档内容过大或结构过于复杂');
+    }
     if (content.startsWith('\ufeff')) content = content.substring(1);
     if (content.contains('\u0000')) {
       throw const FormatException('不支持二进制内容，请选择 UTF-8 文本');
@@ -94,7 +115,8 @@ class NoteImporter {
     return ImportedNote(
       title,
       content,
-      extension != 'html' && extension != 'htm',
+      !isRich && extension != 'html' && extension != 'htm',
+      warning: isRich ? richDocumentWarning : null,
     );
   }
 }

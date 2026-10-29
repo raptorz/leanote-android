@@ -8,6 +8,11 @@ import 'package:gemsnote/domain/models/note.dart';
 import 'package:gemsnote/domain/models/note_bundle.dart';
 import 'package:gemsnote/l10n/app_strings.dart';
 import 'package:gemsnote/services/note_exporter.dart';
+import 'package:gemsnote/services/hugo_export.dart';
+import 'package:gemsnote/services/rich_document.dart';
+
+import 'dart:convert';
+
 import 'package:gemsnote/services/note_importer.dart';
 import 'package:integration_test/integration_test.dart';
 
@@ -53,7 +58,18 @@ void main() {
       final imported = await importer.pick();
       expect(imported, isNotNull);
       expect(imported!.title, note.title);
-      expect(imported.content, note.content);
+      expect(
+        imported.content,
+        kind == 'gemsnote'
+            ? note.content
+            : kind == 'html'
+            ? rtfToHtml(
+                Uint8List.fromList(
+                  utf8.encode(htmlToRtf(note.content, title: note.title)),
+                ),
+              )
+            : hugoMarkdown(note, ''),
+      );
       expect(imported.isMarkdown, note.isMarkdown);
       if (kind == 'gemsnote') {
         expect(imported.bundle!.resources.single.file.bytes, original);

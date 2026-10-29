@@ -236,8 +236,8 @@ const messages = <String, (String, String)>{
   "m0135": ("导入失败：{0}", "Import failed: {0}"),
   "m0136": ("导入笔记原文", "Import note source"),
   "m0137": (
-    "支持 UTF-8 Markdown、TXT、HTML（最多 32 MiB）及 .gemsnote 资源归档（最多 64 MiB）。普通文本文件不附带资源，不执行 HTML。资源归档中的原件存入待上传队列；确认后保存到当前笔记本。",
-    "Supports UTF-8 Markdown, TXT and HTML (up to 32 MiB), and .gemsnote resource archives (up to 64 MiB). Text files do not include resources; HTML is not executed. Archived originals enter the upload queue. Confirm to save in the current notebook.",
+    "支持 Markdown、TXT、HTML、RTF、DOCX 和 .gemsnote 归档。RTF/DOCX 导入为富文本笔记。",
+    "Supports Markdown, TXT, HTML, RTF, DOCX and .gemsnote archives. RTF/DOCX files become rich-text notes.",
   ),
   "m0138": ("选择文件", "Choose file"),
   "m0139": ("格式：{0}，{1} 个字符", "Format: {0}, {1} characters"),
@@ -484,7 +484,7 @@ const messages = <String, (String, String)>{
   "m0281": ("正在分享…", "Sharing…"),
   "m0282": ("系统分享原文", "Share note source"),
   "m0283": ("正在导出…", "Exporting…"),
-  "m0284": ("导出原文", "Export source"),
+  "m0284": ("导出笔记", "Export note"),
   "m0285": ("编辑标签", "Edit tags"),
   "m0286": ("彻底删除", "Delete permanently"),
   "m0287": ("取消星标", "Remove star"),
@@ -1456,8 +1456,8 @@ const messages = <String, (String, String)>{
   ),
   "bundleExportFailed": ("资源导出未完成：{0}", "Resource export failed: {0}"),
   "bundleSupportedFiles": (
-    "仅支持 Markdown、TXT、HTML 或 .gemsnote 资源归档",
-    "Only Markdown, TXT, HTML or .gemsnote resource archives are supported",
+    "仅支持 Markdown、TXT、HTML、RTF、DOCX 或 .gemsnote 资源归档",
+    "Only Markdown, TXT, HTML, RTF, DOCX or .gemsnote archives are supported.",
   ),
   "bundleFileLimit": (
     "文件超过允许大小：{0} 字节",
@@ -1585,4 +1585,30 @@ const messages = <String, (String, String)>{
   ),
   "importTarget": ("导入到：{0}", "Import into: {0}"),
   "appLockSaveFailed": ("无法保存应用锁设置", "Could not save the app lock setting."),
+  "notebookExport": ("导出笔记本（ZIP）", "Export notebook (ZIP)"),
+  "notebookExportFailed": ("笔记本导出失败：{0}", "Notebook export failed: {0}"),
+  "exportTooLarge": (
+    "导出内容过大或笔记本层级过深，请分批导出",
+    "The export is too large or deeply nested. Please export smaller notebooks.",
+  ),
+  "invalidNotebookTree": (
+    "笔记本层级异常，无法导出",
+    "Cannot export an invalid notebook hierarchy.",
+  ),
+  "richImportWarning": (
+    "复杂排版、内嵌图片和对象可能简化；图片以占位文字保留，请核对导入结果。",
+    "Complex layouts, embedded images and objects may be simplified; images are represented by placeholders. Please review the imported note.",
+  ),
+  "invalidRichDocument": (
+    "文档损坏或格式不受支持",
+    "The document is damaged or unsupported.",
+  ),
+  "documentTooComplex": (
+    "文档内容过大或结构过于复杂",
+    "The document is too large or complex.",
+  ),
+  "unsupportedRtfEncoding": (
+    "不支持此 RTF 编码，请另存为 Unicode RTF 或 DOCX 后重试",
+    "This RTF encoding is unsupported. Save as Unicode RTF or DOCX and retry.",
+  ),
 };

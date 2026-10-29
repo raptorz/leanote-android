@@ -346,9 +346,9 @@ Markdown 阅读使用 [flutter_markdown_plus](https://pub.dev/packages/flutter_m
 
 ## 原文导入
 
-笔记本右侧的三点菜单可通过系统文件选择器导入 UTF-8 Markdown、TXT、HTML，单文件
-最多 32 MiB；同时检查文件扩展名、声明大小和实际流式字节数，拒绝无效 UTF-8 和
-含 NUL 的二进制内容，去除 UTF-8 BOM。TXT 按 Markdown 保存，HTML 保持原文，
+笔记本右侧的三点菜单可通过系统文件选择器导入 UTF-8 Markdown、TXT、HTML，以及 RTF/DOCX，单文件
+最多 32 MiB；同时检查文件扩展名、声明大小和实际流式字节数。文本文件拒绝无效 UTF-8 和
+含 NUL 的内容，去除 UTF-8 BOM；RTF/DOCX 按文档格式单独解析。TXT 按 Markdown 保存，HTML 保持原文，
 预览沿用安全渲染，不执行脚本、不自动读取关联资源。
 
 导入目标为打开三点菜单的笔记本，对话框显示目标名称，不依赖当前选中的笔记本。
@@ -360,11 +360,20 @@ Android DocumentsUI 不认识 `.gemsnote` 扩展名对应的 MIME，使用 custo
 已导出的归档变灰；Android 选择器现允许浏览任意文件，选择后仍严格验证扩展名、
 大小和归档内容。其他平台保留扩展名过滤。
 
-## 原文导出
+## 文档导入与笔记本导出
 
 `NoteExporter` 调用已锁定依赖版本的 `FilePicker.saveFile`，使用返回的 URI 判断
 是否保存，取消返回 null；不把 Android content URI 当作本地路径写文件。
-测试可注入保存回调验证字节、文件名、取消和失败行为。导出不执行 HTML，也不下载附件。
+测试可注入保存回调验证字节、文件名、取消和失败行为。Markdown 笔记导出为 Hugo Markdown，包含 `title/date/lastmod/tags/categories`，正文原样保留；
+富文本笔记导出为 RTF，保留常见文字格式、列表、表格和链接。ZIP 中也使用各自格式。
+日期使用笔记时间转 UTC，缺失值为 `null`，不以导出时间替代。笔记本三点菜单可导出 ZIP，
+包含子笔记本及空目录，不含回收站，重名文件自动加序号。使用当前账户本地 SQLite 缓存，离线可用；
+ZIP 转换与打包在 isolate 中执行，上限 128 MiB 正文、10000 篇笔记、3000 个笔记本及 100 层目录。
+导出不执行 HTML，也不下载图片和附件；RTF 中图片保留说明及原链接，复杂富文本样式可能简化。
+RTF/DOCX 导入通过 `rich_document.dart` 在 isolate 中转换为富文本 HTML，随后按现有确认流程写入 SQLite 并标记 dirty。
+DOCX 只解压必需的 XML，检查解压大小、CRC、重复路径、符号链接和加密标志，拒绝 DTD/外部实体；不执行宏、不抓取外部资源。
+输入和转换后内容最多 32 MiB；单个 DOCX XML 最大 4 MiB，总 XML 最大 16 MiB。复杂排版、内嵌图片/对象不能无损转换，确认前提示并保留占位文字。
+`.gemsnote` 带资源归档仍保留原始正文、格式、元数据和资源，不经过 Markdown 转换。
 iOS 保存对话框只能在 macOS/iOS 环境完成构建和真机验收。
 
 ### Android 系统文件选择器验证
@@ -377,8 +386,8 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
 ```
 
 脚本运行生产 NoteExporter/NoteImporter，使用真实 DocumentsUI 保存到 Downloads，
-再选择同一文件。覆盖 Markdown、HTML、含二进制附件的 `.gemsnote` 往返，
-不支持扩展名的拒绝和保存/导入取消；宿主额外核对导出原文字节、归档二进制、
+再选择同一文件。覆盖 Markdown、富文本 RTF、含二进制附件的 `.gemsnote` 往返，
+不支持扩展名的拒绝和保存/导入取消；宿主额外核对 Hugo 元数据、Markdown 正文、RTF 控制字和归档二进制、
 取消后没有产物。只清理本次唯一命名文件，失败保留日志和文件便于诊断。
 不登录、不访问网络、不写账号数据库，不代表工作区导入落库、云文件 provider 或 iOS 验收。
 运行后需重新构建并覆盖安装普通 APK，避免设备留在集成测试入口。
@@ -393,7 +402,7 @@ DEVELOPER_DIR=/Volumes/LC128G/Applications/Xcode.app/Contents/Developer \
 
 脚本构建测试专用 Flutter 入口（仍调用生产 NoteExporter/NoteImporter），并创建独立
 PickerFiles 测试应用作为“我的 iPhone”中的本地文件夹。通过 XCUITest 操作真实文件面板，
-逐项保存并导入 Markdown、HTML、含二进制资源的 `.gemsnote`，验证正文、格式、元数据和
+逐项保存并导入 Markdown、富文本 RTF、含二进制资源的 `.gemsnote`，验证正文、格式、元数据和
 附件原件；保存/导入取消也必须返回。按钮支持中英文，iOS 26 导出面板无取消按钮时通过
 下拉关闭手势验证取消回调。宿主读取三份导出文件再次核对正文和二进制字节，
 成功后仅删除本轮唯一命名产物，失败保留证据。项目文件及 DerivedData 均在临时目录。

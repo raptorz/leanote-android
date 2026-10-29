@@ -1,4 +1,9 @@
 import '../domain/models/note_bundle.dart';
+import '../domain/models/notebook.dart';
+import 'hugo_export.dart';
+import 'rich_document.dart';
+
+import 'package:flutter/foundation.dart' show compute;
 
 import 'dart:ui' show Locale;
 
@@ -46,7 +51,7 @@ class NoteExporter {
   );
 
   static String fileName(Note note, {String fallback = '未命名笔记'}) {
-    final extension = note.isMarkdown ? '.md' : '.html';
+    final extension = note.isMarkdown ? '.md' : '.rtf';
     return safeFileName(note.title, extension, fallback: fallback);
   }
 
@@ -88,16 +93,40 @@ class NoteExporter {
       ) !=
       null;
 
-  /// Exports exactly the displayed source; never render/execute HTML or fetch media.
-  Future<bool> export(Note note) async {
-    final bytes = Uint8List.fromList(utf8.encode(note.content));
+  Future<bool> exportNotebook(
+    Notebook root,
+    List<Notebook> books,
+    List<Note> notes,
+  ) async {
+    final bytes = await compute(notebookArchive, (
+      root: root,
+      books: books,
+      notes: notes,
+    ));
+    return await _save(
+          fileName: '${exportPathName(root.title)}.zip',
+          bytes: bytes,
+          mimeType: 'application/zip',
+        ) !=
+        null;
+  }
+
+  /// Markdown exports use Hugo metadata and never fetch remote media.
+  Future<bool> export(Note note, {String notebook = ''}) async {
+    final bytes = Uint8List.fromList(
+      utf8.encode(
+        note.isMarkdown
+            ? hugoMarkdown(note, notebook)
+            : htmlToRtf(note.content, title: note.title),
+      ),
+    );
     if (bytes.length > 32 * 1024 * 1024) {
       throw StateError('笔记原文超过 32 MiB，暂不支持导出');
     }
     return await _save(
           fileName: fileName(note, fallback: strings.label('未命名笔记')),
           bytes: bytes,
-          mimeType: note.isMarkdown ? 'text/markdown' : 'text/html',
+          mimeType: note.isMarkdown ? 'text/markdown' : 'application/rtf',
         ) !=
         null;
   }

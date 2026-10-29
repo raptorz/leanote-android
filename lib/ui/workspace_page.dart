@@ -5,6 +5,7 @@ import '../l10n/language_controller.dart';
 import 'language_dialog.dart';
 
 import 'dart:typed_data';
+import 'dart:convert';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -988,6 +989,58 @@ class _WorkspacePageState extends State<WorkspacePage>
     }
   }
 
+  bool _exportingNotebook = false;
+  Future<void> _exportNotebook(Notebook notebook) async {
+    if (_exportingNotebook) return;
+    final exporter = NoteExporter(strings: AppStrings.snapshot(context));
+    setState(() => _exportingNotebook = true);
+    try {
+      final books = await widget.repository.notebooks(
+        widget.session.account.cacheKey,
+      );
+      final notes = <Note>[];
+      final queue = <String>[notebook.notebookId], seen = <String>{};
+      var bytes = 0;
+      for (var i = 0; i < queue.length; i++) {
+        final id = queue[i];
+        if (!seen.add(id)) throw StateError('笔记本层级异常，无法导出');
+        if (seen.length > 3000) throw StateError('导出内容过大或笔记本层级过深，请分批导出');
+        final batch = await widget.repository.notes(
+          widget.session.account.cacheKey,
+          notebookId: id,
+        );
+        for (final note in batch) {
+          bytes += utf8.encode(note.content).length;
+          notes.add(note);
+          if (bytes > 128 * 1024 * 1024 || notes.length > 10000) {
+            throw StateError('导出内容过大或笔记本层级过深，请分批导出');
+          }
+        }
+        queue.addAll(
+          books
+              .where((b) => !b.isDeleted && b.parentNotebookId == id)
+              .map((b) => b.notebookId),
+        );
+      }
+      if (!mounted) return;
+      final saved = await exporter.exportNotebook(notebook, books, notes);
+      if (mounted && saved) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(trNow(context, 'm0273'))));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(trNow(context, 'notebookExportFailed', [error])),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exportingNotebook = false);
+    }
+  }
+
   Future<void> _openReader(Note note) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -1020,8 +1073,17 @@ class _WorkspacePageState extends State<WorkspacePage>
             if (!readerContext.mounted) return false;
             return exporter.exportBundle(bundle);
           },
-          onExport: () =>
-              NoteExporter(strings: AppStrings.snapshot(context)).export(note),
+          onExport: () async {
+            final exporter = NoteExporter(
+              strings: AppStrings.snapshot(context),
+            );
+            final books = await _notebooks;
+            final names = books.where((b) => b.notebookId == note.notebookId);
+            return exporter.export(
+              note,
+              notebook: names.isEmpty ? '' : names.first.title,
+            );
+          },
           onSystemShare: (origin) =>
               NoteSharer(strings: AppStrings.snapshot(context))
                   .share(note, origin),
@@ -1981,6 +2043,7 @@ class _WorkspacePageState extends State<WorkspacePage>
                     PopupMenuButton<String>(
                       onSelected: (action) {
                         if (action == 'import') _importNote(notebook);
+                        if (action == 'export') _exportNotebook(notebook);
                         if (action == 'rename') {
                           _editNotebook(existing: notebook);
                         }
@@ -1999,6 +2062,17 @@ class _WorkspacePageState extends State<WorkspacePage>
                           value: 'import',
                           enabled: !_syncing && !_loggingOut,
                           child: Text(tr(context, 'm0136')),
+                        ),
+                        PopupMenuItem(
+                          value: 'export',
+                          enabled:
+                              !_exportingNotebook && !_syncing && !_loggingOut,
+                          child: Text(
+                            tr(
+                              context,
+                              _exportingNotebook ? 'm0283' : 'notebookExport',
+                            ),
+                          ),
                         ),
                         PopupMenuItem(
                           value: 'rename',

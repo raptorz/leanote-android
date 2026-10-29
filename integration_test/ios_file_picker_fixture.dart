@@ -6,6 +6,11 @@ import 'package:gemsnote/domain/models/note.dart';
 import 'package:gemsnote/domain/models/note_bundle.dart';
 import 'package:gemsnote/l10n/app_strings.dart';
 import 'package:gemsnote/services/note_exporter.dart';
+import 'package:gemsnote/services/hugo_export.dart';
+import 'package:gemsnote/services/rich_document.dart';
+
+import 'dart:convert';
+
 import 'package:gemsnote/services/note_importer.dart';
 
 /// Test-only UI around the production services, without accounts or networking.
@@ -63,7 +68,21 @@ class _PickerFixtureState extends State<PickerFixture> {
           status = 'CANCEL $action $kind';
         } else {
           if (actual.title != expected.title ||
-              actual.content != expected.content ||
+              actual.content !=
+                  (kind == 'gemsnote'
+                      ? expected.content
+                      : kind == 'html'
+                      ? rtfToHtml(
+                          Uint8List.fromList(
+                            utf8.encode(
+                              htmlToRtf(
+                                expected.content,
+                                title: expected.title,
+                              ),
+                            ),
+                          ),
+                        )
+                      : hugoMarkdown(expected, '')) ||
               actual.isMarkdown != expected.isMarkdown) {
             throw StateError('Source changed');
           }

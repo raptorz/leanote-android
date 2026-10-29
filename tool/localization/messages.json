@@ -544,8 +544,8 @@
     "en": "Import note source"
   },
   "m0137": {
-    "zh": "支持 UTF-8 Markdown、TXT、HTML（最多 32 MiB）及 .gemsnote 资源归档（最多 64 MiB）。普通文本文件不附带资源，不执行 HTML。资源归档中的原件存入待上传队列；确认后保存到当前笔记本。",
-    "en": "Supports UTF-8 Markdown, TXT and HTML (up to 32 MiB), and .gemsnote resource archives (up to 64 MiB). Text files do not include resources; HTML is not executed. Archived originals enter the upload queue. Confirm to save in the current notebook."
+    "zh": "支持 Markdown、TXT、HTML、RTF、DOCX 和 .gemsnote 归档。RTF/DOCX 导入为富文本笔记。",
+    "en": "Supports Markdown, TXT, HTML, RTF, DOCX and .gemsnote archives. RTF/DOCX files become rich-text notes."
   },
   "m0138": {
     "zh": "选择文件",
@@ -1144,8 +1144,8 @@
     "en": "Exporting…"
   },
   "m0284": {
-    "zh": "导出原文",
-    "en": "Export source"
+    "zh": "导出笔记",
+    "en": "Export note"
   },
   "m0285": {
     "zh": "编辑标签",
@@ -3144,8 +3144,8 @@
     "en": "Resource export failed: {0}"
   },
   "bundleSupportedFiles": {
-    "zh": "仅支持 Markdown、TXT、HTML 或 .gemsnote 资源归档",
-    "en": "Only Markdown, TXT, HTML or .gemsnote resource archives are supported"
+    "zh": "仅支持 Markdown、TXT、HTML、RTF、DOCX 或 .gemsnote 资源归档",
+    "en": "Only Markdown, TXT, HTML, RTF, DOCX or .gemsnote archives are supported."
   },
   "bundleFileLimit": {
     "zh": "文件超过允许大小：{0} 字节",
@@ -3281,5 +3281,37 @@
   "appLockSaveFailed": {
     "zh": "无法保存应用锁设置",
     "en": "Could not save the app lock setting."
+  },
+  "notebookExport": {
+    "zh": "导出笔记本（ZIP）",
+    "en": "Export notebook (ZIP)"
+  },
+  "notebookExportFailed": {
+    "zh": "笔记本导出失败：{0}",
+    "en": "Notebook export failed: {0}"
+  },
+  "exportTooLarge": {
+    "zh": "导出内容过大或笔记本层级过深，请分批导出",
+    "en": "The export is too large or deeply nested. Please export smaller notebooks."
+  },
+  "invalidNotebookTree": {
+    "zh": "笔记本层级异常，无法导出",
+    "en": "Cannot export an invalid notebook hierarchy."
+  },
+  "richImportWarning": {
+    "zh": "复杂排版、内嵌图片和对象可能简化；图片以占位文字保留，请核对导入结果。",
+    "en": "Complex layouts, embedded images and objects may be simplified; images are represented by placeholders. Please review the imported note."
+  },
+  "invalidRichDocument": {
+    "zh": "文档损坏或格式不受支持",
+    "en": "The document is damaged or unsupported."
+  },
+  "documentTooComplex": {
+    "zh": "文档内容过大或结构过于复杂",
+    "en": "The document is too large or complex."
+  },
+  "unsupportedRtfEncoding": {
+    "zh": "不支持此 RTF 编码，请另存为 Unicode RTF 或 DOCX 后重试",
+    "en": "This RTF encoding is unsupported. Save as Unicode RTF or DOCX and retry."
   }
 }

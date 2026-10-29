@@ -39,7 +39,11 @@ run = sys.argv[2]
 md = '# 原文 📝\n\n换行与 **格式**\n'
 html = '<p>原文 &amp; emoji 📝</p>\n<table><tr><td>保留</td></tr></table>'
 for kind, content in [('md', md), ('html', html)]:
-    assert (folder / f'gemsnote-{run}-{kind}.{kind}').read_bytes() == content.encode()
+    text = (folder / f'gemsnote-{run}-{kind}.{"rtf" if kind == "html" else "md"}').read_text()
+    if kind == 'md':
+        assert text.startswith('---\ntitle: ') and text.endswith(md)
+    else:
+        assert text.startswith(r'{\rtf1') and r'\u' in text and r'\trowd' in text
 archive = json.loads((folder / f'gemsnote-{run}-gemsnote.gemsnote').read_bytes())
 assert archive['note']['content'] == md
 assert base64.b64decode(archive['resources'][0]['bytes']) == bytes([0, 1, 127, 128, 255])

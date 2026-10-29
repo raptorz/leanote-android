@@ -55,6 +55,9 @@ dependencies:
   workmanager: ^0.10.10
   app_links: ^7.2.2
   local_auth: ^3.0.2
+  archive: ^4.5.2
+  xml: ^7.0.1
+  enough_convert: ^1.6.0
 
 dev_dependencies:
   integration_test:
