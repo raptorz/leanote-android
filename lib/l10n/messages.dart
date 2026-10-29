@@ -1583,5 +1583,6 @@ const messages = <String, (String, String)>{
     "笔记本创建键不可用，请核实本地创建任务",
     "Notebook creation key unavailable. Review the local creation task.",
   ),
+  "importTarget": ("导入到：{0}", "Import into: {0}"),
   "appLockSaveFailed": ("无法保存应用锁设置", "Could not save the app lock setting."),
 };

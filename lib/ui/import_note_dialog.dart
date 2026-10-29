@@ -6,7 +6,13 @@ import '../domain/models/note.dart';
 import '../services/note_importer.dart';
 
 class ImportNoteDialog extends StatefulWidget {
-  const ImportNoteDialog({super.key, required this.onImport, this.importer});
+  const ImportNoteDialog({
+    super.key,
+    required this.onImport,
+    this.importer,
+    this.targetTitle,
+  });
+  final String? targetTitle;
   final Future<Note> Function(ImportedNote) onImport;
   final NoteImporter? importer;
   @override
@@ -62,6 +68,8 @@ class _ImportNoteDialogState extends State<ImportNoteDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (widget.targetTitle != null)
+              Text(tr(context, 'importTarget', [widget.targetTitle!])),
             Text(tr(context, 'm0137')),
             TextButton(
               onPressed: _busy ? null : _pick,

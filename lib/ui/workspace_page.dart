@@ -1369,21 +1369,12 @@ class _WorkspacePageState extends State<WorkspacePage>
                 ),
                 onTap: () => Navigator.pop(context, alternate.name),
               ),
-              ListTile(
-                leading: const Icon(Icons.file_open_outlined),
-                title: Text(trNow(context, 'm0136')),
-                onTap: () => Navigator.pop(context, 'import'),
-              ),
             ],
           ),
         ),
       );
       if (!mounted || action == null) return;
-      if (action == 'import') {
-        await _importNote();
-      } else {
-        await _createNote(DefaultEditor.values.byName(action).isMarkdown);
-      }
+      await _createNote(DefaultEditor.values.byName(action).isMarkdown);
     } on Object catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1406,14 +1397,14 @@ class _WorkspacePageState extends State<WorkspacePage>
     await _editNote(note);
   }
 
-  Future<void> _importNote() async {
+  Future<void> _importNote(Notebook book) async {
     final missingNotebook = trNow(context, 'm0504');
-    final book = _selectedNotebook;
-    if (book == null || _syncing || _loggingOut) return;
+    if (_syncing || _loggingOut) return;
     final note = await showDialog<Note>(
       context: context,
       barrierDismissible: false,
       builder: (_) => ImportNoteDialog(
+        targetTitle: book.title,
         onImport: (source) async {
           final books = await widget.repository.notebooks(
             widget.session.account.cacheKey,
@@ -1989,6 +1980,7 @@ class _WorkspacePageState extends State<WorkspacePage>
                     Text('${notebook.numberNotes}'),
                     PopupMenuButton<String>(
                       onSelected: (action) {
+                        if (action == 'import') _importNote(notebook);
                         if (action == 'rename') {
                           _editNotebook(existing: notebook);
                         }
@@ -2003,6 +1995,11 @@ class _WorkspacePageState extends State<WorkspacePage>
                         }
                       },
                       itemBuilder: (_) => [
+                        PopupMenuItem(
+                          value: 'import',
+                          enabled: !_syncing && !_loggingOut,
+                          child: Text(tr(context, 'm0136')),
+                        ),
                         PopupMenuItem(
                           value: 'rename',
                           child: Text(tr(context, 'm0528')),

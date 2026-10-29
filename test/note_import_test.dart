@@ -137,6 +137,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: ImportNoteDialog(
+              targetTitle: 'Destination',
               importer: source('note.md', '# body'),
               onImport: (_) async {
                 attempts++;
@@ -152,6 +153,7 @@ void main() {
       });
       await tester.pumpAndSettle();
       expect(attempts, 0);
+      expect(find.text('导入到：Destination'), findsOneWidget);
       expect(find.text('note'), findsOneWidget);
       await tester.tap(find.text('导入'));
       await tester.pumpAndSettle();

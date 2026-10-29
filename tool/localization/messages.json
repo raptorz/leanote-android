@@ -3277,6 +3277,7 @@
   "imageUploadCleaned": {"zh": "此上传已经清理，请用本地原件新建上传任务", "en": "This upload was cleaned up. Create a new upload task from the local original."},
   "creationKeyDeleted": {"zh": "该笔记本已在服务端删除，请核实本地创建任务", "en": "This notebook was deleted on the server. Review the local creation task."},
   "creationKeyUnavailable": {"zh": "笔记本创建键不可用，请核实本地创建任务", "en": "Notebook creation key unavailable. Review the local creation task."},
+  "importTarget": {"zh": "导入到：{0}", "en": "Import into: {0}"},
   "appLockSaveFailed": {
     "zh": "无法保存应用锁设置",
     "en": "Could not save the app lock setting."
