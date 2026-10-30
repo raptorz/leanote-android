@@ -15,6 +15,8 @@ class TestPicker extends AvatarPicker {
   TestPicker(this.bytes);
   final Uint8List? bytes;
   @override
+  bool get cameraSupported => false;
+  @override
   Future<Uint8List?> pick() async => bytes;
 }
 
@@ -64,7 +66,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.text('更换头像'));
+        await tester.tap(find.byTooltip('更换头像'));
         // The account page remains busy while its confirmation dialog is open.
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));

@@ -1611,4 +1611,129 @@ const messages = <String, (String, String)>{
     "不支持此 RTF 编码，请另存为 Unicode RTF 或 DOCX 后重试",
     "This RTF encoding is unsupported. Save as Unicode RTF or DOCX and retry.",
   ),
+  "moveCopyShared": ("移动 / 复制", "Move / Copy"),
+  "sharedMoved": (
+    "共享笔记已移到所选笔记本，原作者的笔记不变",
+    "Shared note moved to your notebook. The original is unchanged.",
+  ),
+  "verifyEmail": ("验证邮箱", "Verify email"),
+  "verifyEmailConfirm": (
+    "是否向 {0} 重新发送验证邮件？",
+    "Resend a verification email to {0}?",
+  ),
+  "sendVerification": ("发送验证邮件", "Send verification email"),
+  "currentEmail": ("当前邮箱", "Current email"),
+  "emailUnverified": ("邮箱未验证", "Email not verified"),
+  "emailVerified": ("已验证", "Verified"),
+  "pendingEmail": ("等待验证的新邮箱：{0}", "New email awaiting verification: {0}"),
+  "oldEmailRemainsValid": (
+    "新邮箱通过验证前，当前邮箱仍然有效。",
+    "Your current email remains valid until the new email is verified.",
+  ),
+  "mailState_queued": ("验证邮件已加入发送队列", "Verification email queued"),
+  "mailState_sending": ("正在发送验证邮件…", "Sending verification email…"),
+  "mailState_sent": (
+    "验证邮件已发送，请查收",
+    "Verification email sent. Please check your inbox.",
+  ),
+  "mailState_failed": (
+    "验证邮件发送失败，请重试或联系管理员",
+    "Verification email failed. Retry or contact your administrator.",
+  ),
+  "retryMailStatus": ("重新检查发送状态", "Check delivery status again"),
+  "mailStatusUnavailable": (
+    "无法读取邮件发送状态，请刷新后重试",
+    "Could not read email delivery status. Refresh and retry.",
+  ),
+  "manageSharing": ("共享设置", "Sharing settings"),
+  "sharedWith": ("已共享给：{0}", "Shared with: {0}"),
+  "shareRecipientEmail": ("接收用户的邮箱", "Recipient email"),
+  "shareReadOnly": ("只读共享", "Read-only sharing"),
+  "inheritedShare": ("随笔记本共享", "Shared through notebook"),
+  "revokeShare": ("取消共享", "Revoke sharing"),
+  "sharedByMe": ("我共享的", "Shared by me"),
+  "noOutgoingShares": ("尚未共享任何笔记", "No notes shared yet"),
+  "sharingRefreshFailed": (
+    "共享状态刷新失败，以下显示本地缓存：{0}",
+    "Could not refresh sharing. Showing cached data: {0}",
+  ),
+  "sharedNotesNotCached": (
+    "部分笔记尚未下载，请返回后同步",
+    "Some notes are not downloaded yet. Go back and sync.",
+  ),
+  "emailChangeInvalid": (
+    "请填写当前密码及有效的新邮箱",
+    "Enter your current password and a valid new email address",
+  ),
+  "mailQueueNotConfigured": (
+    "邮件任务队列未配置，请联系管理员。",
+    "The mail queue is not configured. Contact your administrator.",
+  ),
+  "mailQueueUnavailable": (
+    "无法连接邮件任务队列，请联系管理员检查 Redis。",
+    "The mail queue is unavailable. Ask your administrator to check Redis.",
+  ),
+  "mailNotConfigured": (
+    "SMTP 配置不完整或无效，请联系管理员。",
+    "SMTP settings are incomplete or invalid. Contact your administrator.",
+  ),
+  "mailRateLimited": (
+    "请等待 60 秒后再发送验证邮件。",
+    "Wait 60 seconds before requesting another verification email.",
+  ),
+  "mailSiteURLInvalid": (
+    "站点 URL 未正确配置，无法生成验证链接。",
+    "The site URL is invalid. Contact your administrator.",
+  ),
+  "mailTemplateInvalid": (
+    "邮件模板未配置或无效，请联系管理员。",
+    "The email template is missing or invalid. Contact your administrator.",
+  ),
+  "mailTokenFailed": (
+    "无法创建邮箱验证凭据，请稍后重试。",
+    "Could not create a verification token. Try again later.",
+  ),
+  "mailTaskNotFound": (
+    "邮件任务不存在或记录已过期，请重新发送。",
+    "The mail task is missing or expired. Send a new request.",
+  ),
+  "mailTaskExpired": (
+    "邮件任务超时或未被处理，请联系管理员检查邮件 worker。",
+    "The mail task timed out. Ask your administrator to check the mail worker.",
+  ),
+  "mailAuthenticationFailed": (
+    "邮件发送失败：SMTP 认证失败，请管理员检查用户名和密码。",
+    "SMTP authentication failed. Ask your administrator to check the credentials.",
+  ),
+  "mailRecipientRejected": (
+    "邮件发送失败：邮件服务器拒绝收件地址，请检查新邮箱。",
+    "The mail server rejected the recipient. Check the new email address.",
+  ),
+  "mailConnectionFailed": (
+    "邮件发送失败：连接邮件服务器失败或超时，请管理员检查 SMTP 配置。",
+    "The mail server connection failed or timed out. Contact your administrator.",
+  ),
+  "mailDeliveryFailed": (
+    "邮件发送失败：SMTP 或加密连接异常，请管理员检查邮件服务。",
+    "SMTP or TLS failed. Ask your administrator to check the mail service.",
+  ),
+  "emailUnchanged": (
+    "新邮箱不能与当前邮箱相同。",
+    "Enter an address different from your current email.",
+  ),
+  "invalidEmail": ("请输入有效的邮箱地址。", "Enter a valid email address."),
+  "wrongPassword": ("当前密码不正确。", "The current password is incorrect."),
+  "notebookNotSynced": (
+    "请先同步目标笔记本，再移动或复制共享笔记",
+    "Sync the destination notebook before moving or copying a shared note.",
+  ),
+  "noteNotShareable": (
+    "请先同步此笔记；只能共享自己的有效笔记",
+    "Sync this note first. Only your own active notes can be shared.",
+  ),
+  "shareFailed": ("共享操作失败，请刷新后重试", "Sharing failed. Refresh and retry."),
+  "sharingLoadFailed": (
+    "无法读取共享状态，请稍后重试",
+    "Could not load sharing status. Try again later.",
+  ),
 };

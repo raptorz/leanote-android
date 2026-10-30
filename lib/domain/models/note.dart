@@ -13,6 +13,7 @@ class Note {
     required this.isDeleted,
     required this.createdTime,
     required this.updatedTime,
+    this.isShared = false,
   });
 
   final String noteId;
@@ -28,6 +29,7 @@ class Note {
   final bool isDeleted;
   final String createdTime;
   final String updatedTime;
+  final bool isShared;
 
   Note copyWith({
     String? noteId,
@@ -43,7 +45,9 @@ class Note {
     bool? isDeleted,
     String? createdTime,
     String? updatedTime,
+    bool? isShared,
   }) => Note(
+    isShared: isShared ?? this.isShared,
     noteId: noteId ?? this.noteId,
     notebookId: notebookId ?? this.notebookId,
     userId: userId ?? this.userId,
@@ -60,6 +64,7 @@ class Note {
   );
 
   factory Note.fromJson(Map<String, Object?> json) => Note(
+    isShared: json['IsShared'] == true,
     noteId: json['NoteId']?.toString() ?? '',
     notebookId: json['NotebookId']?.toString() ?? '',
     userId: json['UserId']?.toString() ?? '',

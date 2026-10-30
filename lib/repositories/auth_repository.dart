@@ -36,6 +36,7 @@ import '../domain/models/note_history.dart';
 import '../domain/models/notebook.dart';
 import '../domain/models/notebook_tree.dart';
 import '../domain/models/shared_note.dart';
+import '../domain/models/sharing_navigation.dart';
 import '../sync/sync_coordinator.dart';
 import '../services/note_image_picker.dart';
 import '../services/shared_text_inbox.dart';
@@ -692,11 +693,20 @@ class AuthRepository {
     final key = session.account.cacheKey;
     return _sharedRefreshes[key] ??=
         (() async {
+          SharingNavigation? navigation;
           final notes = await _api.sharedNotes(
+            onNavigation: (value) => navigation = value,
             server: session.account.server,
             token: session.token,
           );
           await _database.replaceSharedSnapshot(key, notes);
+          if (navigation != null) {
+            await _database.setAccountMetadata(
+              key,
+              'sharing',
+              navigation!.toJson(),
+            );
+          }
           return notes;
         })().whenComplete(() {
           _sharedRefreshes.remove(key);
@@ -737,6 +747,164 @@ class AuthRepository {
     }
   }
 
+  void _requireShareable(StoredSession session, Note note) {
+    if (note.isShared ||
+        note.userId != session.account.userId ||
+        note.usn <= 0 ||
+        note.isTrash ||
+        note.isDeleted) {
+      throw const ApiException('noteNotShareable');
+    }
+  }
+
+  Future<List<Map<String, Object?>>> shareMembers(
+    StoredSession session,
+    Note note,
+  ) {
+    _requireShareable(session, note);
+    return _api.shareMembers(
+      server: session.account.server,
+      token: session.token,
+      noteId: note.noteId,
+    );
+  }
+
+  Future<void> shareNote(StoredSession session, Note note, String email) async {
+    _requireShareable(session, note);
+    await _api.shareNote(
+      server: session.account.server,
+      token: session.token,
+      noteId: note.noteId,
+      email: email.trim(),
+    );
+  }
+
+  Future<void> revokeNoteShare(
+    StoredSession session,
+    Note note,
+    String userId,
+  ) async {
+    _requireShareable(session, note);
+    await _api.revokeNoteShare(
+      server: session.account.server,
+      token: session.token,
+      noteId: note.noteId,
+      userId: userId,
+    );
+  }
+
+  Future<SharingNavigation> sharingNavigation(
+    StoredSession session, {
+    bool refresh = false,
+  }) async {
+    if (refresh) {
+      final navigation = await _api.sharingNavigation(
+        server: session.account.server,
+        token: session.token,
+        userId: session.account.userId,
+      );
+      await _database.setAccountMetadata(
+        session.account.cacheKey,
+        'sharing',
+        navigation.toJson(),
+      );
+      return navigation;
+    }
+    return SharingNavigation.fromJson(
+      await _database.accountMetadata(session.account.cacheKey, 'sharing'),
+    );
+  }
+
+  Future<void> moveSharedNote(
+    StoredSession session,
+    SharedNote shared,
+    String notebookId,
+  ) async {
+    final books = await _database.notebooks(session.account.cacheKey);
+    final target = books
+        .where((b) => b.notebookId == notebookId && !b.isDeleted)
+        .firstOrNull;
+    if (target == null || target.usn <= 0) {
+      throw const ApiException('notebookNotSynced');
+    }
+    if (shared.note.userId == session.account.userId) {
+      throw const ApiException('noAuth');
+    }
+    await _api.moveSharedNote(
+      server: session.account.server,
+      token: session.token,
+      noteId: shared.note.noteId,
+      notebookId: notebookId,
+    );
+    final previous = await sharingNavigation(session);
+    await _database.setAccountMetadata(
+      session.account.cacheKey,
+      'sharing',
+      SharingNavigation(
+        recipients: previous.recipients,
+        placements: {...previous.placements, shared.note.noteId: notebookId},
+      ).toJson(),
+    );
+  }
+
+  Future<Map<String, Object?>> queueVerification(
+    StoredSession session, {
+    bool current = false,
+    String email = '',
+    String password = '',
+    required String language,
+  }) async {
+    final result = await _api.queueVerification(
+      server: session.account.server,
+      token: session.token,
+      current: current,
+      email: email.trim(),
+      password: password,
+      language: language,
+    );
+    final profile = await _database.cachedProfile(session.account);
+    await _database.setAccountMetadata(session.account.cacheKey, 'profile', {
+      'Verified': profile.verified,
+      'PendingEmail':
+          result['PendingEmail']?.toString() ?? profile.pendingEmail,
+    });
+    await _database.setAccountMetadata(session.account.cacheKey, 'mail-task', {
+      'TaskId': result['TaskId'],
+    });
+    return result;
+  }
+
+  Future<String?> pendingMailTask(StoredSession session) async =>
+      (await _database.accountMetadata(
+            session.account.cacheKey,
+            'mail-task',
+          ))['TaskId']
+          as String?;
+  Future<Map<String, Object?>> emailStatus(
+    StoredSession session,
+    String taskId,
+  ) async {
+    Map<String, Object?> result;
+    try {
+      result = await _api.emailStatus(
+        server: session.account.server,
+        token: session.token,
+        taskId: taskId,
+      );
+    } on ApiException catch (error) {
+      if (error.code != 'mailTaskNotFound') rethrow;
+      result = {'State': 'failed', 'Error': error.toString()};
+    }
+    if (result['State'] == 'sent' || result['State'] == 'failed') {
+      await _database.setAccountMetadata(
+        session.account.cacheKey,
+        'mail-task',
+        {},
+      );
+    }
+    return result;
+  }
+
   Future<void> copySharedNote(
     StoredSession session,
     SharedNote shared,
@@ -744,6 +912,12 @@ class AuthRepository {
   ) async {
     if (shared.note.userId == session.account.userId) {
       throw StateError('sharedCopyOwner');
+    }
+    final target = (await _database.notebooks(session.account.cacheKey))
+        .where((b) => b.notebookId == notebookId && !b.isDeleted)
+        .firstOrNull;
+    if (target == null || target.usn <= 0) {
+      throw const ApiException('notebookNotSynced');
     }
     await _api.copySharedNote(
       server: session.account.server,
@@ -964,8 +1138,47 @@ class AuthRepository {
     await _database.deactivate(session.account.cacheKey);
   }
 
-  Future<List<Notebook>> notebooks(String accountId) =>
-      _database.notebooks(accountId);
+  Future<List<Notebook>> notebooks(String accountId) async {
+    final books = await _database.notebooks(accountId);
+    final placed = await _placedSharedNotes(accountId);
+    return books
+        .map(
+          (b) => Notebook(
+            notebookId: b.notebookId,
+            parentNotebookId: b.parentNotebookId,
+            title: b.title,
+            sequence: b.sequence,
+            usn: b.usn,
+            numberNotes:
+                b.numberNotes +
+                placed.where((n) => n.notebookId == b.notebookId).length,
+            isDeleted: b.isDeleted,
+            isDirty: b.isDirty,
+          ),
+        )
+        .toList();
+  }
+
+  Future<List<Note>> _placedSharedNotes(String accountId) async {
+    final nav = SharingNavigation.fromJson(
+      await _database.accountMetadata(accountId, 'sharing'),
+    );
+    if (nav.placements.isEmpty) return [];
+    final books = (await _database.notebooks(accountId))
+        .where((b) => !b.isDeleted)
+        .map((b) => b.notebookId)
+        .toSet();
+    final shared = await _database.cachedSharedNotes(accountId);
+    return shared
+        .where((s) => books.contains(nav.placements[s.note.noteId]))
+        .map(
+          (s) => s.note.copyWith(
+            notebookId: nav.placements[s.note.noteId],
+            isShared: true,
+          ),
+        )
+        .toList();
+  }
 
   Future<Account> cachedProfile(StoredSession session) =>
       _database.cachedProfile(session.account);
@@ -1654,12 +1867,24 @@ class AuthRepository {
     String? notebookId,
     bool starredOnly = false,
     bool trashOnly = false,
-  }) => _database.notes(
-    accountId,
-    notebookId: notebookId,
-    starredOnly: starredOnly,
-    trashOnly: trashOnly,
-  );
+  }) async {
+    final own = await _database.notes(
+      accountId,
+      notebookId: notebookId,
+      starredOnly: starredOnly,
+      trashOnly: trashOnly,
+    );
+    if (starredOnly || trashOnly) return own;
+    final ids = own.map((n) => n.noteId).toSet();
+    return [
+      ...own,
+      ...(await _placedSharedNotes(accountId)).where(
+        (n) =>
+            !ids.contains(n.noteId) &&
+            (notebookId == null || n.notebookId == notebookId),
+      ),
+    ];
+  }
 
   Future<Map<String, int>> tagCounts(String accountId) =>
       _database.tagCounts(accountId);

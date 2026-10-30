@@ -203,7 +203,10 @@ class _NoteSearchPageState extends State<NoteSearchPage> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      subtitle: Text(note.updatedTime, maxLines: 1),
+                      subtitle: Text(
+                        "${note.isMarkdown ? 'MD' : 'RT'} ${note.updatedTime}",
+                        maxLines: 1,
+                      ),
                       onTap: _openingId == null ? () => _open(note) : null,
                     );
                   },

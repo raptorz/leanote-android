@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import '../domain/models/account.dart';
 import '../repositories/auth_repository.dart';
 import 'account_avatar.dart';
-import 'account_field_dialog.dart';
+import 'email_verification.dart';
 import 'password_change_dialog.dart';
 import 'avatar_upload_dialog.dart';
 import 'avatar_crop_dialog.dart';
@@ -32,6 +32,7 @@ class AccountPage extends StatefulWidget {
 
 class _AccountPageState extends State<AccountPage> {
   late Account _account;
+  final _username = TextEditingController();
   bool _busy = true;
   String? _error;
   Uint8List? _avatar;
@@ -51,6 +52,60 @@ class _AccountPageState extends State<AccountPage> {
     if (!changed && mounted && lock.error != null) {
       setState(() => _error = lock.error);
     }
+  }
+
+  Future<void> _saveUsername() async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.repository.updateUsername(
+        widget.session,
+        username: _username.text.trim(),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(tr(context, 'm0042'))));
+      }
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (mounted && _error == null) await _refresh();
+  }
+
+  Future<void> _chooseAvatar() async {
+    final picker =
+        widget.avatarPicker ??
+        AvatarPicker(strings: AppStrings.snapshot(context));
+    if (!picker.cameraSupported) {
+      await _uploadAvatar();
+      return;
+    }
+    final camera = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: Text(tr(context, 'm0038')),
+              onTap: () => Navigator.pop(context, false),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: Text(tr(context, 'm0039')),
+              onTap: () => Navigator.pop(context, true),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (camera != null && mounted) await _uploadAvatar(camera: camera);
   }
 
   Future<void> _uploadAvatar({bool camera = false}) async {
@@ -121,12 +176,14 @@ class _AccountPageState extends State<AccountPage> {
     super.initState();
     widget.appLock?.addListener(_appLockChanged);
     _account = widget.session.account;
+    _username.text = _account.username;
     _loadCache();
   }
 
   @override
   void dispose() {
     widget.appLock?.removeListener(_appLockChanged);
+    _username.dispose();
     super.dispose();
   }
 
@@ -137,6 +194,7 @@ class _AccountPageState extends State<AccountPage> {
       if (mounted) {
         setState(() {
           _account = profile;
+          _username.text = profile.username;
           _avatar = avatar;
         });
       }
@@ -156,7 +214,12 @@ class _AccountPageState extends State<AccountPage> {
     try {
       await widget.repository.refreshAccountPresentation(widget.session);
       final profile = await widget.repository.cachedProfile(widget.session);
-      if (mounted) setState(() => _account = profile);
+      if (mounted) {
+        setState(() {
+          _account = profile;
+          _username.text = profile.username;
+        });
+      }
       try {
         final avatar = await widget.repository.cachedAvatar(widget.session);
         if (mounted) setState(() => _avatar = avatar);
@@ -214,18 +277,13 @@ class _AccountPageState extends State<AccountPage> {
               padding: const EdgeInsets.all(24),
               children: [
                 if (_busy) const LinearProgressIndicator(),
-                Center(child: AccountAvatar(bytes: _avatar, size: 80)),
-                OutlinedButton(
-                  onPressed: _busy ? null : _uploadAvatar,
-                  child: Text(tr(context, 'm0038')),
-                ),
-                if ((widget.avatarPicker ??
-                        AvatarPicker(strings: AppStrings.snapshot(context)))
-                    .cameraSupported)
-                  OutlinedButton(
-                    onPressed: _busy ? null : () => _uploadAvatar(camera: true),
-                    child: Text(tr(context, 'm0039')),
+                Center(
+                  child: IconButton(
+                    tooltip: tr(context, 'm0038'),
+                    onPressed: _busy ? null : _chooseAvatar,
+                    icon: AccountAvatar(bytes: _avatar, size: 80),
                   ),
+                ),
                 if (_error != null)
                   Text(
                     trMessage(context, _error!),
@@ -234,61 +292,23 @@ class _AccountPageState extends State<AccountPage> {
                     ),
                   ),
                 _field(tr(context, 'm0040'), _account.server.toString()),
-                _field(tr(context, 'm0041'), _account.username),
-                OutlinedButton(
-                  onPressed: _busy
-                      ? null
-                      : () async {
-                          final saved = await showDialog<bool>(
-                            context: context,
-                            barrierDismissible: false,
-                            builder: (_) => AccountFieldDialog(
-                              value: _account.username,
-                              save: (_, username) =>
-                                  widget.repository.updateUsername(
-                                    widget.session,
-                                    username: username,
-                                  ),
-                            ),
-                          );
-                          if (saved == true && context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(tr(context, 'm0042'))),
-                            );
-                            await _refresh();
-                          }
-                        },
-                  child: Text(tr(context, 'm0017')),
+                TextField(
+                  controller: _username,
+                  enabled: !_busy,
+                  decoration: InputDecoration(
+                    labelText: tr(context, 'm0041'),
+                    suffixIcon: IconButton(
+                      tooltip: tr(context, 'm0017'),
+                      onPressed: _busy ? null : _saveUsername,
+                      icon: const Icon(Icons.check),
+                    ),
+                  ),
                 ),
-                _field(tr(context, 'm0043'), _account.email),
-                OutlinedButton(
-                  onPressed: _busy
-                      ? null
-                      : () async {
-                          final sent = await showDialog<bool>(
-                            context: context,
-                            barrierDismissible: false,
-                            builder: (_) => AccountFieldDialog(
-                              emailChange: true,
-                              value: '',
-                              save: (password, email) =>
-                                  widget.repository.requestEmailChange(
-                                    widget.session,
-                                    identity: _account.email.isEmpty
-                                        ? _account.username
-                                        : _account.email,
-                                    password: password,
-                                    email: email,
-                                  ),
-                            ),
-                          );
-                          if (sent == true && context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(tr(context, 'm0044'))),
-                            );
-                          }
-                        },
-                  child: Text(tr(context, 'm0016')),
+                const SizedBox(height: 16),
+                EmailVerification(
+                  repository: widget.repository,
+                  session: widget.session,
+                  account: _account,
                 ),
                 _field(tr(context, 'm0045'), _account.userId),
                 if (widget.appLock case final lock?)

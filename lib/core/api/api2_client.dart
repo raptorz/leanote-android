@@ -15,6 +15,7 @@ import '../../domain/models/note_history.dart';
 import '../../domain/models/notebook.dart';
 import '../../domain/models/shared_note.dart';
 import '../../domain/models/shared_file.dart';
+import '../../domain/models/sharing_navigation.dart';
 import 'api_exception.dart';
 
 class LoginResult {
@@ -47,6 +48,131 @@ class Api2Client {
     path: '/api2/user/updateUsername',
     fields: {'username': username},
   );
+
+  Future<Map<String, Object?>> queueVerification({
+    required Uri server,
+    required String token,
+    bool current = false,
+    String email = '',
+    String password = '',
+    required String language,
+  }) async {
+    final result = await _requestFormJson(
+      server: server,
+      path: '/api2/web/emailChange',
+      token: token,
+      language: language,
+      fields: current ? {'current': 'true'} : {'email': email, 'pwd': password},
+    );
+    if (result['TaskId'] is! String || (result['TaskId'] as String).isEmpty) {
+      throw const ApiException('invalidResponse');
+    }
+    return result;
+  }
+
+  Future<Map<String, Object?>> emailStatus({
+    required Uri server,
+    required String token,
+    required String taskId,
+  }) async {
+    final result = await _requestFormJson(
+      server: server,
+      path: '/api2/user/emailStatus',
+      token: token,
+      fields: {'taskId': taskId},
+    );
+    if (!{'queued', 'sending', 'sent', 'failed'}.contains(result['State'])) {
+      throw const ApiException('invalidResponse');
+    }
+    return result;
+  }
+
+  Future<SharingNavigation> sharingNavigation({
+    required Uri server,
+    required String token,
+    required String userId,
+  }) async {
+    final result = await _requestJson(
+      server: server,
+      path: '/api2/bootstrap',
+      method: 'GET',
+      token: token,
+    );
+    if (result['User'] is! Map || (result['User'] as Map)['UserId'] != userId) {
+      throw const ApiException('accountMismatch');
+    }
+    return SharingNavigation.fromJson(_map(result['Sharing']));
+  }
+
+  Future<void> moveSharedNote({
+    required Uri server,
+    required String token,
+    required String noteId,
+    required String notebookId,
+  }) async {
+    final result = await _requestJson(
+      server: server,
+      path: '/api2/shared/move',
+      method: 'POST',
+      token: token,
+      body: {'noteId': noteId, 'notebookId': notebookId},
+    );
+    if (result['Ok'] != true) throw const ApiException('moveFailed');
+  }
+
+  Future<List<Map<String, Object?>>> shareMembers({
+    required Uri server,
+    required String token,
+    required String noteId,
+  }) async {
+    final result = await _requestJson(
+      server: server,
+      path: '/api2/web/shareMembers',
+      method: 'POST',
+      token: token,
+      body: {'noteId': noteId},
+    );
+    return (result['Users'] as List? ?? []).map((item) => _map(item)).toList();
+  }
+
+  Future<void> shareNote({
+    required Uri server,
+    required String token,
+    required String noteId,
+    required String email,
+  }) async {
+    final result = await _requestJson(
+      server: server,
+      path: '/api2/share/addShareNote',
+      method: 'POST',
+      token: token,
+      body: {
+        'noteId': noteId,
+        'emails': [email],
+        'perm': 0,
+      },
+    );
+    final status = _map(result[email]);
+    if (status['Ok'] != true) {
+      throw ApiException(status['Msg']?.toString() ?? 'shareFailed');
+    }
+  }
+
+  Future<void> revokeNoteShare({
+    required Uri server,
+    required String token,
+    required String noteId,
+    required String userId,
+  }) async {
+    final result = await _request(
+      server: server,
+      path: '/api2/share/deleteShareNote',
+      method: 'POST',
+      token: token,
+      body: {'noteId': noteId, 'toUserId': userId},
+    );
+    if (result != true) throw const ApiException('shareFailed');
+  }
 
   Future<void> requestEmailChange({
     required Uri server,
@@ -668,6 +794,7 @@ class Api2Client {
   Future<List<SharedNote>> sharedNotes({
     required Uri server,
     required String token,
+    void Function(SharingNavigation)? onNavigation,
   }) async {
     final capabilities = await _requestJson(
       server: server,
@@ -775,6 +902,9 @@ class Api2Client {
       );
       return order == 0 ? a.note.noteId.compareTo(b.note.noteId) : order;
     });
+    if (snapshot['Sharing'] is Map) {
+      onNavigation?.call(SharingNavigation.fromJson(_map(snapshot['Sharing'])));
+    }
     return result;
   }
 
@@ -1258,6 +1388,7 @@ class Api2Client {
     required String path,
     required String token,
     required Map<String, String> fields,
+    String? language,
   }) async {
     final uri = _uri(server, path, token: token);
     late http.Response response;
@@ -1266,6 +1397,7 @@ class Api2Client {
         ..followRedirects = false
         ..headers['Authorization'] = 'Bearer $token'
         ..bodyFields = fields;
+      if (language != null) request.headers['Accept-Language'] = language;
       response = await (() async => http.Response.fromStream(
         await _http.send(request),
       ))().timeout(const Duration(minutes: 2));

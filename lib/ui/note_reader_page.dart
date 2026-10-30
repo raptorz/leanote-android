@@ -14,6 +14,10 @@ class NoteReaderPage extends StatefulWidget {
   const NoteReaderPage({
     required this.note,
     this.onEdit,
+    this.onSharedOrganize,
+    this.loadSharing,
+    this.loadCachedSharing,
+    this.onManageSharing,
     this.onReviewCreation,
     this.onToggleStar,
     this.onMove,
@@ -35,6 +39,10 @@ class NoteReaderPage extends StatefulWidget {
   });
 
   final Note note;
+  final Future<void> Function()? onSharedOrganize;
+  final Future<List<String>> Function()? loadSharing;
+  final Future<List<String>> Function()? loadCachedSharing;
+  final Future<void> Function()? onManageSharing;
   final Future<bool> Function()? onReviewCreation;
   final Future<void> Function()? onEdit;
   final Future<void> Function()? onToggleStar;
@@ -66,6 +74,23 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
   bool _sharing = false;
   bool _copying = false;
   bool _openingFiles = false;
+  List<String> _recipients = [];
+  Future<void> _loadSharing() async {
+    try {
+      final cached = await widget.loadCachedSharing?.call();
+      if (mounted && cached != null) setState(() => _recipients = cached);
+    } on Object {
+      /* Still try refreshing if the local cache is unavailable. */
+    }
+    if (!mounted) return;
+    try {
+      final users = await widget.loadSharing?.call();
+      if (mounted && users != null) setState(() => _recipients = users);
+    } on Object {
+      /* Keep the last cached sharing labels offline. */
+    }
+  }
+
   final _menuKey = GlobalKey();
 
   Future<void> _share() async {
@@ -117,6 +142,7 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
   @override
   void initState() {
     super.initState();
+    _loadSharing();
     if (!widget.note.isMarkdown && !widget.safeHtmlPreview) {
       _webView = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.disabled)
@@ -148,6 +174,12 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
               icon: const Icon(Icons.copy_outlined),
             ),
           ],
+          if (widget.readOnly && widget.onSharedOrganize != null)
+            IconButton(
+              tooltip: tr(context, 'moveCopyShared'),
+              icon: const Icon(Icons.drive_file_move_outline),
+              onPressed: widget.onSharedOrganize,
+            ),
           if (widget.readOnly && widget.onFiles != null)
             IconButton(
               tooltip: tr(context, 'm0222'),
@@ -181,6 +213,10 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
               key: _menuKey,
               onSelected: (value) async {
                 switch (value) {
+                  case 'manageSharing':
+                    await widget.onManageSharing?.call();
+                    await _loadSharing();
+                    return;
                   case 'reviewCreation':
                     final recovered = await widget.onReviewCreation?.call();
                     if (recovered == true && context.mounted) {
@@ -240,6 +276,11 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
                 if (context.mounted) Navigator.of(context).pop();
               },
               itemBuilder: (_) => [
+                if (widget.onManageSharing != null)
+                  PopupMenuItem(
+                    value: 'manageSharing',
+                    child: Text(tr(context, 'manageSharing')),
+                  ),
                 if (widget.onReviewCreation != null)
                   PopupMenuItem(
                     value: 'reviewCreation',
@@ -319,6 +360,15 @@ class _NoteReaderPageState extends State<NoteReaderPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _Metadata(note: note),
+          if (_recipients.isNotEmpty)
+            Container(
+              color: const Color(0xffebe8dc),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Text(
+                tr(context, 'sharedWith', [_recipients.join(', ')]),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
           Expanded(
             child: note.isMarkdown
                 ? _showSource

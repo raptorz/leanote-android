@@ -3313,5 +3313,193 @@
   "unsupportedRtfEncoding": {
     "zh": "不支持此 RTF 编码，请另存为 Unicode RTF 或 DOCX 后重试",
     "en": "This RTF encoding is unsupported. Save as Unicode RTF or DOCX and retry."
+  },
+  "moveCopyShared": {
+    "zh": "移动 / 复制",
+    "en": "Move / Copy"
+  },
+  "sharedMoved": {
+    "zh": "共享笔记已移到所选笔记本，原作者的笔记不变",
+    "en": "Shared note moved to your notebook. The original is unchanged."
+  },
+  "verifyEmail": {
+    "zh": "验证邮箱",
+    "en": "Verify email"
+  },
+  "verifyEmailConfirm": {
+    "zh": "是否向 {0} 重新发送验证邮件？",
+    "en": "Resend a verification email to {0}?"
+  },
+  "sendVerification": {
+    "zh": "发送验证邮件",
+    "en": "Send verification email"
+  },
+  "currentEmail": {
+    "zh": "当前邮箱",
+    "en": "Current email"
+  },
+  "emailUnverified": {
+    "zh": "邮箱未验证",
+    "en": "Email not verified"
+  },
+  "emailVerified": {
+    "zh": "已验证",
+    "en": "Verified"
+  },
+  "pendingEmail": {
+    "zh": "等待验证的新邮箱：{0}",
+    "en": "New email awaiting verification: {0}"
+  },
+  "oldEmailRemainsValid": {
+    "zh": "新邮箱通过验证前，当前邮箱仍然有效。",
+    "en": "Your current email remains valid until the new email is verified."
+  },
+  "mailState_queued": {
+    "zh": "验证邮件已加入发送队列",
+    "en": "Verification email queued"
+  },
+  "mailState_sending": {
+    "zh": "正在发送验证邮件…",
+    "en": "Sending verification email…"
+  },
+  "mailState_sent": {
+    "zh": "验证邮件已发送，请查收",
+    "en": "Verification email sent. Please check your inbox."
+  },
+  "mailState_failed": {
+    "zh": "验证邮件发送失败，请重试或联系管理员",
+    "en": "Verification email failed. Retry or contact your administrator."
+  },
+  "retryMailStatus": {
+    "zh": "重新检查发送状态",
+    "en": "Check delivery status again"
+  },
+  "mailStatusUnavailable": {
+    "zh": "无法读取邮件发送状态，请刷新后重试",
+    "en": "Could not read email delivery status. Refresh and retry."
+  },
+  "manageSharing": {
+    "zh": "共享设置",
+    "en": "Sharing settings"
+  },
+  "sharedWith": {
+    "zh": "已共享给：{0}",
+    "en": "Shared with: {0}"
+  },
+  "shareRecipientEmail": {
+    "zh": "接收用户的邮箱",
+    "en": "Recipient email"
+  },
+  "shareReadOnly": {
+    "zh": "只读共享",
+    "en": "Read-only sharing"
+  },
+  "inheritedShare": {
+    "zh": "随笔记本共享",
+    "en": "Shared through notebook"
+  },
+  "revokeShare": {
+    "zh": "取消共享",
+    "en": "Revoke sharing"
+  },
+  "sharedByMe": {
+    "zh": "我共享的",
+    "en": "Shared by me"
+  },
+  "noOutgoingShares": {
+    "zh": "尚未共享任何笔记",
+    "en": "No notes shared yet"
+  },
+  "sharingRefreshFailed": {
+    "zh": "共享状态刷新失败，以下显示本地缓存：{0}",
+    "en": "Could not refresh sharing. Showing cached data: {0}"
+  },
+  "sharedNotesNotCached": {
+    "zh": "部分笔记尚未下载，请返回后同步",
+    "en": "Some notes are not downloaded yet. Go back and sync."
+  },
+  "emailChangeInvalid": {
+    "zh": "请填写当前密码及有效的新邮箱",
+    "en": "Enter your current password and a valid new email address"
+  },
+  "mailQueueNotConfigured": {
+    "zh": "邮件任务队列未配置，请联系管理员。",
+    "en": "The mail queue is not configured. Contact your administrator."
+  },
+  "mailQueueUnavailable": {
+    "zh": "无法连接邮件任务队列，请联系管理员检查 Redis。",
+    "en": "The mail queue is unavailable. Ask your administrator to check Redis."
+  },
+  "mailNotConfigured": {
+    "zh": "SMTP 配置不完整或无效，请联系管理员。",
+    "en": "SMTP settings are incomplete or invalid. Contact your administrator."
+  },
+  "mailRateLimited": {
+    "zh": "请等待 60 秒后再发送验证邮件。",
+    "en": "Wait 60 seconds before requesting another verification email."
+  },
+  "mailSiteURLInvalid": {
+    "zh": "站点 URL 未正确配置，无法生成验证链接。",
+    "en": "The site URL is invalid. Contact your administrator."
+  },
+  "mailTemplateInvalid": {
+    "zh": "邮件模板未配置或无效，请联系管理员。",
+    "en": "The email template is missing or invalid. Contact your administrator."
+  },
+  "mailTokenFailed": {
+    "zh": "无法创建邮箱验证凭据，请稍后重试。",
+    "en": "Could not create a verification token. Try again later."
+  },
+  "mailTaskNotFound": {
+    "zh": "邮件任务不存在或记录已过期，请重新发送。",
+    "en": "The mail task is missing or expired. Send a new request."
+  },
+  "mailTaskExpired": {
+    "zh": "邮件任务超时或未被处理，请联系管理员检查邮件 worker。",
+    "en": "The mail task timed out. Ask your administrator to check the mail worker."
+  },
+  "mailAuthenticationFailed": {
+    "zh": "邮件发送失败：SMTP 认证失败，请管理员检查用户名和密码。",
+    "en": "SMTP authentication failed. Ask your administrator to check the credentials."
+  },
+  "mailRecipientRejected": {
+    "zh": "邮件发送失败：邮件服务器拒绝收件地址，请检查新邮箱。",
+    "en": "The mail server rejected the recipient. Check the new email address."
+  },
+  "mailConnectionFailed": {
+    "zh": "邮件发送失败：连接邮件服务器失败或超时，请管理员检查 SMTP 配置。",
+    "en": "The mail server connection failed or timed out. Contact your administrator."
+  },
+  "mailDeliveryFailed": {
+    "zh": "邮件发送失败：SMTP 或加密连接异常，请管理员检查邮件服务。",
+    "en": "SMTP or TLS failed. Ask your administrator to check the mail service."
+  },
+  "emailUnchanged": {
+    "zh": "新邮箱不能与当前邮箱相同。",
+    "en": "Enter an address different from your current email."
+  },
+  "invalidEmail": {
+    "zh": "请输入有效的邮箱地址。",
+    "en": "Enter a valid email address."
+  },
+  "wrongPassword": {
+    "zh": "当前密码不正确。",
+    "en": "The current password is incorrect."
+  },
+  "notebookNotSynced": {
+    "zh": "请先同步目标笔记本，再移动或复制共享笔记",
+    "en": "Sync the destination notebook before moving or copying a shared note."
+  },
+  "noteNotShareable": {
+    "zh": "请先同步此笔记；只能共享自己的有效笔记",
+    "en": "Sync this note first. Only your own active notes can be shared."
+  },
+  "shareFailed": {
+    "zh": "共享操作失败，请刷新后重试",
+    "en": "Sharing failed. Refresh and retry."
+  },
+  "sharingLoadFailed": {
+    "zh": "无法读取共享状态，请稍后重试",
+    "en": "Could not load sharing status. Try again later."
   }
 }

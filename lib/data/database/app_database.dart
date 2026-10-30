@@ -438,31 +438,37 @@ class AppDatabase {
       'accounts',
       orderBy: 'server, username, user_id',
     );
-    return rows
-        .map(
-          (row) => Account(
-            userId: row['user_id']! as String,
-            server: Uri.parse(row['server']! as String),
-            username: row['username']! as String,
-            email: row['email']! as String,
-            logo: row['logo']! as String,
-            apiVersion: row['api_version']! as String,
-          ),
-        )
-        .toList();
+    return Future.wait(
+      rows
+          .map(
+            (row) => cachedProfile(
+              Account(
+                userId: row['user_id']! as String,
+                server: Uri.parse(row['server']! as String),
+                username: row['username']! as String,
+                email: row['email']! as String,
+                logo: row['logo']! as String,
+                apiVersion: row['api_version']! as String,
+              ),
+            ),
+          )
+          .toList(),
+    );
   }
 
   Future<Account?> activeAccount() async {
     final rows = await raw.query('accounts', where: 'is_active = 1', limit: 1);
     if (rows.isEmpty) return null;
     final row = rows.single;
-    return Account(
-      userId: row['user_id']! as String,
-      server: Uri.parse(row['server']! as String),
-      username: row['username']! as String,
-      email: row['email']! as String,
-      logo: row['logo']! as String,
-      apiVersion: row['api_version']! as String,
+    return cachedProfile(
+      Account(
+        userId: row['user_id']! as String,
+        server: Uri.parse(row['server']! as String),
+        username: row['username']! as String,
+        email: row['email']! as String,
+        logo: row['logo']! as String,
+        apiVersion: row['api_version']! as String,
+      ),
     );
   }
 
@@ -653,7 +659,13 @@ class AppDatabase {
     );
     if (rows.isEmpty) return fallback;
     final row = rows.single;
+    final details = await accountMetadata(fallback.cacheKey, 'profile');
     return Account(
+      verified: details.containsKey('Verified')
+          ? details['Verified'] == true
+          : fallback.verified,
+      pendingEmail:
+          details['PendingEmail']?.toString() ?? fallback.pendingEmail,
       userId: fallback.userId,
       server: fallback.server,
       username: row['username'] as String,
@@ -688,7 +700,39 @@ class AppDatabase {
     }
   }
 
+  Future<Map<String, Object?>> accountMetadata(
+    String accountId,
+    String kind,
+  ) async {
+    final rows = await raw.query(
+      'app_preferences',
+      columns: ['value'],
+      where: 'name = ?',
+      whereArgs: ['$kind:$accountId'],
+    );
+    return rows.isEmpty
+        ? <String, Object?>{}
+        : Map<String, Object?>.from(
+            jsonDecode(rows.single['value'] as String) as Map,
+          );
+  }
+
+  Future<void> setAccountMetadata(
+    String accountId,
+    String kind,
+    Map<String, Object?> data,
+  ) => raw
+      .insert('app_preferences', {
+        'name': '$kind:$accountId',
+        'value': jsonEncode(data),
+      }, conflictAlgorithm: ConflictAlgorithm.replace)
+      .then((_) {});
+
   Future<void> updateProfile(Account account) async {
+    await setAccountMetadata(account.cacheKey, 'profile', {
+      'Verified': account.verified,
+      'PendingEmail': account.pendingEmail,
+    });
     await raw.update(
       'accounts',
       {
@@ -717,6 +761,13 @@ class AppDatabase {
         whereArgs: [account.cacheKey],
       );
       if (changed != 1) throw StateError('accountCacheMissing');
+      await txn.insert('app_preferences', {
+        'name': 'profile:${account.cacheKey}',
+        'value': jsonEncode({
+          'Verified': account.verified,
+          'PendingEmail': account.pendingEmail,
+        }),
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
     });
   }
 
@@ -782,6 +833,13 @@ class AppDatabase {
         'last_sync_usn': lastSyncUsn,
         'api_version': account.apiVersion,
         'is_active': 1,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      batch.insert('app_preferences', {
+        'name': 'profile:${account.cacheKey}',
+        'value': jsonEncode({
+          'Verified': account.verified,
+          'PendingEmail': account.pendingEmail,
+        }),
       }, conflictAlgorithm: ConflictAlgorithm.replace);
       for (final table in ['notebooks', 'notes', 'tags']) {
         batch.delete(

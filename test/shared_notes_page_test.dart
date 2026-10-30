@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/domain/models/account.dart';
 import 'package:gemsnote/domain/models/note.dart';
+import 'package:gemsnote/domain/models/notebook.dart';
+import 'package:gemsnote/ui/shared_note_destination_dialog.dart';
 import 'package:gemsnote/domain/models/shared_note.dart';
 import 'package:gemsnote/repositories/auth_repository.dart';
 import 'package:gemsnote/ui/note_reader_page.dart';
@@ -13,6 +15,35 @@ import 'package:webview_flutter/webview_flutter.dart';
 class SharedRepository implements AuthRepository {
   SharedRepository(this.shared);
   final SharedNote shared;
+  int moved = 0, copied = 0;
+  @override
+  Future<List<Notebook>> notebooks(String accountId) async => [
+    Notebook.fromJson({
+      'NotebookId': 'target',
+      'Title': 'My notebook',
+      'Usn': 1,
+    }),
+  ];
+  @override
+  Future<void> moveSharedNote(
+    StoredSession session,
+    SharedNote note,
+    String notebookId,
+  ) async {
+    expect(notebookId, 'target');
+    moved++;
+  }
+
+  @override
+  Future<void> copySharedNote(
+    StoredSession session,
+    SharedNote note,
+    String notebookId,
+  ) async {
+    expect(notebookId, 'target');
+    copied++;
+  }
+
   bool deny = false;
   bool failList = false;
   Completer<List<SharedNote>>? pendingOnline;
@@ -68,6 +99,35 @@ void main() {
       'IsMarkdown': markdown,
     }),
   );
+
+  for (final copy in [false, true]) {
+    testWidgets(
+      'readonly reader organizes received note without edit: copy=$copy',
+      (tester) async {
+        final repo = SharedRepository(note(true));
+        await tester.pumpWidget(
+          MaterialApp(
+            home: SharedNotesPage(repository: repo, session: session),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Shared title'));
+        await tester.pumpAndSettle();
+        expect(find.byTooltip('编辑'), findsNothing);
+        await tester.tap(find.byTooltip('移动 / 复制'));
+        await tester.pumpAndSettle();
+        expect(find.byType(SharedNoteDestinationDialog), findsOneWidget);
+        await tester.tap(find.text('My notebook'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(copy ? '复制到我的笔记本' : '移动到笔记本'));
+        await tester.pumpAndSettle();
+        expect(repo.moved, copy ? 0 : 1);
+        expect(repo.copied, copy ? 1 : 0);
+        expect(find.byType(NoteReaderPage), findsNothing);
+        expect(tester.takeException(), null);
+      },
+    );
+  }
 
   for (final markdown in [true, false]) {
     testWidgets(

@@ -8,6 +8,8 @@ import 'package:gemsnote/ui/account_page.dart';
 import 'package:gemsnote/ui/password_change_dialog.dart';
 
 class PasswordRepository implements AuthRepository {
+  @override
+  Future<String?> pendingMailTask(StoredSession session) async => null;
   var changes = 0;
   var logouts = 0;
   @override
@@ -85,11 +87,19 @@ void main() {
             )
             .first,
       );
-      await tester.tap(find.text('修改密码'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField).at(1), 'old');
-      await tester.enterText(find.byType(TextField).at(2), 'new');
-      await tester.enterText(find.byType(TextField).at(3), 'new');
+      await tester.ensureVisible(find.text('修改密码'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('修改密码'));
+
+      await tester.pumpAndSettle();
+      final fields = find.descendant(
+        of: find.byType(PasswordChangeDialog),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(fields.at(1), 'old');
+      await tester.enterText(fields.at(2), 'new');
+      await tester.enterText(fields.at(3), 'new');
       await tester.tap(find.text('修改并退出登录'));
       await tester.pumpAndSettle();
       expect(find.byType(PasswordChangeDialog), findsNothing);

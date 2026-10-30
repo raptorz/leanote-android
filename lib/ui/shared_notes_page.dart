@@ -8,6 +8,7 @@ import '../domain/models/note_image_reference.dart';
 import '../repositories/auth_repository.dart';
 import 'note_reader_page.dart';
 import 'shared_files_page.dart';
+import 'shared_note_destination_dialog.dart';
 
 class SharedNotesPage extends StatefulWidget {
   const SharedNotesPage({
@@ -15,10 +16,12 @@ class SharedNotesPage extends StatefulWidget {
     required this.repository,
     required this.session,
     this.initialNoteId,
+    this.initialCachedOnly = false,
   });
   final AuthRepository repository;
   final StoredSession session;
   final String? initialNoteId;
+  final bool initialCachedOnly;
   @override
   State<SharedNotesPage> createState() => _SharedNotesPageState();
 }
@@ -26,49 +29,79 @@ class SharedNotesPage extends StatefulWidget {
 class _SharedNotesPageState extends State<SharedNotesPage> {
   List<SharedNote> _notes = [];
   bool _loading = false;
+  bool _organizing = false;
   String? _opening;
   String? _error;
   bool _cachedOnly = false;
   int _generation = 0;
   bool _initialOpened = false;
 
-  Future<void> _copy(SharedNote note) async {
-    final books = (await widget.repository.notebooks(
-      widget.session.account.cacheKey,
-    )).where((book) => !book.isDeleted).toList(growable: false);
-    if (!mounted) return;
-    final target = await showDialog<String>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: Text(tr(context, 'm0664')),
-        children: books
-            .map(
-              (book) => SimpleDialogOption(
-                onPressed: () => Navigator.pop(context, book.notebookId),
-                child: Text(book.title),
-              ),
-            )
-            .toList(growable: false),
-      ),
-    );
-    if (target == null) return;
-    setState(() => _opening = note.note.noteId);
+  Future<void> _moveOrCopy(
+    SharedNote note, {
+    BuildContext? readerContext,
+  }) async {
+    if (_organizing) return;
+    _organizing = true;
     try {
-      await widget.repository.copySharedNote(widget.session, note, target);
+      final books = (await widget.repository.notebooks(
+        widget.session.account.cacheKey,
+      )).where((b) => !b.isDeleted).toList();
+      if (!mounted || (readerContext != null && !readerContext.mounted)) return;
+      final choice = await showDialog<SharedNoteDestination>(
+        context: readerContext ?? context,
+        builder: (_) => SharedNoteDestinationDialog(notebooks: books),
+      );
+      if (choice == null) return;
+      setState(() => _opening = note.note.noteId);
+      if (choice.copy) {
+        await widget.repository.copySharedNote(
+          widget.session,
+          note,
+          choice.notebookId,
+        );
+      } else {
+        await widget.repository.moveSharedNote(
+          widget.session,
+          note,
+          choice.notebookId,
+        );
+      }
+      if (readerContext != null && readerContext.mounted) {
+        Navigator.pop(readerContext);
+      }
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(tr(context, 'm0665'))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              trNow(context, choice.copy ? 'm0665' : 'sharedMoved'),
+            ),
+          ),
+        );
       }
     } on Object catch (error) {
-      if (mounted) setState(() => _error = trNow(context, 'm0666', [error]));
+      if (readerContext != null && readerContext.mounted) {
+        ScaffoldMessenger.of(readerContext).showSnackBar(
+          SnackBar(content: Text(trMessage(readerContext, error.toString()))),
+        );
+      } else if (mounted) {
+        setState(() => _error = error.toString());
+      }
     } finally {
-      if (mounted) setState(() => _opening = null);
+      _organizing = false;
+      if (mounted) {
+        setState(
+          () => _opening = readerContext?.mounted == true
+              ? note.note.noteId
+              : null,
+        );
+      }
     }
   }
 
   @override
   void initState() {
     super.initState();
+    _cachedOnly = widget.initialCachedOnly;
     _load();
   }
 
@@ -134,7 +167,9 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
       await Navigator.push(
         context,
         MaterialPageRoute<void>(
-          builder: (_) => NoteReaderPage(
+          builder: (readerContext) => NoteReaderPage(
+            onSharedOrganize: () =>
+                _moveOrCopy(note, readerContext: readerContext),
             note: content,
             readOnly: true,
             safeHtmlPreview: true,
@@ -242,7 +277,7 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
                             : shared.note.title,
                       ),
                       subtitle: Text(
-                        tr(context, 'm0382', [shared.note.userId]),
+                        '${shared.note.isMarkdown ? 'MD' : 'RT'} ${shared.note.updatedTime}\n${tr(context, 'm0382', [shared.note.userId])}',
                       ),
                       trailing: _opening == shared.note.noteId
                           ? const SizedBox.square(
@@ -250,11 +285,11 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
                               child: CircularProgressIndicator(),
                             )
                           : IconButton(
-                              tooltip: tr(context, 'm0664'),
+                              tooltip: tr(context, 'moveCopyShared'),
                               onPressed: _opening == null
-                                  ? () => _copy(shared)
+                                  ? () => _moveOrCopy(shared)
                                   : null,
-                              icon: const Icon(Icons.copy),
+                              icon: const Icon(Icons.drive_file_move_outline),
                             ),
                       onTap: _opening == null ? () => _open(shared) : null,
                     );

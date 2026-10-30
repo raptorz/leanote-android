@@ -12,6 +12,8 @@ import 'package:gemsnote/ui/workspace_page.dart';
 
 class AvatarRepository implements AuthRepository {
   @override
+  Future<String?> pendingMailTask(StoredSession session) async => null;
+  @override
   Future<bool> autoSync(StoredSession session) async => false;
   Uint8List? avatar;
   var reads = 0;

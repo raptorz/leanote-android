@@ -6,6 +6,8 @@ class Account {
     required this.email,
     required this.logo,
     this.apiVersion = '',
+    this.verified = false,
+    this.pendingEmail = '',
   });
 
   final String userId;
@@ -14,6 +16,8 @@ class Account {
   final String email;
   final String logo;
   final String apiVersion;
+  final bool verified;
+  final String pendingEmail;
 
   bool get supportsUploadReceipts {
     final parts = apiVersion.split('.').map(int.tryParse).toList();
@@ -40,6 +44,8 @@ class Account {
       email: json['Email']?.toString() ?? '',
       logo: json['Logo']?.toString() ?? '',
       apiVersion: apiVersion,
+      verified: json['Verified'] == true,
+      pendingEmail: json['PendingEmail']?.toString() ?? '',
     );
   }
 }

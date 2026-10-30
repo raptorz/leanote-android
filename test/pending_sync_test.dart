@@ -74,7 +74,14 @@ void main() {
         ),
       );
       await tester.runAsync(() async {
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+        for (var attempt = 0; attempt < 100; attempt++) {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          await tester.pump();
+          if (find.text('Life').evaluate().isNotEmpty &&
+              find.byTooltip('立即同步（1 篇待上传）').evaluate().isNotEmpty) {
+            break;
+          }
+        }
       });
       await tester.pumpAndSettle();
       expect(find.byTooltip('立即同步（1 篇待上传）'), findsOneWidget);

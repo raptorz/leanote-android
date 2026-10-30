@@ -1,3 +1,5 @@
+import 'note_sharing_dialog.dart';
+import 'shared_by_me_page.dart';
 import 'note_creation_dialog.dart';
 import 'notebook_conflict_dialog.dart';
 import '../l10n/app_strings.dart';
@@ -1041,11 +1043,48 @@ class _WorkspacePageState extends State<WorkspacePage>
     }
   }
 
+  Future<void> _openReceivedShares([String? noteId]) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SharedNotesPage(
+          repository: widget.repository,
+          session: widget.session,
+          initialNoteId: noteId,
+          initialCachedOnly: noteId != null,
+        ),
+      ),
+    );
+    if (mounted) await _reloadNotes();
+  }
+
   Future<void> _openReader(Note note) async {
+    if (note.isShared) {
+      await _openReceivedShares(note.noteId);
+      return;
+    }
+
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (readerContext) => NoteReaderPage(
           note: note,
+          loadCachedSharing: () async =>
+              (await widget.repository.sharingNavigation(widget.session))
+                  .recipientsFor(note.noteId),
+          loadSharing: () async => (await widget.repository.sharingNavigation(
+            widget.session,
+            refresh: true,
+          )).recipientsFor(note.noteId),
+          onManageSharing: note.usn <= 0 || note.isTrash
+              ? null
+              : () => showDialog<void>(
+                  context: readerContext,
+                  barrierDismissible: false,
+                  builder: (_) => NoteSharingDialog(
+                    repository: widget.repository,
+                    session: widget.session,
+                    note: note,
+                  ),
+                ),
           onReviewCreation: note.usn != 0 || note.isTrash
               ? null
               : () async =>
@@ -1981,7 +2020,7 @@ class _WorkspacePageState extends State<WorkspacePage>
           final notebooks = snapshot.data!;
           final rows = NotebookTree(notebooks).visibleRows(_expandedNotebooks);
           return ListView.builder(
-            itemCount: rows.length + 1,
+            itemCount: rows.length + 3,
             itemBuilder: (context, index) {
               if (index == 0) {
                 return ListTile(
@@ -1990,7 +2029,33 @@ class _WorkspacePageState extends State<WorkspacePage>
                   onTap: _openAllNotes,
                 );
               }
-              final row = rows[index - 1];
+              if (index == 1) {
+                return ListTile(
+                  leading: const Icon(Icons.people_outline),
+                  title: Text(tr(context, 'm0376')),
+                  onTap: () => _openReceivedShares(),
+                );
+              }
+              if (index == 2) {
+                return ListTile(
+                  leading: const Icon(Icons.share_outlined),
+                  title: Text(tr(context, 'sharedByMe')),
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => SharedByMePage(
+                          repository: widget.repository,
+                          session: widget.session,
+                          openNote: _openReader,
+                        ),
+                      ),
+                    );
+                    if (mounted) await _reloadNotes();
+                  },
+                );
+              }
+              final row = rows[index - 3];
               final notebook = row.notebook;
               return ListTile(
                 key: ValueKey(notebook.notebookId),
@@ -2133,15 +2198,7 @@ class _WorkspacePageState extends State<WorkspacePage>
           if (index == 1) {
             _openStarred();
           } else if (index == 2) {
-            Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (_) => SharedNotesPage(
-                  repository: widget.repository,
-                  session: widget.session,
-                ),
-              ),
-            );
+            _openReceivedShares();
           }
         },
         destinations: [
@@ -2277,19 +2334,26 @@ class _WorkspacePageState extends State<WorkspacePage>
                               ),
                           ],
                         ),
-                        subtitle: Text(note.updatedTime, maxLines: 1),
-                        trailing: IconButton(
-                          tooltip: note.isStarred
-                              ? trNow(context, 'm0287')
-                              : trNow(context, 'm0288'),
-                          onPressed: () => _toggleStar(note),
-                          icon: Icon(
-                            note.isStarred ? Icons.star : Icons.star_outline,
-                            color: note.isStarred
-                                ? const Color(0xff816d32)
-                                : null,
-                          ),
+                        subtitle: Text(
+                          "${note.isMarkdown ? 'MD' : 'RT'} ${note.updatedTime}",
+                          maxLines: 1,
                         ),
+                        trailing: note.isShared
+                            ? const Icon(Icons.lock_outline)
+                            : IconButton(
+                                tooltip: note.isStarred
+                                    ? trNow(context, 'm0287')
+                                    : trNow(context, 'm0288'),
+                                onPressed: () => _toggleStar(note),
+                                icon: Icon(
+                                  note.isStarred
+                                      ? Icons.star
+                                      : Icons.star_outline,
+                                  color: note.isStarred
+                                      ? const Color(0xff816d32)
+                                      : null,
+                                ),
+                              ),
                         onTap: () => _openReader(note),
                       );
                     },
