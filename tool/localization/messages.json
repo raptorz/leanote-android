@@ -3501,5 +3501,7 @@
   "sharingLoadFailed": {
     "zh": "无法读取共享状态，请稍后重试",
     "en": "Could not load sharing status. Try again later."
-  }
+  },
+  "shareRecipientIdentity":{"zh":"用户名或邮箱","en":"Username or email"},
+  "shareRecipientRequired":{"zh":"请输入用户名或邮箱","en":"Enter a username or email"}
 }

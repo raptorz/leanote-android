@@ -125,12 +125,11 @@ class Api2Client {
     required String token,
     required String noteId,
   }) async {
-    final result = await _requestJson(
+    final result = await _requestFormJson(
       server: server,
       path: '/api2/web/shareMembers',
-      method: 'POST',
       token: token,
-      body: {'noteId': noteId},
+      fields: {'noteId': noteId},
     );
     return (result['Users'] as List? ?? []).map((item) => _map(item)).toList();
   }
@@ -141,16 +140,11 @@ class Api2Client {
     required String noteId,
     required String email,
   }) async {
-    final result = await _requestJson(
+    final result = await _requestFormJson(
       server: server,
       path: '/api2/share/addShareNote',
-      method: 'POST',
       token: token,
-      body: {
-        'noteId': noteId,
-        'emails': [email],
-        'perm': 0,
-      },
+      fields: {'noteId': noteId, 'emails[0]': email, 'perm': '0'},
     );
     final status = _map(result[email]);
     if (status['Ok'] != true) {
@@ -164,12 +158,11 @@ class Api2Client {
     required String noteId,
     required String userId,
   }) async {
-    final result = await _request(
+    final result = await _requestFormValue(
       server: server,
       path: '/api2/share/deleteShareNote',
-      method: 'POST',
       token: token,
-      body: {'noteId': noteId, 'toUserId': userId},
+      fields: {'noteId': noteId, 'toUserId': userId},
     );
     if (result != true) throw const ApiException('shareFailed');
   }
@@ -1389,6 +1382,22 @@ class Api2Client {
     required String token,
     required Map<String, String> fields,
     String? language,
+  }) async => _map(
+    await _requestFormValue(
+      server: server,
+      path: path,
+      token: token,
+      fields: fields,
+      language: language,
+    ),
+  );
+
+  Future<Object?> _requestFormValue({
+    required Uri server,
+    required String path,
+    required String token,
+    required Map<String, String> fields,
+    String? language,
   }) async {
     final uri = _uri(server, path, token: token);
     late http.Response response;
@@ -1404,7 +1413,7 @@ class Api2Client {
     } on Exception {
       throw const ApiException('networkUnavailable');
     }
-    return _decodeMapResponse(response);
+    return _decodeResponse(response);
   }
 
   Future<List<Map<String, Object?>>> _requestList({

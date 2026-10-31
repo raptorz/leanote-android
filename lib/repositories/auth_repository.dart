@@ -842,6 +842,7 @@ class AuthRepository {
       'sharing',
       SharingNavigation(
         recipients: previous.recipients,
+        suggestions: previous.suggestions,
         placements: {...previous.placements, shared.note.noteId: notebookId},
       ).toJson(),
     );

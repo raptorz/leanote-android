@@ -141,6 +141,21 @@ void main() {
       expect((await db.cachedProfile(account)).email, 'old@test.com');
     },
   );
+  test(
+    'historical suggestions survive serialization without active shares',
+    () {
+      final data = {
+        'Suggestions': [
+          {'UserId': user, 'Username': 'renamed', 'NoteIds': <String>[]},
+        ],
+      };
+      final nav = SharingNavigation.fromJson(
+        SharingNavigation.fromJson(data).toJson(),
+      );
+      expect(nav.recipients, isEmpty);
+      expect(nav.suggestions.single.username, 'renamed');
+    },
+  );
   test('outgoing recipients and placements validate IDs and round trip', () {
     final navigation = SharingNavigation.fromJson({
       'Recipients': [
@@ -164,21 +179,25 @@ void main() {
     );
   });
   test(
-    'share and revoke use API2 JSON and per-email failure is surfaced',
+    'share and revoke use API2 form contract and per-email failure is surfaced',
     () async {
       var fail = false;
       final api = Api2Client(
         httpClient: MockClient((req) async {
           expect(req.headers['authorization'], 'Bearer secret');
           expect(req.method, 'POST');
-          final body = jsonDecode(req.body) as Map;
+          final body = Uri.splitQueryString(req.body);
+          expect(
+            req.headers['content-type'],
+            startsWith('application/x-www-form-urlencoded'),
+          );
           expect(body['noteId'], noteId);
           switch (req.url.path) {
             case '/api2/web/shareMembers':
               return http.Response('{"Users":[]}', 200);
             case '/api2/share/addShareNote':
-              expect(body['emails'], ['reader@test.com']);
-              expect(body['perm'], 0);
+              expect(body['emails[0]'], 'reader@test.com');
+              expect(body['perm'], '0');
               return http.Response(
                 jsonEncode({
                   'reader@test.com': {'Ok': !fail, 'Msg': 'notExists'},

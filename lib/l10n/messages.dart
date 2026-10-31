@@ -1736,4 +1736,6 @@ const messages = <String, (String, String)>{
     "无法读取共享状态，请稍后重试",
     "Could not load sharing status. Try again later.",
   ),
+  "shareRecipientIdentity": ("用户名或邮箱", "Username or email"),
+  "shareRecipientRequired": ("请输入用户名或邮箱", "Enter a username or email"),
 };

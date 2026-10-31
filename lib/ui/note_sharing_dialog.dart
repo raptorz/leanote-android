@@ -20,6 +20,8 @@ class NoteSharingDialog extends StatefulWidget {
 
 class _NoteSharingDialogState extends State<NoteSharingDialog> {
   final _email = TextEditingController();
+  final _recipientFocus = FocusNode();
+  List<String> _suggestions = [];
   List<Map<String, Object?>> _members = [];
   bool _busy = false;
   String? _error;
@@ -42,7 +44,18 @@ class _NoteSharingDialogState extends State<NoteSharingDialog> {
         widget.note,
       );
       if (mounted) setState(() => _members = members);
-      await widget.repository.sharingNavigation(widget.session, refresh: true);
+      final navigation = await widget.repository.sharingNavigation(
+        widget.session,
+        refresh: true,
+      );
+      if (mounted) {
+        setState(
+          () => _suggestions = {
+            ...navigation.suggestions.map((u) => u.username),
+            ...navigation.recipients.map((u) => u.username),
+          }.where((s) => s.isNotEmpty).toList()..sort(),
+        );
+      }
     } on Object catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
@@ -53,6 +66,7 @@ class _NoteSharingDialogState extends State<NoteSharingDialog> {
   @override
   void dispose() {
     _email.dispose();
+    _recipientFocus.dispose();
     super.dispose();
   }
 
@@ -67,21 +81,68 @@ class _NoteSharingDialogState extends State<NoteSharingDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
-                controller: _email,
-                enabled: !_busy,
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  labelText: tr(context, 'shareRecipientEmail'),
+              RawAutocomplete<String>(
+                textEditingController: _email,
+                focusNode: _recipientFocus,
+                optionsBuilder: (value) => _busy
+                    ? const Iterable<String>.empty()
+                    : _suggestions
+                          .where(
+                            (name) => name.toLowerCase().contains(
+                              value.text.trim().toLowerCase(),
+                            ),
+                          )
+                          .take(20),
+                fieldViewBuilder:
+                    (context, controller, focusNode, onSubmitted) => TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      enabled: !_busy,
+                      keyboardType: TextInputType.text,
+                      decoration: InputDecoration(
+                        labelText: tr(context, 'shareRecipientIdentity'),
+                      ),
+                      onSubmitted: (_) => onSubmitted(),
+                    ),
+                optionsViewBuilder: (context, onSelected, options) => Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    elevation: 4,
+                    borderRadius: BorderRadius.circular(8),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: 200,
+                        maxWidth: MediaQuery.sizeOf(context).width - 100,
+                      ),
+                      child: ListView.builder(
+                        padding: EdgeInsets.zero,
+                        shrinkWrap: true,
+                        itemCount: options.length,
+                        itemBuilder: (context, index) => ListTile(
+                          dense: true,
+                          selected:
+                              AutocompleteHighlightedOption.of(context) ==
+                              index,
+                          title: Text(options.elementAt(index)),
+                          onTap: () => onSelected(options.elementAt(index)),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
               TextButton(
                 onPressed: _busy
                     ? null
                     : () => _run(() async {
-                        if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
-                            .hasMatch(_email.text.trim())) {
-                          throw FormatException(trNow(context, 'm0013'));
+                        if (_email.text.trim().isEmpty) {
+                          setState(
+                            () => _error = trNow(
+                              context,
+                              'shareRecipientRequired',
+                            ),
+                          );
+                          return;
                         }
                         await widget.repository.shareNote(
                           widget.session,
