@@ -90,6 +90,7 @@ flutter:
 
   assets:
     - assets/images/gemsnote_s.png
+    - assets/mermaid/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

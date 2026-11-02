@@ -746,3 +746,37 @@ noteSnapshotFingerprint（历史命名保留）现在包含笔记和笔记本两
 标签重命名由 API2 创建目标标签、事务替换本机笔记标签、正常上传/下载和删除旧目录项组成，覆盖回收站笔记，合并已有目标标签并去重。失败保留已暂存的 dirty 修改；同步后重试原重命名可继续。此流程不是服务端原子操作，跨设备同时改标签存在竞态，后续可用专用原子 API2 重命名接口改进。
 
 完整历史恢复已接入 `/api2/note/restoreHistory`：只在联网且快照 FilesComplete=true 时提供，按当前缓存 USN 提交；同步互斥区内拒绝目标笔记 dirty、未同步新建及待处理附件上传。服务端验证原作者、版本与原件并恢复，客户端随后正常同步。正文恢复保持独立并支持离线。旧历史缺少完整清单或原件已丢失时不能执行完整恢复。
+
+
+## Markdown Mermaid 预览
+
+`markdown_mermaid.dart` 扩展围栏代码块，保持原生 Flutter Markdown、公式、图片和锚点阅读。
+每篇文档按需创建一个本地 WebView，使用打包的 Mermaid 11.17.2 将图表转为 PNG，显示与缩放由 Flutter 处理。
+同一文档复用渲染器，缓存最多 32 份结果；切换正文后销毁旧实例，不将生成图写入 SQLite 或正文。
+单张 PNG 最大边 2048、总像素不超过 200 万。可点击放大并双指缩放，也可展开、复制源码。
+
+仅渲染 `mermaid` 围栏，富文本和普通代码块行为不变。渲染失败保留源文，提示支持中文/英文。
+每实例最多 32 个图块、每块 20,000 字符/500 行、连边上限 200。
+禁用 Mermaid 配置指令/frontmatter、HTML、外部图片与点击链接；本地 HTML 的 CSP 阻止外部资源和网络连接。
+WebView 仅提供返回 PNG 的 channel，不提供账号、token、API2 或文件操作 bridge。
+离线渲染资源在 `assets/mermaid/`，作为独立移动仓库资源提交，因此普通 Flutter 构建不需要 Node 或服务端源码。
+
+更新资源时，在服务端仓库（旁边存在 `mobile-app/`）执行：
+
+```bash
+npm ci --prefix frontend
+npm run build:mermaid:mobile --prefix frontend
+```
+
+该命令同时生成 Web 与 mobile 的同版资源；`manifest.json` 记录版本和 SHA-256。
+不要手改压缩后的 HTML；修改服务端的 `frontend/mermaid/renderer.ts` 后重新生成，并保留 LICENSE。
+
+在 mobile 仓库验证：
+
+```bash
+flutter analyze --no-pub
+flutter test --no-pub test/markdown_mermaid_test.dart test/markdown_reader_test.dart test/markdown_math_test.dart test/markdown_anchors_test.dart
+flutter test --no-pub --no-uninstall integration_test/mermaid_preview_test.dart -d emulator-5554
+```
+
+集成测试只创建虚构笔记，不运行账号会话、不连接服务端、不访问用户数据库。iOS 可用同一测试入口在模拟器运行。

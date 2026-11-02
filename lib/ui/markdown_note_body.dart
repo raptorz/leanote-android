@@ -7,6 +7,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'cached_markdown_image.dart';
 import 'note_link_dialog.dart';
 import 'markdown_math.dart';
+import 'markdown_mermaid.dart';
 import 'markdown_anchor_preview.dart';
 import '../services/note_link_opener.dart';
 
@@ -42,21 +43,25 @@ class MarkdownNoteBody extends StatelessWidget {
   final bool Function(Uri)? canDownloadImage;
 
   @override
-  Widget build(BuildContext context) => Markdown(
-    data: content,
-    inlineSyntaxes: [MathInlineSyntax()],
-    blockSyntaxes: noteMarkdownBlocks,
-    softLineBreak: true,
-    builders: {
-      'gemsnote-math': MathElementBuilder(),
-      'gemsnote-math-block': MathElementBuilder(block: true),
-    },
-    selectable: true,
-    padding: const EdgeInsets.all(20),
-    // Media requires account-aware downloading; never resolve arbitrary local
-    // paths or contact third-party hosts through the renderer's defaults.
-    imageBuilder: (uri, title, alt) => _image(context, uri, title, alt),
-    onTapLink: (text, href, title) => _openLink(context, href),
+  Widget build(BuildContext context) => MermaidScope(
+    key: ValueKey(content),
+    child: Markdown(
+      data: content,
+      inlineSyntaxes: [MathInlineSyntax()],
+      blockSyntaxes: noteMarkdownBlocks,
+      softLineBreak: true,
+      builders: {
+        'gemsnote-mermaid': MermaidElementBuilder(),
+        'gemsnote-math': MathElementBuilder(),
+        'gemsnote-math-block': MathElementBuilder(block: true),
+      },
+      selectable: true,
+      padding: const EdgeInsets.all(20),
+      // Media requires account-aware downloading; never resolve arbitrary local
+      // paths or contact third-party hosts through the renderer's defaults.
+      imageBuilder: (uri, title, alt) => _image(context, uri, title, alt),
+      onTapLink: (text, href, title) => _openLink(context, href),
+    ),
   );
 
   Widget _image(BuildContext context, Uri uri, String? title, String? alt) =>

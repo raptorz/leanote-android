@@ -1738,4 +1738,13 @@ const messages = <String, (String, String)>{
   ),
   "shareRecipientIdentity": ("用户名或邮箱", "Username or email"),
   "shareRecipientRequired": ("请输入用户名或邮箱", "Enter a username or email"),
+  "mermaidDiagram": ("Mermaid 图表", "Mermaid diagram"),
+  "mermaidEnlarge": ("放大图表", "Enlarge diagram"),
+  "mermaidSource": ("图表源码", "Diagram source"),
+  "mermaidCopy": ("复制源码", "Copy source"),
+  "mermaidLoading": ("正在绘制图表…", "Rendering diagram…"),
+  "mermaidFailed": (
+    "图表无法渲染，请检查语法或图表大小。",
+    "Unable to render diagram. Check the syntax or diagram size.",
+  ),
 };

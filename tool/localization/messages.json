@@ -3503,5 +3503,29 @@
     "en": "Could not load sharing status. Try again later."
   },
   "shareRecipientIdentity":{"zh":"用户名或邮箱","en":"Username or email"},
-  "shareRecipientRequired":{"zh":"请输入用户名或邮箱","en":"Enter a username or email"}
+  "shareRecipientRequired":{"zh":"请输入用户名或邮箱","en":"Enter a username or email"},
+  "mermaidDiagram": {
+    "zh": "Mermaid 图表",
+    "en": "Mermaid diagram"
+  },
+  "mermaidEnlarge": {
+    "zh": "放大图表",
+    "en": "Enlarge diagram"
+  },
+  "mermaidSource": {
+    "zh": "图表源码",
+    "en": "Diagram source"
+  },
+  "mermaidCopy": {
+    "zh": "复制源码",
+    "en": "Copy source"
+  },
+  "mermaidLoading": {
+    "zh": "正在绘制图表…",
+    "en": "Rendering diagram…"
+  },
+  "mermaidFailed": {
+    "zh": "图表无法渲染，请检查语法或图表大小。",
+    "en": "Unable to render diagram. Check the syntax or diagram size."
+  }
 }

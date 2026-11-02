@@ -6,12 +6,13 @@ import 'package:markdown/markdown.dart' as md;
 import 'markdown_attributes.dart';
 import 'markdown_definition_list.dart';
 import 'markdown_math.dart';
+import 'markdown_mermaid.dart';
 
 const noteMarkdownBlocks = <md.BlockSyntax>[
   MathBlockSyntax(),
   AttributeHeadingSyntax(),
   AttributeSetextHeadingSyntax(),
-  AttributeCodeFenceSyntax(),
+  MermaidFenceSyntax(),
   DefinitionListSyntax(),
 ];
 
@@ -131,6 +132,7 @@ class _MarkdownAnchorPreviewState extends State<MarkdownAnchorPreview>
       checkboxBuilder: null,
       bulletBuilder: null,
       builders: {
+        'gemsnote-mermaid': MermaidElementBuilder(),
         'gemsnote-math': MathElementBuilder(),
         'gemsnote-math-block': MathElementBuilder(block: true),
       },
@@ -138,10 +140,12 @@ class _MarkdownAnchorPreviewState extends State<MarkdownAnchorPreview>
       listItemCrossAxisAlignment: MarkdownListItemCrossAxisAlignment.baseline,
       softLineBreak: true,
     );
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: builder.build(widget.nodes),
+    return MermaidScope(
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: builder.build(widget.nodes),
+        ),
       ),
     );
   }

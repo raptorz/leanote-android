@@ -716,3 +716,12 @@ Android 原生分享/拍照提示和桌面小组件使用同一选择，通过�
 服务端所有受保护 API2 控制器统一从 Bearer token 建立当前用户上下文，旧客户端的查询参数 token 暂时兼容；Web 使用标签页会话存储 token，desktop 删除远程浏览器 Cookie 桥接，mobile 删除 `_accountFormAction` 临时 Cookie 登录流程。账号资料、头像、正文图片与附件上传均直接携带当前账号 token，密码修改和邮箱修改仍保留业务所需的旧密码确认。
 
 共享原文在服务端权限入口统一为仅原作者可写，接收者通过复制接口生成归自己所有的新笔记后再编辑。PostgreSQL 更新编码器开始遵循字段标签，历史记录主键稳定映射为 `id`。服务端数据库/控制器/服务测试、Web 测试与生产构建、desktop API/webapi 测试及 mobile API2 专项测试均通过；真机、模拟器、iOS 与发布验证继续暂缓。
+
+
+## 2026-11-02 三端 Mermaid 预览
+
+用户授权三端同步增加 Markdown Mermaid 预览。移动端保留 Flutter 原生正文，加入 Mermaid 围栏解析、离线图像渲染、源码展开/复制和全屏缩放；锚点弹窗也支持图块。离线资源与 Web/Desktop 使用相同版本和配置，正文存储、同步及 API2 不变。
+
+新增 `test/markdown_mermaid_test.dart` 与 `integration_test/mermaid_preview_test.dart`，覆盖解析、限制、错误回退及原生 WebView 绘图。资源更新与验证入口见 `docs/DEVELOPMENT.md` 的 Mermaid 小节。
+
+验证结果：前端生产构建及 40 项测试通过；Web/Desktop 浏览器预览与编辑切换回归通过，Linux WebKitGTK 离线图表和 sandbox 消息验证通过；Flutter 静态检查、全量 839 项测试通过（10 项原有跳过），Android 模拟器原生图表集成测试通过。iOS 原生、macOS/Windows 桌面运行验证尚未在本机执行。
