@@ -51,7 +51,7 @@ flutter build ios
 
 部分 Android 设备的 SQLite `CursorWindow` 只有 2 MiB；即使使用 `LIMIT 1`，超过该大小的正文仍不能整行读出。笔记、共享正文、历史正文和新建笔记请求快照使用 `queryLargeValues`：普通字段正常读取，大文本按 256 KiB 的 UTF-8 字节块读取并完整还原。元数据与分块处于同一事务，避免读到并发修改前后的混合内容。无需清空缓存或迁移数据库结构。
 
-本机回归：`flutter test test/data/large_note_storage_test.dart`。Android 实机回归：`flutter test integration_test/android_large_note_test.dart -d <设备ID>`。实机测试只创建并删除独立临时数据库，不连接真实服务端，不读写现有账号库；测试安装包运行完需重新构建并安装普通应用。
+本机回归：`flutter test test/data/large_note_storage_test.dart`。Android 原生回归仅在模拟器或专用测试设备上运行：`flutter test --no-uninstall integration_test/android_large_note_test.dart -d <测试设备ID>`。测试用例只创建并删除独立临时数据库，不连接真实服务端；但安装器仍使用日常应用的包名，数据库夹具隔离不代表安装过程不会影响应用数据。测试安装包运行完需重新构建并覆盖安装普通应用。
 
 ## 同步取消与账号隔离
 
@@ -165,6 +165,8 @@ tag 必须匹配 `pubspec.yaml` 的版本，发布前复用上述 CI 测试。
 
 ### 原生设备专项
 
+原生集成测试仅使用模拟器或专用测试设备，不直接在保存日常账号数据的手机上运行。当前 Flutter 的 `flutter test integration_test/...` 默认在结束时卸载测试应用；测试包与普通应用包名相同，卸载会删除登录凭据和本地缓存。以下命令显式加上 `--no-uninstall`，阻止测试结束后的自动卸载；它不能代替设备隔离，也不能保护因签名冲突等原因发生的卸载重装。
+
 `integration_test/native_smoke_test.dart` 使用真实设备插件，检查临时 SQLite
 数据库关闭重开后正文及格式保留、安全存储读取，以及 WebView 中富文本加粗和撤销。
 iOS 还检查真实通道能否访问 App Group 收件箱，不认领或删除现有分享。
@@ -172,14 +174,14 @@ iOS 还检查真实通道能否访问 App Group 收件箱，不认领或删除�
 不能作为真实 API2 登录或同步验收证据。
 
 ```sh
-flutter test --no-pub integration_test/native_smoke_test.dart -d emulator-5554
+flutter test --no-pub --no-uninstall integration_test/native_smoke_test.dart -d emulator-5554
 ```
 
 替换设备 ID 可用于其他已连接的测试设备。iOS 使用下节的 Xcode 环境脚本：
 
 ```sh
 DEVELOPER_DIR=/Volumes/LC128G/Applications/Xcode.app/Contents/Developer \
-  bash scripts/with_xcode.sh ~/opt/flutter/bin/flutter test --no-pub \
+  bash scripts/with_xcode.sh ~/opt/flutter/bin/flutter test --no-pub --no-uninstall \
   integration_test/native_smoke_test.dart -d <iOS模拟器ID>
 ```
 
@@ -199,7 +201,7 @@ flutter test --no-pub --no-uninstall integration_test/android_runtime_test.dart 
 此入口复用应用锁页面场景，在设备上核对已打开的编辑页和弹窗被锁屏遮住、取消解锁
 继续隐藏、解锁后保留草稿及导航，以及读取锁设置失败后的重试。认证结果由测试提供，
 不会配置设备 PIN 或触发生物识别系统弹窗；不作为真实认证弹窗、系统锁屏或最近任务
-截图的验收证据。`--no-uninstall` 保留安装与已有数据，测试只清理自己的夹具。
+截图的验收证据。`--no-uninstall` 阻止测试结束时自动卸载，测试用例只清理自己的夹具；仍须遵守上述测试设备隔离要求。
 结束后仍需重新构建并覆盖安装普通入口，不能把测试入口当作日常客户端使用。
 
 ### iOS 原生权限文案
