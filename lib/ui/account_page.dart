@@ -70,7 +70,7 @@ class _AccountPageState extends State<AccountPage> {
             .showSnackBar(SnackBar(content: Text(tr(context, 'm0042'))));
       }
     } on Object catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) setState(() => _error = AppStrings.snapshot(context).errorMessage(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

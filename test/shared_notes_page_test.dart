@@ -194,12 +194,12 @@ void main() {
       await tester.tap(find.text('Shared title'));
       await tester.pumpAndSettle();
       expect(find.byType(NoteReaderPage), findsNothing);
-      expect(find.textContaining('noPermission'), findsOneWidget);
+      expect(find.textContaining('没有操作权限'), findsOneWidget);
       repo.failList = true;
       await tester.tap(find.byTooltip('刷新共享列表'));
       await tester.pumpAndSettle();
       expect(find.text('Shared title'), findsNothing);
-      expect(find.textContaining('snapshotExpired'), findsOneWidget);
+      expect(find.textContaining('内容或资源已变化'), findsOneWidget);
       repo.failList = false;
       await tester.tap(find.byTooltip('刷新共享列表'));
       await tester.pumpAndSettle();

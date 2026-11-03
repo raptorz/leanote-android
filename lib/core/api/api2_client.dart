@@ -17,6 +17,7 @@ import '../../domain/models/shared_note.dart';
 import '../../domain/models/shared_file.dart';
 import '../../domain/models/sharing_navigation.dart';
 import 'api_exception.dart';
+import '../async/cancellation.dart';
 
 class LoginResult {
   const LoginResult({
@@ -37,6 +38,28 @@ class Api2Client {
 
   static const clientVersion = '1.0.0';
   final http.Client _http;
+
+  http.AbortableRequest _newRequest(String method, Uri uri) =>
+      http.AbortableRequest(
+        method,
+        uri,
+        abortTrigger: Cancellation.current?.whenCancelled,
+      );
+  http.AbortableMultipartRequest _multipart(String method, Uri uri) =>
+      http.AbortableMultipartRequest(
+        method,
+        uri,
+        abortTrigger: Cancellation.current?.whenCancelled,
+      );
+  Future<T> _wait<T>(Future<T> work) =>
+      Cancellation.current?.bind(work) ?? work;
+  Future<http.StreamedResponse> _send(http.BaseRequest request) {
+    Cancellation.current?.check();
+    return _wait(_http.send(request));
+  }
+
+  Future<http.Response> _readResponse(http.StreamedResponse response) =>
+      _wait(http.Response.fromStream(response));
 
   Future<void> updateUsername({
     required Uri server,
@@ -363,19 +386,19 @@ class Api2Client {
   }) async {
     final http.BaseRequest request;
     if (avatar != null) {
-      request = http.MultipartRequest('POST', server.resolve(path))
+      request = _multipart('POST', server.resolve(path))
         ..fields.addAll(fields)
         ..files.add(
           http.MultipartFile.fromBytes('file', avatar, filename: filename),
         );
     } else {
-      request = http.Request('POST', server.resolve(path))..bodyFields = fields;
+      request = _newRequest('POST', server.resolve(path))..bodyFields = fields;
     }
     request.followRedirects = false;
     request.headers['Authorization'] = 'Bearer $token';
     await beforeSend?.call();
     try {
-      final response = await http.Response.fromStream(await _http.send(request))
+      final response = await _readResponse(await _send(request))
           .timeout(const Duration(seconds: 60));
       final result = _decodeMapResponse(response);
       if (result['Ok'] != true) throw const ApiException('invalidResponse');
@@ -383,6 +406,7 @@ class Api2Client {
     } on ApiException {
       rethrow;
     } on Exception {
+      Cancellation.current?.check();
       throw const ApiException('networkUnavailable');
     }
   }
@@ -475,7 +499,7 @@ class Api2Client {
     String fileId,
   ) async {
     final request =
-        http.Request(
+        _newRequest(
             'GET',
             _uri(
               server,
@@ -487,8 +511,7 @@ class Api2Client {
           ..followRedirects = false
           ..headers['Authorization'] = 'Bearer $token';
     try {
-      final response = await _http
-          .send(request)
+      final response = await _send(request)
           .timeout(const Duration(seconds: 15));
       const maxBytes = 8 * 1024 * 1024;
       if (response.statusCode != 200 ||
@@ -507,8 +530,10 @@ class Api2Client {
       final chunks = StreamIterator(response.stream);
       final timer = Stopwatch()..start();
       try {
-        while (await chunks.moveNext().timeout(
-          const Duration(seconds: 15) - timer.elapsed,
+        while (await _wait(
+          chunks.moveNext().timeout(
+            const Duration(seconds: 15) - timer.elapsed,
+          ),
         )) {
           if (bytes.length + chunks.current.length > maxBytes) {
             throw const ApiException('imageTooLarge');
@@ -523,6 +548,7 @@ class Api2Client {
     } on ApiException {
       rethrow;
     } on Exception {
+      Cancellation.current?.check();
       throw const ApiException('imageDownloadFailed');
     }
   }
@@ -545,7 +571,7 @@ class Api2Client {
       throw const ApiException('attachmentNotInNote');
     }
     final request =
-        http.Request(
+        _newRequest(
             'GET',
             _uri(
               server,
@@ -557,8 +583,7 @@ class Api2Client {
           ..followRedirects = false
           ..headers['Authorization'] = 'Bearer $token';
     try {
-      final response = await _http
-          .send(request)
+      final response = await _send(request)
           .timeout(const Duration(seconds: 30));
       const maxBytes = 32 * 1024 * 1024;
       // This endpoint also returns HTTP 200 for errors. Only an actual download
@@ -578,8 +603,10 @@ class Api2Client {
       final chunks = StreamIterator(response.stream);
       final timer = Stopwatch()..start();
       try {
-        while (await chunks.moveNext().timeout(
-          const Duration(seconds: 60) - timer.elapsed,
+        while (await _wait(
+          chunks.moveNext().timeout(
+            const Duration(seconds: 60) - timer.elapsed,
+          ),
         )) {
           if (bytes.length + chunks.current.length > maxBytes) {
             throw const ApiException('attachmentTooLarge');
@@ -594,6 +621,7 @@ class Api2Client {
     } on ApiException {
       rethrow;
     } on Exception {
+      Cancellation.current?.check();
       throw const ApiException('attachmentDownloadFailed');
     }
   }
@@ -611,10 +639,9 @@ class Api2Client {
       throw const ApiException('invalidAvatarUrl');
     }
     // Public static resource: no token, cookies or automatic redirects.
-    final request = http.Request('GET', uri)..followRedirects = false;
+    final request = _newRequest('GET', uri)..followRedirects = false;
     try {
-      final response = await _http
-          .send(request)
+      final response = await _send(request)
           .timeout(const Duration(seconds: 15));
       const maxBytes = 2 * 1024 * 1024;
       if (response.statusCode != 200 ||
@@ -633,8 +660,10 @@ class Api2Client {
       final chunks = StreamIterator(response.stream);
       final timer = Stopwatch()..start();
       try {
-        while (await chunks.moveNext().timeout(
-          const Duration(seconds: 15) - timer.elapsed,
+        while (await _wait(
+          chunks.moveNext().timeout(
+            const Duration(seconds: 15) - timer.elapsed,
+          ),
         )) {
           final chunk = chunks.current;
           if (bytes.length + chunk.length > maxBytes) {
@@ -650,6 +679,7 @@ class Api2Client {
     } on ApiException {
       rethrow;
     } on Exception {
+      Cancellation.current?.check();
       throw const ApiException('avatarDownloadFailed');
     }
   }
@@ -967,7 +997,7 @@ class Api2Client {
     }
     await sharedContent(server: server, token: token, shared: shared);
     final request =
-        http.Request(
+        _newRequest(
             'GET',
             _uri(
               server,
@@ -978,8 +1008,7 @@ class Api2Client {
           ..followRedirects = false
           ..headers['Authorization'] = 'Bearer $token';
     try {
-      final response = await _http
-          .send(request)
+      final response = await _send(request)
           .timeout(const Duration(seconds: 15));
       final digest = response.headers['x-gemsnote-sha256'];
       final isErrorEnvelope =
@@ -1001,8 +1030,10 @@ class Api2Client {
       final chunks = StreamIterator(response.stream);
       final timer = Stopwatch()..start();
       try {
-        while (await chunks.moveNext().timeout(
-          const Duration(seconds: 30) - timer.elapsed,
+        while (await _wait(
+          chunks.moveNext().timeout(
+            const Duration(seconds: 30) - timer.elapsed,
+          ),
         )) {
           if (bytes.length + chunks.current.length > bound) {
             throw const ApiException('sharedFileTooLarge');
@@ -1041,6 +1072,7 @@ class Api2Client {
     } on ApiException {
       rethrow;
     } on Exception {
+      Cancellation.current?.check();
       throw const ApiException('sharedFileDownloadFailed');
     }
   }
@@ -1402,15 +1434,16 @@ class Api2Client {
     final uri = _uri(server, path, token: token);
     late http.Response response;
     try {
-      final request = http.Request('POST', uri)
+      final request = _newRequest('POST', uri)
         ..followRedirects = false
         ..headers['Authorization'] = 'Bearer $token'
         ..bodyFields = fields;
       if (language != null) request.headers['Accept-Language'] = language;
-      response = await (() async => http.Response.fromStream(
-        await _http.send(request),
+      response = await (() async => _readResponse(
+        await _send(request),
       ))().timeout(const Duration(minutes: 2));
     } on Exception {
+      Cancellation.current?.check();
       throw const ApiException('networkUnavailable');
     }
     return _decodeResponse(response);
@@ -1463,7 +1496,7 @@ class Api2Client {
     final uri = _uri(server, path, token: token, query: query);
     late http.Response response;
     try {
-      final request = http.Request(method, uri)..followRedirects = false;
+      final request = _newRequest(method, uri)..followRedirects = false;
       if (token != null && token.isNotEmpty) {
         request.headers['Authorization'] = 'Bearer $token';
       }
@@ -1471,10 +1504,11 @@ class Api2Client {
         request.headers['Content-Type'] = 'application/json';
         request.body = jsonEncode(body);
       }
-      response = await (() async => http.Response.fromStream(
-        await _http.send(request),
+      response = await (() async => _readResponse(
+        await _send(request),
       ))().timeout(const Duration(seconds: 60));
     } on Exception {
+      Cancellation.current?.check();
       throw const ApiException('networkUnavailable');
     }
     return _decodeResponse(response);

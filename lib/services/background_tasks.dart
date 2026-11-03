@@ -1,4 +1,8 @@
 import 'dart:ui';
+import 'dart:async';
+
+import '../core/async/cancellation.dart';
+import '../data/database/session_transition.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -49,15 +53,27 @@ Future<bool> runBackgroundNoteSync() async {
       const SecureSessionStore(),
       SyncCoordinator(api, database),
     );
+    final epoch = await SessionTransition.read(
+      database.raw,
+      SessionTransition.epochKey,
+    );
     final session = await repository.restore();
     if (session == null || !await repository.autoSync(session)) return true;
-    await repository.synchronize(session);
+    await runZoned(
+      () => repository.synchronize(session),
+      zoneValues: {SessionTransition.expectedEpochKey: epoch},
+    );
+    return true;
+  } on SyncCancelled {
     return true;
   } on PendingVisualImage {
     // The original image must be supplied from the editor before a later run.
     return true;
   } on StateError catch (error) {
-    if (error.message == 'syncInProgress') return true;
+    if (error.message == 'syncInProgress' ||
+        error.message == 'sessionChangeInProgress') {
+      return true;
+    }
     return false;
   } on Object {
     return false;
@@ -81,6 +97,10 @@ Future<bool> runBackgroundResourceCache() async {
       const SecureSessionStore(),
       SyncCoordinator(api, database),
     );
+    final epoch = await SessionTransition.read(
+      database.raw,
+      SessionTransition.epochKey,
+    );
     final session = await repository.restore();
     if (session == null || !await repository.autoCacheFiles(session)) {
       return true;
@@ -88,32 +108,61 @@ Future<bool> runBackgroundResourceCache() async {
     final queue = repository.fileCacheQueue(session);
     Future<void> checkAccount() async {
       final active = await database.activeAccount();
-      if (active?.cacheKey != session.account.cacheKey ||
+      if (epoch !=
+              await SessionTransition.read(
+                database.raw,
+                SessionTransition.epochKey,
+              ) ||
+          SessionTransition.alive(
+            await SessionTransition.read(
+              database.raw,
+              SessionTransition.gateKey,
+            ),
+          ) ||
+          active?.cacheKey != session.account.cacheKey ||
           !await repository.autoCacheFiles(session)) {
         queue.cancel();
-        throw StateError('backgroundCacheAccountChanged');
+        throw const SyncCancelled();
       }
     }
 
-    await queue.run(
-      (await repository.notes(session.account.cacheKey))
-          .where((note) => note.usn > 0)
-          .map((note) => note.noteId)
-          .toList(),
-      listFiles: (id) async {
-        await checkAccount();
-        return repository.noteFiles(session, id);
-      },
-      download: (id, file) async {
-        await checkAccount();
-        if (file.isAttachment) {
-          await repository.noteAttachment(session, id, file);
-        } else {
-          await repository.noteImage(session, id, file);
-        }
-      },
-      onProgress: (_, _, _) {},
-    );
+    Future<void>? checking;
+    final watcher = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (checking != null) return;
+      checking = checkAccount()
+          .catchError((Object _) {
+            queue.cancel();
+          })
+          .whenComplete(() {
+            checking = null;
+          });
+    });
+    try {
+      await checkAccount();
+      await queue.run(
+        (await repository.notes(session.account.cacheKey))
+            .where((note) => note.usn > 0)
+            .map((note) => note.noteId)
+            .toList(),
+        listFiles: (id) async {
+          await checkAccount();
+          return repository.noteFiles(session, id);
+        },
+        download: (id, file) async {
+          await checkAccount();
+          if (file.isAttachment) {
+            await repository.noteAttachment(session, id, file);
+          } else {
+            await repository.noteImage(session, id, file);
+          }
+        },
+        onProgress: (_, _, _) {},
+      );
+    } finally {
+      watcher.cancel();
+      await checking;
+    }
+    if (queue.cancelled) return true;
     final active = await database.activeAccount();
     if (active?.cacheKey != session.account.cacheKey ||
         !await repository.autoCacheFiles(session)) {
@@ -121,6 +170,8 @@ Future<bool> runBackgroundResourceCache() async {
     }
     final status = await repository.downloadQueueStatus(session);
     return status.failed == 0;
+  } on SyncCancelled {
+    return true;
   } on Object {
     return false;
   } finally {

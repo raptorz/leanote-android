@@ -66,6 +66,7 @@ class _LoginPageState extends State<LoginPage> {
       if (!pending.hasCache || reset) {
         await showSyncProgress(
           context,
+          cancel: widget.repository.cancelSync,
           synchronize: (progress) async {
             session = await widget.repository.completeLogin(
               pending,
@@ -260,16 +261,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  String _message(Object error) {
-    final code = error.toString();
-    return switch (code) {
-      'networkUnavailable' => trNow(context, 'm0151'),
-      'serverMigrationRequired' => trNow(context, 'm0152'),
-      'clientUpgradeRequired' => trNow(context, 'm0153'),
-      'serverUpgradeRequired' => trNow(context, 'm0154'),
-      'invalidServerAddress' ||
-      'FormatException: invalidServerAddress' => trNow(context, 'm0155'),
-      _ => trNow(context, 'm0156', [code]),
-    };
-  }
+  String _message(Object error) =>
+      AppStrings.snapshot(context).errorMessage(error);
 }

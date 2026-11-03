@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../core/async/cancellation.dart';
+
 import '../domain/models/note_file.dart';
 import '../data/database/file_download_journal.dart';
 import 'file_cache_batch.dart';
@@ -11,15 +13,31 @@ class AccountFileCache {
   AccountFileCache({this.journal});
   final FileDownloadJournal? journal;
   bool _cancelled = false;
+  final _cancellation = Cancellation();
   bool _started = false;
   bool get cancelled => _cancelled;
   FileCacheBatch? _batch;
   void cancel() {
     _cancelled = true;
+    _cancellation.cancel();
     _batch?.cancel();
   }
 
   Future<void> run(
+    List<String> noteIds, {
+    required Future<List<NoteFile>> Function(String) listFiles,
+    required Future<void> Function(String, NoteFile) download,
+    required void Function(int notes, int files, int failures) onProgress,
+  }) => _cancellation.run(
+    () => _run(
+      noteIds,
+      listFiles: listFiles,
+      download: download,
+      onProgress: onProgress,
+    ),
+  );
+
+  Future<void> _run(
     List<String> noteIds, {
     required Future<List<NoteFile>> Function(String) listFiles,
     required Future<void> Function(String, NoteFile) download,
@@ -68,6 +86,8 @@ class AccountFileCache {
         );
         files += result.completed;
         failures += result.failed.length;
+      } on SyncCancelled {
+        break;
       } on Object {
         failures++;
       } finally {
@@ -114,6 +134,8 @@ class AccountFileCache {
                 await download(job.noteId, file);
               }
               await journal.finishFile(job, file, success: true);
+            } on SyncCancelled {
+              rethrow;
             } on Object {
               await journal.finishFile(job, file, success: false);
               rethrow;
@@ -127,6 +149,8 @@ class AccountFileCache {
         );
         files += result.completed;
         failures += result.failed.length;
+      } on SyncCancelled {
+        break;
       } on Object {
         failures++;
         await journal.failList(job);

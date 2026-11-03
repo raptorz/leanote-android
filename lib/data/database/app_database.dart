@@ -3,6 +3,9 @@ import '../../domain/models/note_creation_review.dart';
 import '../../domain/models/notebook_conflict.dart';
 
 import 'dart:convert';
+
+import '../../core/async/cancellation.dart';
+
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -797,6 +800,7 @@ class AppDatabase {
     String? expectedNoteSnapshot,
   }) async {
     await raw.transaction((txn) async {
+      Cancellation.current?.check();
       final pending = await txn.query(
         'notes',
         columns: ['server_id'],
@@ -888,7 +892,9 @@ class AppDatabase {
           'usn': _integer(tag['Usn']),
         });
       }
+      Cancellation.current?.check();
       await batch.commit(noResult: true);
+      Cancellation.current?.check();
     });
   }
 
@@ -900,6 +906,7 @@ class AppDatabase {
     required int lastSyncUsn,
   }) async {
     await raw.transaction((txn) async {
+      Cancellation.current?.check();
       // New edits may have been saved while the network requests were running.
       // Keep the cursor unchanged so this remote page is retried next time.
       for (final note in notes) {
@@ -981,7 +988,9 @@ class AppDatabase {
         where: 'account_id = ?',
         whereArgs: [account.cacheKey],
       );
+      Cancellation.current?.check();
       await batch.commit(noResult: true);
+      Cancellation.current?.check();
     });
   }
 

@@ -94,7 +94,13 @@ void main() {
         repo.state = 'failed';
         await tester.pump(const Duration(seconds: 2));
         await tester.pumpAndSettle();
-        expect(find.text('SMTP rejected'), findsOneWidget);
+        expect(
+          find.text(
+            AppStrings(Locale(english ? 'en' : 'zh')).text('errorGeneric'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('SMTP rejected'), findsNothing);
         expect(find.textContaining('old@test.com'), findsOneWidget);
         expect(
           find.text(

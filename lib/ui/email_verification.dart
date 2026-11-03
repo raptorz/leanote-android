@@ -71,12 +71,17 @@ class _EmailVerificationState extends State<EmailVerification> {
         _state = result['State']?.toString() ?? '';
         _error = (result['Error']?.toString() ?? '').isEmpty
             ? null
-            : ApiException(result['Error'].toString()).toString();
+            : AppStrings.snapshot(context)
+                  .errorMessage(ApiException(result['Error'].toString()));
         if (_state == 'sent' || _state == 'failed') _task = null;
       });
       if (_task != null) _timer = Timer(const Duration(seconds: 2), _check);
     } on Object catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) {
+        setState(
+          () => _error = AppStrings.snapshot(context).errorMessage(error),
+        );
+      }
     } finally {
       if (mounted) setState(() => _checking = false);
     }
@@ -138,7 +143,9 @@ class _EmailVerificationState extends State<EmailVerification> {
     } on Object catch (error) {
       if (mounted) {
         _password.clear();
-        setState(() => _error = error.toString());
+        setState(
+          () => _error = AppStrings.snapshot(context).errorMessage(error),
+        );
       }
     } finally {
       if (mounted) setState(() => _sending = false);

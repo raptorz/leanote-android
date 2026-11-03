@@ -1,6 +1,11 @@
+import 'dart:async';
+
+import '../data/database/session_transition.dart';
 import '../data/database/note_creation_journal.dart';
 
 import 'dart:convert';
+
+import '../core/async/cancellation.dart';
 
 import 'package:crypto/crypto.dart' as crypto;
 
@@ -1020,8 +1025,10 @@ class AuthRepository {
   }
 
   /// Switching is local: keep dirty rows and credentials for every other account.
-  Future<StoredSession> switchAccount(String accountKey) async {
-    if (_sync.isBusy) throw StateError('syncInProgress');
+  Future<StoredSession> switchAccount(String accountKey) =>
+      _sync.changeSession(() => _switchAccount(accountKey));
+
+  Future<StoredSession> _switchAccount(String accountKey) async {
     final accounts = await _database.cachedAccounts();
     final account = accounts.where((a) => a.cacheKey == accountKey).firstOrNull;
     if (account == null) throw StateError('accountCacheMissing');
@@ -1029,7 +1036,6 @@ class AuthRepository {
     if (token == null || token.isEmpty) {
       throw StateError('accountLoginRequired');
     }
-    if (_sync.isBusy) throw StateError('syncInProgress');
     await _database.activateCachedAccount(account);
     return StoredSession(account: account, token: token);
   }
@@ -1061,7 +1067,39 @@ class AuthRepository {
     );
   }
 
+  Cancellation? _loginCancellation;
+  final _syncRequests = <Cancellation>{};
+
+  Future<void> cancelSync() async {
+    _loginCancellation?.cancel();
+    for (final request in _syncRequests) {
+      request.cancel();
+    }
+    await _sync.cancel();
+  }
+
   Future<StoredSession> completeLogin(
+    PendingLogin login, {
+    required bool resetCache,
+    SyncProgressCallback? onProgress,
+  }) async {
+    final cancellation = Cancellation();
+    if (_loginCancellation != null) throw StateError('sessionChangeInProgress');
+    _loginCancellation = cancellation;
+    try {
+      return await _sync.changeSession(
+        () => _completeLogin(
+          login,
+          resetCache: resetCache,
+          onProgress: onProgress,
+        ),
+      );
+    } finally {
+      _loginCancellation = null;
+    }
+  }
+
+  Future<StoredSession> _completeLogin(
     PendingLogin login, {
     required bool resetCache,
     SyncProgressCallback? onProgress,
@@ -1069,18 +1107,34 @@ class AuthRepository {
     final previous = await _database.activeAccount();
     try {
       final session = login.session;
-      if (login.hasCache && resetCache) {
-        await _sync.resetFromServer(
-          account: session.account,
-          token: session.token,
-          onProgress: onProgress,
-        );
-      } else if (!login.hasCache) {
-        await _sync.downloadFreshSnapshot(
-          account: session.account,
-          token: session.token,
-          onProgress: onProgress,
-        );
+      try {
+        _loginCancellation?.check();
+        if (login.hasCache && resetCache) {
+          await _sync.resetFromServer(
+            account: session.account,
+            token: session.token,
+            onProgress: onProgress,
+          );
+        } else if (!login.hasCache) {
+          await _sync.downloadFreshSnapshot(
+            account: session.account,
+            token: session.token,
+            onProgress: onProgress,
+          );
+        }
+      } on SyncCancelled {
+        // Authentication succeeded. Keep the old cache (or an empty account)
+        // and let the user resume manually; do not immediately auto-sync again.
+        if (!await _database.hasAccountCache(session.account.cacheKey)) {
+          await _database.replaceSnapshot(
+            account: session.account,
+            notebooks: [],
+            notes: [],
+            tags: [],
+            lastSyncUsn: 0,
+          );
+        }
+        await _database.setAutoSync(session.account.cacheKey, false);
       }
       await _sessions.write(session.account.cacheKey, session.token);
       await _database.activateCachedAccount(session.account);
@@ -1121,6 +1175,25 @@ class AuthRepository {
   }
 
   Future<void> logout(
+    StoredSession session, {
+    bool discardSessionWithPendingChanges = false,
+  }) async {
+    // Keep the existing protection for independently initiated mutations.
+    // Sync jobs are cancellable, but an explicit upload/edit should finish
+    // before its UI can log out and discard the active credentials.
+    if (_sync.metadataUpdating) throw StateError('metadataUpdateInProgress');
+    if (_sync.attachmentUploading) {
+      throw StateError('attachmentUploadInProgress');
+    }
+    await _sync.changeSession(
+      () => _logout(
+        session,
+        discardSessionWithPendingChanges: discardSessionWithPendingChanges,
+      ),
+    );
+  }
+
+  Future<void> _logout(
     StoredSession session, {
     bool discardSessionWithPendingChanges = false,
   }) async {
@@ -2411,34 +2484,69 @@ class AuthRepository {
   Future<void> saveNote(StoredSession session, Note note) =>
       _database.saveLocalNote(session.account.cacheKey, note);
 
+  Future<void> _inActiveSession(
+    StoredSession session,
+    Future<void> Function() action,
+  ) async {
+    final cancellation = Cancellation();
+    _syncRequests.add(cancellation);
+    try {
+      final epoch =
+          SessionTransition.expectedEpoch ??
+          await SessionTransition.read(
+            _database.raw,
+            SessionTransition.epochKey,
+          );
+      final active = await _database.activeAccount();
+      cancellation.check();
+      if (active?.cacheKey != session.account.cacheKey) {
+        throw const SyncCancelled();
+      }
+      await runZoned(
+        () => cancellation.run(action),
+        zoneValues: {SessionTransition.expectedEpochKey: epoch},
+      );
+      cancellation.check();
+    } finally {
+      _syncRequests.remove(cancellation);
+    }
+  }
+
   Future<void> resetFromServer(
     StoredSession session, {
     SyncProgressCallback? onProgress,
-  }) async {
+  }) => _inActiveSession(session, () async {
     final profile = await cachedProfile(session);
+    Cancellation.current?.check();
     await _sync.resetFromServer(
       account: profile,
       token: session.token,
       onProgress: onProgress,
     );
-  }
+  });
 
   Future<void> synchronizeFull(
     StoredSession session, {
     SyncProgressCallback? onProgress,
-  }) => _sync.synchronizeFull(
-    account: session.account,
-    token: session.token,
-    onProgress: onProgress,
+  }) => _inActiveSession(
+    session,
+    () => _sync.synchronizeFull(
+      account: session.account,
+      token: session.token,
+      onProgress: onProgress,
+    ),
   );
 
   Future<void> synchronize(
     StoredSession session, {
     SyncProgressCallback? onProgress,
-  }) => _sync.synchronize(
-    account: session.account,
-    token: session.token,
-    onProgress: onProgress,
+  }) => _inActiveSession(
+    session,
+    () => _sync.synchronize(
+      account: session.account,
+      token: session.token,
+      onProgress: onProgress,
+    ),
   );
 
   static Uri normalizeServer(String value) {

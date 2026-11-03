@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import '../core/async/cancellation.dart';
+import '../data/database/session_transition.dart';
+
 import '../domain/models/note_bundle.dart';
 import '../core/api/api2_client.dart';
 import '../core/api/api_exception.dart';
@@ -44,6 +47,57 @@ class SyncCoordinator {
   final Api2Client _api;
   final AppDatabase _database;
   Future<void>? _running;
+  Cancellation? _cancellation;
+  Future<void> cancel() async {
+    _cancellation?.cancel();
+    try {
+      await _running;
+    } on Object {
+      /* The owning request reports failure. */
+    }
+  }
+
+  Future<T> changeSession<T>(Future<T> Function() action) async {
+    final gate = SessionTransition(_database.raw);
+    final owner = await gate.begin();
+    Timer? heartbeat;
+    Future<void>? renewal;
+    Object? renewalError;
+    try {
+      await cancel();
+      // Workers in other isolates observe the epoch, abort HTTP, then release
+      // their SQLite lease. Never delete a live lease to force a switch.
+      final deadline = DateTime.now().add(const Duration(seconds: 15));
+      while (SessionTransition.alive(
+        await SessionTransition.read(_database.raw, 'sync_run_lease'),
+      )) {
+        if (DateTime.now().isAfter(deadline)) {
+          throw StateError('sessionChangeTimedOut');
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      heartbeat = Timer.periodic(const Duration(minutes: 1), (_) {
+        renewal = gate.renew(owner).catchError((Object error) {
+          renewalError = error;
+          _cancellation?.cancel();
+        });
+      });
+      final result = await runZoned(
+        action,
+        zoneValues: {SessionTransition.zoneKey: owner},
+      );
+      if (renewalError != null) throw renewalError!;
+      return result;
+    } finally {
+      heartbeat?.cancel();
+      try {
+        await renewal;
+      } finally {
+        await gate.release(owner);
+      }
+    }
+  }
+
   bool _uploadingOnly = false;
   bool _resetting = false;
   bool _fullSync = false;
@@ -54,33 +108,63 @@ class SyncCoordinator {
   bool get metadataUpdating => _metadataUpdating;
 
   Future<void> _withRunLease(Future<void> Function() action) async {
+    final cancellation = _cancellation = Cancellation();
     final lease = SyncRunLease(_database.raw);
-    final owner = await lease.claim();
-    if (owner == null) throw StateError('syncInProgress');
-    var renewing = false;
-    var lost = false;
-    Future<void>? renewal;
-    final heartbeat = Timer.periodic(const Duration(minutes: 1), (_) async {
-      if (renewing) return;
-      renewing = true;
-      renewal = () async {
-        try {
-          if (!await lease.renew(owner)) lost = true;
-        } on Object {
-          lost = true;
-        } finally {
-          renewing = false;
-        }
-      }();
-      await renewal;
-    });
+    String? owner;
+    Timer? heartbeat;
+    Future<void>? checking;
+    var lastRenewal = DateTime.now();
     try {
-      await action();
-      if (lost) throw StateError('syncRunLeaseLost');
+      final epoch =
+          SessionTransition.expectedEpoch ??
+          await SessionTransition.read(
+            _database.raw,
+            SessionTransition.epochKey,
+          );
+      cancellation.check();
+      owner = await lease.claim();
+      if (owner == null) throw StateError('syncInProgress');
+      // The transition may have begun between reading the epoch and claiming.
+      if (epoch !=
+          await SessionTransition.read(
+            _database.raw,
+            SessionTransition.epochKey,
+          )) {
+        cancellation.cancel();
+      }
+      heartbeat = Timer.periodic(const Duration(milliseconds: 200), (_) {
+        if (checking != null) return;
+        checking = () async {
+          try {
+            if (epoch !=
+                await SessionTransition.read(
+                  _database.raw,
+                  SessionTransition.epochKey,
+                )) {
+              cancellation.cancel();
+            }
+            if (DateTime.now().difference(lastRenewal) >=
+                const Duration(minutes: 1)) {
+              if (!await lease.renew(owner!)) cancellation.cancel();
+              lastRenewal = DateTime.now();
+            }
+          } on Object {
+            cancellation.cancel();
+          } finally {
+            checking = null;
+          }
+        }();
+      });
+      await cancellation.run(() async {
+        cancellation.check();
+        await action();
+        cancellation.check();
+      });
     } finally {
-      heartbeat.cancel();
-      await renewal;
-      await lease.release(owner);
+      heartbeat?.cancel();
+      await checking;
+      if (owner != null) await lease.release(owner);
+      if (identical(_cancellation, cancellation)) _cancellation = null;
     }
   }
 
@@ -233,6 +317,7 @@ class SyncCoordinator {
     );
     final tags = await _allTags(account, token, onProgress, afterUsn: afterUsn);
     onProgress?.call(SyncProgress(SyncStage.saving, notes.length));
+    Cancellation.current?.check();
     await _database.mergeChanges(
       account: account,
       notebooks: notebooks,
@@ -604,6 +689,7 @@ class SyncCoordinator {
     final notes = await _allNotes(account, token, onProgress, afterUsn: 0);
     final tags = await _allTags(account, token, onProgress, afterUsn: 0);
     onProgress?.call(SyncProgress(SyncStage.saving, notes.length));
+    Cancellation.current?.check();
     await _database.replaceSnapshot(
       account: account,
       notebooks: notebooks,

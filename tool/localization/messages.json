@@ -3527,5 +3527,113 @@
   "mermaidFailed": {
     "zh": "图表无法渲染，请检查语法或图表大小。",
     "en": "Unable to render diagram. Check the syntax or diagram size."
+  },
+  "syncCancel": {
+    "zh": "取消同步",
+    "en": "Cancel sync"
+  },
+  "syncCancelling": {
+    "zh": "正在取消同步…",
+    "en": "Cancelling sync…"
+  },
+  "syncCancelHint": {
+    "zh": "取消会停止本次同步并暂停自动同步。已保存的数据会保留。",
+    "en": "Cancelling stops this sync and pauses automatic sync. Saved data is retained."
+  },
+  "errorCancelled": {
+    "zh": "同步已取消",
+    "en": "Sync cancelled"
+  },
+  "errorGeneric": {
+    "zh": "操作失败，请重试。如仍失败，请检查服务端或联系管理员。",
+    "en": "The operation failed. Retry, or check the server and contact your administrator if it persists."
+  },
+  "errorCredentials": {
+    "zh": "用户名、邮箱或密码不正确。",
+    "en": "The username, email or password is incorrect."
+  },
+  "errorSession": {
+    "zh": "登录状态已失效，请重新登录。",
+    "en": "Your session has expired. Please sign in again."
+  },
+  "errorDisabled": {
+    "zh": "账号已被禁用，请联系管理员。",
+    "en": "This account is disabled. Contact your administrator."
+  },
+  "errorPermission": {
+    "zh": "没有操作权限。",
+    "en": "You do not have permission to perform this operation."
+  },
+  "errorMissing": {
+    "zh": "内容不存在或已被删除，请刷新后重试。",
+    "en": "The item is missing or has been deleted. Refresh and retry."
+  },
+  "errorInvalidResponse": {
+    "zh": "服务端返回的数据无效，请检查服务端版本或配置。",
+    "en": "The server returned invalid data. Check the server version or configuration."
+  },
+  "errorInvalidRequest": {
+    "zh": "请求参数无效，请刷新后重试。",
+    "en": "The request is invalid. Refresh and retry."
+  },
+  "errorBusy": {
+    "zh": "正在执行同步或上传，请稍后重试。",
+    "en": "A sync or upload is in progress. Please try again shortly."
+  },
+  "errorSessionSwitch": {
+    "zh": "旧账号的任务仍在结束，请稍后重试切换。",
+    "en": "The previous account’s tasks are still stopping. Retry switching shortly."
+  },
+  "errorAccountMismatch": {
+    "zh": "账号已切换或数据不属于此账号，请返回后重试。",
+    "en": "The account changed or the data belongs to another account. Go back and retry."
+  },
+  "errorCacheMissing": {
+    "zh": "未找到此账号的本地缓存，请重新登录。",
+    "en": "No local cache was found for this account. Please sign in again."
+  },
+  "errorConflict": {
+    "zh": "检测到内容冲突，本地修改已保留，请核对后重试。",
+    "en": "A conflict was detected. Your local changes are retained; review them and retry."
+  },
+  "errorChanged": {
+    "zh": "内容或资源已变化，请刷新后重试。",
+    "en": "The content or resource changed. Refresh and retry."
+  },
+  "errorFileDownload": {
+    "zh": "文件下载失败，请检查网络或服务端文件是否存在。",
+    "en": "The file could not be downloaded. Check the network and whether the server file exists."
+  },
+  "errorFileTooLarge": {
+    "zh": "文件过大，请选择较小的文件。",
+    "en": "The file is too large. Choose a smaller file."
+  },
+  "errorFileUnavailable": {
+    "zh": "此资源不属于当前笔记或快照，请刷新后重试。",
+    "en": "This resource does not belong to the current note or snapshot. Refresh and retry."
+  },
+  "errorUploadUnconfirmed": {
+    "zh": "上传结果尚未确认，本地数据已保留，请核实上传结果后重试。",
+    "en": "The upload result is unconfirmed. Local data is retained; verify the result before retrying."
+  },
+  "errorHierarchy": {
+    "zh": "笔记本层级无效，请检查父笔记本后重试。",
+    "en": "The notebook hierarchy is invalid. Check the parent notebooks and retry."
+  },
+  "errorSyncCursor": {
+    "zh": "服务端同步状态异常，请检查服务端并重新同步。",
+    "en": "The server sync state is invalid. Check the server and resync."
+  },
+  "errorSharing": {
+    "zh": "共享操作失败，请刷新后重试。",
+    "en": "The sharing operation failed. Refresh and retry."
+  },
+  "errorNative": {
+    "zh": "无法完成系统操作，请检查应用权限后重试。",
+    "en": "The system operation failed. Check app permissions and retry."
+  },
+  "errorDiskFull": {
+    "zh": "存储空间不足，请释放空间后重试。",
+    "en": "Storage is full. Free some space and retry."
   }
 }

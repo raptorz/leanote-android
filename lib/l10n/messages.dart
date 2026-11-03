@@ -1747,4 +1747,103 @@ const messages = <String, (String, String)>{
     "图表无法渲染，请检查语法或图表大小。",
     "Unable to render diagram. Check the syntax or diagram size.",
   ),
+  "syncCancel": ("取消同步", "Cancel sync"),
+  "syncCancelling": ("正在取消同步…", "Cancelling sync…"),
+  "syncCancelHint": (
+    "取消会停止本次同步并暂停自动同步。已保存的数据会保留。",
+    "Cancelling stops this sync and pauses automatic sync. Saved data is retained.",
+  ),
+  "errorCancelled": ("同步已取消", "Sync cancelled"),
+  "errorGeneric": (
+    "操作失败，请重试。如仍失败，请检查服务端或联系管理员。",
+    "The operation failed. Retry, or check the server and contact your administrator if it persists.",
+  ),
+  "errorCredentials": (
+    "用户名、邮箱或密码不正确。",
+    "The username, email or password is incorrect.",
+  ),
+  "errorSession": (
+    "登录状态已失效，请重新登录。",
+    "Your session has expired. Please sign in again.",
+  ),
+  "errorDisabled": (
+    "账号已被禁用，请联系管理员。",
+    "This account is disabled. Contact your administrator.",
+  ),
+  "errorPermission": (
+    "没有操作权限。",
+    "You do not have permission to perform this operation.",
+  ),
+  "errorMissing": (
+    "内容不存在或已被删除，请刷新后重试。",
+    "The item is missing or has been deleted. Refresh and retry.",
+  ),
+  "errorInvalidResponse": (
+    "服务端返回的数据无效，请检查服务端版本或配置。",
+    "The server returned invalid data. Check the server version or configuration.",
+  ),
+  "errorInvalidRequest": (
+    "请求参数无效，请刷新后重试。",
+    "The request is invalid. Refresh and retry.",
+  ),
+  "errorBusy": (
+    "正在执行同步或上传，请稍后重试。",
+    "A sync or upload is in progress. Please try again shortly.",
+  ),
+  "errorSessionSwitch": (
+    "旧账号的任务仍在结束，请稍后重试切换。",
+    "The previous account’s tasks are still stopping. Retry switching shortly.",
+  ),
+  "errorAccountMismatch": (
+    "账号已切换或数据不属于此账号，请返回后重试。",
+    "The account changed or the data belongs to another account. Go back and retry.",
+  ),
+  "errorCacheMissing": (
+    "未找到此账号的本地缓存，请重新登录。",
+    "No local cache was found for this account. Please sign in again.",
+  ),
+  "errorConflict": (
+    "检测到内容冲突，本地修改已保留，请核对后重试。",
+    "A conflict was detected. Your local changes are retained; review them and retry.",
+  ),
+  "errorChanged": (
+    "内容或资源已变化，请刷新后重试。",
+    "The content or resource changed. Refresh and retry.",
+  ),
+  "errorFileDownload": (
+    "文件下载失败，请检查网络或服务端文件是否存在。",
+    "The file could not be downloaded. Check the network and whether the server file exists.",
+  ),
+  "errorFileTooLarge": (
+    "文件过大，请选择较小的文件。",
+    "The file is too large. Choose a smaller file.",
+  ),
+  "errorFileUnavailable": (
+    "此资源不属于当前笔记或快照，请刷新后重试。",
+    "This resource does not belong to the current note or snapshot. Refresh and retry.",
+  ),
+  "errorUploadUnconfirmed": (
+    "上传结果尚未确认，本地数据已保留，请核实上传结果后重试。",
+    "The upload result is unconfirmed. Local data is retained; verify the result before retrying.",
+  ),
+  "errorHierarchy": (
+    "笔记本层级无效，请检查父笔记本后重试。",
+    "The notebook hierarchy is invalid. Check the parent notebooks and retry.",
+  ),
+  "errorSyncCursor": (
+    "服务端同步状态异常，请检查服务端并重新同步。",
+    "The server sync state is invalid. Check the server and resync.",
+  ),
+  "errorSharing": (
+    "共享操作失败，请刷新后重试。",
+    "The sharing operation failed. Refresh and retry.",
+  ),
+  "errorNative": (
+    "无法完成系统操作，请检查应用权限后重试。",
+    "The system operation failed. Check app permissions and retry.",
+  ),
+  "errorDiskFull": (
+    "存储空间不足，请释放空间后重试。",
+    "Storage is full. Free some space and retry.",
+  ),
 };

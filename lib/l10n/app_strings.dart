@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'messages.dart';
+import 'error_codes.dart';
+import '../core/api/api_exception.dart';
 
 class AppStrings {
   const AppStrings(this.locale);
@@ -39,6 +41,18 @@ class AppStrings {
 
   /// Only for application-generated status/error strings, never note content.
   String translateMessage(String source) {
+    final key = errorMessageKeys[source];
+    if (key != null) return text(key);
+    for (final prefix in [
+      'Bad state: ',
+      'FormatException: ',
+      'Unsupported operation: ',
+      'Exception: ',
+    ]) {
+      if (source.startsWith(prefix)) {
+        return errorMessage(source.substring(prefix.length));
+      }
+    }
     final exact = _sourceKeys[source];
     if (exact != null) return text(exact);
     for (final entry in messages.entries) {
@@ -72,26 +86,43 @@ class AppStrings {
     return source;
   }
 
-  String _argument(Object? value) {
-    if (value is PlatformException) {
-      return 'PlatformException(${value.code}, ${translateMessage(value.message ?? '')}, ${value.details})';
+  /// Never expose raw transport URLs, tokens, platform details or English
+  /// runtime prefixes as user-facing errors. Machine codes remain unchanged.
+  String errorMessage(Object error) {
+    String source;
+    if (error is PlatformException) {
+      final key = errorMessageKeys[error.code];
+      if (key != null) return text(key);
+      final message = error.message ?? '';
+      final translated = translateMessage(message);
+      return translated != message || _sourceKeys.containsKey(message)
+          ? translated
+          : text('errorNative');
     }
-    if (value is Error || value is Exception) {
-      final source = '$value';
-      for (final prefix in [
-        'Bad state: ',
-        'FormatException: ',
-        'Unsupported operation: ',
-        'Exception: ',
-      ]) {
-        if (source.startsWith(prefix)) {
-          return '$prefix${translateMessage(source.substring(prefix.length))}';
-        }
-      }
-      return translateMessage(source);
+    if (error is ApiException) {
+      final key = errorMessageKeys[error.code];
+      if (key != null) return text(key);
+      if (error.statusCode == 401) return text('errorSession');
+      if (error.statusCode == 403) return text('errorPermission');
+      if (error.statusCode == 404) return text('errorMissing');
     }
-    return '$value';
+    source = error is StateError
+        ? error.message
+        : error is FormatException
+        ? error.message
+        : '$error';
+    final translated = translateMessage(source);
+    if (translated != source ||
+        errorMessageKeys.containsKey(source) ||
+        _sourceKeys.containsKey(source) ||
+        messages.values.any((pair) => pair.$2 == source)) {
+      return translated;
+    }
+    return text('errorGeneric');
   }
+
+  String _argument(Object? value) =>
+      value is Error || value is Exception ? errorMessage(value!) : '$value';
 
   String text(String key, [List<Object?> arguments = const []]) {
     final pair = messages[key];

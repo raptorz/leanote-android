@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import 'package:gemsnote/core/api/api_exception.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -52,6 +55,52 @@ void main() {
   });
   const english = AppStrings(Locale('en'));
   const chinese = AppStrings(Locale('zh'));
+  test('API, runtime and platform errors use selected language without private details', () {
+    expect(
+      chinese.errorMessage(const ApiException('wrongUsernameOrPassword')),
+      '用户名、邮箱或密码不正确。',
+    );
+    expect(
+      english.errorMessage(const ApiException('wrongUsernameOrPassword')),
+      'The username, email or password is incorrect.',
+    );
+    expect(
+      chinese.errorMessage(const ApiException('NOTLOGIN')),
+      contains('重新登录'),
+    );
+    expect(
+      english.errorMessage(const ApiException('wrongPassword')),
+      'The current password is incorrect.',
+    );
+    expect(
+      chinese.errorMessage(StateError('syncInProgress')),
+      contains('正在执行同步'),
+    );
+    expect(
+      english.errorMessage(StateError('syncInProgress')),
+      isNot(contains('Bad state')),
+    );
+    expect(
+      chinese.errorMessage(
+        PlatformException(
+          code: 'plugin_error',
+          message: 'raw native error',
+          details: 'secret',
+        ),
+      ),
+      '无法完成系统操作，请检查应用权限后重试。',
+    );
+    for (final strings in [chinese, english]) {
+      expect(
+        strings.errorMessage(Exception('https://old.test/?token=secret')),
+        strings.text('errorGeneric'),
+      );
+      expect(
+        strings.text('m0156', [const ApiException('NOTLOGIN')]),
+        contains(strings.text('errorSession')),
+      );
+    }
+  });
   test(
     'every catalog entry is generated, translated and preserves placeholders',
     () {
@@ -188,7 +237,7 @@ void main() {
     await tester.tap(find.text('简体中文 (Chinese)'));
     await tester.pumpAndSettle();
     expect(repo.preference, 'en');
-    expect(find.textContaining('disk full'), findsOneWidget);
+    expect(find.textContaining('Storage is full'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
   testWidgets('language dialog fits a narrow screen with enlarged text', (

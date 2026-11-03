@@ -140,7 +140,7 @@ void main() {
     );
     await tester.tap(find.text('重试保存'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('disk'), findsOneWidget);
+    expect(find.textContaining('操作失败，请重试'), findsOneWidget);
     expect(find.text('重试保存'), findsOneWidget);
   });
 }

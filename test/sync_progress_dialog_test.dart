@@ -1,11 +1,75 @@
 import 'dart:async';
 
+import 'package:flutter_localizations/flutter_localizations.dart';
+
+import 'package:gemsnote/core/async/cancellation.dart';
+import 'package:gemsnote/l10n/app_strings.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/sync/sync_coordinator.dart';
 import 'package:gemsnote/ui/sync_progress_dialog.dart';
 
 void main() {
+  for (final language in ['zh', 'en']) {
+    testWidgets('cancel uses $language and waits for work and cleanup', (
+      tester,
+    ) async {
+      final work = Completer<void>();
+      final cleanup = Completer<void>();
+      var cancels = 0;
+      Object? received;
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: Locale(language),
+          supportedLocales: const [Locale('zh'), Locale('en')],
+          localizationsDelegates: const [
+            AppStrings.delegate,
+            ...GlobalMaterialLocalizations.delegates,
+          ],
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                try {
+                  await showSyncProgress(
+                    context,
+                    synchronize: (_) => work.future,
+                    cancel: () {
+                      cancels++;
+                      return cleanup.future;
+                    },
+                  );
+                } on Object catch (error) {
+                  received = error;
+                }
+              },
+              child: const Text('start'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('start'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      final cancel = find.text(language == 'zh' ? '取消同步' : 'Cancel sync');
+      await tester.tap(cancel);
+      await tester.pump();
+      expect(
+        find.text(language == 'zh' ? '正在取消同步…' : 'Cancelling sync…'),
+        findsOneWidget,
+      );
+      await tester.tap(cancel);
+      expect(cancels, 1);
+      work.completeError(const SyncCancelled());
+      await tester.pump();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      cleanup.complete();
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(received, isA<SyncCancelled>());
+    });
+  }
+
   testWidgets('progress updates, blocks dismissal and closes on success', (
     tester,
   ) async {

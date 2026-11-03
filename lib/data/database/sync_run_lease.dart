@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'session_transition.dart';
+
 import 'package:sqflite/sqflite.dart';
 
 /// Coordinates sync and metadata writes across foreground/background engines.
@@ -17,6 +19,12 @@ class SyncRunLease {
   ).join();
 
   Future<String?> claim() => database.transaction((txn) async {
+    final gate = await SessionTransition.read(txn, SessionTransition.gateKey);
+    if (SessionTransition.alive(gate) &&
+        (SessionTransition.currentOwner == null ||
+            !gate.startsWith('${SessionTransition.currentOwner}:'))) {
+      return null;
+    }
     final rows = await txn.query(
       'app_preferences',
       columns: ['value'],

@@ -158,7 +158,7 @@ void main() {
       await tester.tap(find.text('导入'));
       await tester.pumpAndSettle();
       expect(attempts, 1);
-      expect(find.textContaining('disk full'), findsOneWidget);
+      expect(find.textContaining('存储空间不足'), findsOneWidget);
       await tester.tap(find.text('导入'));
       await tester.pumpAndSettle();
       expect(attempts, 2);

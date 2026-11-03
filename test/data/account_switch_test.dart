@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:gemsnote/core/async/cancellation.dart';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/core/api/api2_client.dart';
 import 'package:gemsnote/data/database/app_database.dart';
@@ -113,20 +115,30 @@ void main() {
     expect(await db.hasAccountCache(b.cacheKey), true);
   });
   test(
-    'switch refuses while upload is running and succeeds after completion',
+    'switch cancels and drains an old writer before activating another server',
     () async {
       final sync = SyncCoordinator(api, db);
       repo = AuthRepository(api, db, sessions, sync);
       final gate = Completer<void>();
-      final operation = sync.runAttachmentUpload(() => gate.future);
-      await expectLater(repo.switchAccount(b.cacheKey), throwsStateError);
+      final started = Completer<void>();
+      final operation = sync.runAttachmentUpload(() {
+        started.complete();
+        return gate.future;
+      });
+      final cancelled = expectLater(operation, throwsA(isA<SyncCancelled>()));
+      await started.future;
+      var switched = false;
+      final switching = repo.switchAccount(b.cacheKey).then((value) {
+        switched = true;
+        return value;
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(switched, false);
       expect((await db.activeAccount())!.cacheKey, a.cacheKey);
       gate.complete();
-      await operation;
-      expect(
-        (await repo.switchAccount(b.cacheKey)).account.cacheKey,
-        b.cacheKey,
-      );
+      await cancelled;
+      expect((await switching).account.cacheKey, b.cacheKey);
+      expect(sync.isBusy, false);
     },
   );
   test('failed new login rolls back snapshot activation without losing previous drafts', () async {

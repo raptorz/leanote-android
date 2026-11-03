@@ -81,10 +81,16 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
     } on Object catch (error) {
       if (readerContext != null && readerContext.mounted) {
         ScaffoldMessenger.of(readerContext).showSnackBar(
-          SnackBar(content: Text(trMessage(readerContext, error.toString()))),
+          SnackBar(
+            content: Text(
+              AppStrings.snapshot(readerContext).errorMessage(error),
+            ),
+          ),
         );
       } else if (mounted) {
-        setState(() => _error = error.toString());
+        setState(
+          () => _error = AppStrings.snapshot(context).errorMessage(error),
+        );
       }
     } finally {
       _organizing = false;

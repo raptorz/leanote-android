@@ -57,7 +57,7 @@ class _NoteSharingDialogState extends State<NoteSharingDialog> {
         );
       }
     } on Object catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      if (mounted) setState(() => _error = AppStrings.snapshot(context).errorMessage(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

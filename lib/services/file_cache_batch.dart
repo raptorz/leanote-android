@@ -1,3 +1,4 @@
+import '../core/async/cancellation.dart';
 import '../domain/models/note_file.dart';
 
 class FileCacheProgress {
@@ -45,6 +46,9 @@ class FileCacheBatch {
         final file = queue[next++];
         try {
           await download(file);
+        } on SyncCancelled {
+          cancel();
+          break;
         } on Object {
           failed.add(file);
         }

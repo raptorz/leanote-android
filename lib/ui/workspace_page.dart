@@ -1,3 +1,4 @@
+import '../core/async/cancellation.dart';
 import 'note_sharing_dialog.dart';
 import 'shared_by_me_page.dart';
 import 'note_creation_dialog.dart';
@@ -1545,6 +1546,20 @@ class _WorkspacePageState extends State<WorkspacePage>
     if (mounted) await _openReader(note);
   }
 
+  Future<void> _cancelSync() async {
+    // Pause automatic retries, otherwise a deliberately cancelled download
+    // would immediately restart in the foreground or the OS worker.
+    _autoSyncTimer?.cancel();
+    if (mounted) setState(() => _autoSyncEnabled = false);
+    final stopping = widget.repository.cancelSync();
+    try {
+      await widget.repository.setAutoSync(widget.session, false);
+    } finally {
+      await stopping;
+    }
+    await _configureBackgroundSync(false);
+  }
+
   Future<void> _sync({
     bool reset = false,
     bool full = false,
@@ -1572,6 +1587,7 @@ class _WorkspacePageState extends State<WorkspacePage>
       } else {
         await showSyncProgress(
           context,
+          cancel: _cancelSync,
           synchronize: (progress) => reset
               ? widget.repository.resetFromServer(
                   widget.session,
@@ -1606,6 +1622,13 @@ class _WorkspacePageState extends State<WorkspacePage>
       if (mounted && !automatic) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(trNow(context, 'm0505'))));
+      }
+    } on SyncCancelled {
+      if (mounted) {
+        _notebooks = widget.repository.notebooks(
+          widget.session.account.cacheKey,
+        );
+        await _reloadNotes();
       }
     } on Object catch (error) {
       // Upload may have committed earlier notes or restored a stale deletion
@@ -1685,12 +1708,15 @@ class _WorkspacePageState extends State<WorkspacePage>
         if (pending.isNotEmpty || pendingBooks) {
           await showSyncProgress(
             context,
+            cancel: _cancelSync,
             synchronize: (progress) => widget.repository.prepareLogout(
               widget.session,
               onProgress: progress,
             ),
           );
         }
+      } on SyncCancelled {
+        return;
       } on Object {
         if (!mounted) return;
         leavePending = await confirmUnsyncedLogout(context);
