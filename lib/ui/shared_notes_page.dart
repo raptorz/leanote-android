@@ -17,11 +17,13 @@ class SharedNotesPage extends StatefulWidget {
     required this.session,
     this.initialNoteId,
     this.initialCachedOnly = false,
+    this.embedded = false,
   });
   final AuthRepository repository;
   final StoredSession session;
   final String? initialNoteId;
   final bool initialCachedOnly;
+  final bool embedded;
   @override
   State<SharedNotesPage> createState() => _SharedNotesPageState();
 }
@@ -229,6 +231,7 @@ class _SharedNotesPageState extends State<SharedNotesPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
+      automaticallyImplyLeading: !widget.embedded,
       title: Text(tr(context, 'm0376')),
       actions: [
         IconButton(

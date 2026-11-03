@@ -240,7 +240,10 @@ class _WorkspacePageState extends State<WorkspacePage>
   List<Note> _notes = const [];
   Notebook? _selectedNotebook;
   String? _selectedTag;
-  var _showingStarred = false;
+  int _selectedTab = 0;
+  bool _sharedTabVisited = false;
+  List<Note> _starredNotes = const [];
+  bool get _showingStarred => _selectedTab == 1;
   var _showingTrash = false;
   var _showingAll = false;
   var _noteSort = NoteSort.updatedDescending;
@@ -890,8 +893,8 @@ class _WorkspacePageState extends State<WorkspacePage>
     if (mounted) {
       setState(() {
         _selectedNotebook = notebook;
+        _showingAll = false;
         _selectedTag = null;
-        _showingStarred = false;
         _showingTrash = false;
         _notes = notes;
       });
@@ -907,6 +910,10 @@ class _WorkspacePageState extends State<WorkspacePage>
       });
     }
     await _refreshPending();
+    if (_showingStarred) {
+      await _openStarred();
+      return;
+    }
     if (_showingAll) {
       await _openAllNotes();
       return;
@@ -915,14 +922,6 @@ class _WorkspacePageState extends State<WorkspacePage>
       final notes = await widget.repository.notesForTag(
         widget.session.account.cacheKey,
         _selectedTag!,
-      );
-      if (mounted) setState(() => _notes = notes);
-      return;
-    }
-    if (_showingStarred) {
-      final notes = await widget.repository.notes(
-        widget.session.account.cacheKey,
-        starredOnly: true,
       );
       if (mounted) setState(() => _notes = notes);
       return;
@@ -948,7 +947,6 @@ class _WorkspacePageState extends State<WorkspacePage>
       setState(() {
         _selectedNotebook = null;
         _selectedTag = null;
-        _showingStarred = false;
         _showingTrash = false;
         _showingAll = true;
         _notes = notes;
@@ -961,19 +959,26 @@ class _WorkspacePageState extends State<WorkspacePage>
   }
 
   Future<void> _openStarred() async {
-    _selectedTag = null;
-    final notes = await widget.repository.notes(
-      widget.session.account.cacheKey,
-      starredOnly: true,
-    );
-    if (mounted) {
-      setState(() {
-        _selectedNotebook = null;
-        _showingStarred = true;
-        _showingTrash = false;
-        _notes = notes;
-      });
+    try {
+      final notes = await widget.repository.notes(
+        widget.session.account.cacheKey,
+        starredOnly: true,
+      );
+      if (mounted) setState(() => _starredNotes = notes);
+    } on Object catch (error) {
+      if (mounted) {
+        setState(() => _syncError = trNow(context, 'm0489', [error]));
+      }
     }
+  }
+
+  Future<void> _selectTab(int index) async {
+    if (_selectedTab == index) return;
+    setState(() {
+      _selectedTab = index;
+      if (index == 2) _sharedTabVisited = true;
+    });
+    if (index != 2) await _reloadNotes();
   }
 
   Future<void> _openTrash() async {
@@ -985,8 +990,8 @@ class _WorkspacePageState extends State<WorkspacePage>
     if (mounted) {
       setState(() {
         _selectedNotebook = null;
-        _showingStarred = false;
         _showingTrash = true;
+        _showingAll = false;
         _notes = notes;
       });
     }
@@ -1253,8 +1258,8 @@ class _WorkspacePageState extends State<WorkspacePage>
       if (!mounted) return;
       setState(() {
         _selectedTag = tag;
+        _showingAll = false;
         _selectedNotebook = null;
-        _showingStarred = false;
         _showingTrash = false;
         _notes = notes;
       });
@@ -1611,9 +1616,9 @@ class _WorkspacePageState extends State<WorkspacePage>
       if (reset) {
         _selectedNotebook = null;
         _selectedTag = null;
-        _showingStarred = false;
         _showingTrash = false;
         _notes = [];
+        _showingAll = false;
         _expandedNotebooks.clear();
       }
       await _reloadNotes();
@@ -1870,7 +1875,45 @@ class _WorkspacePageState extends State<WorkspacePage>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Scaffold(
+    body: IndexedStack(
+      index: _selectedTab == 2 ? 1 : 0,
+      children: [
+        _buildPersonalPage(context),
+        if (_sharedTabVisited)
+          SharedNotesPage(
+            repository: widget.repository,
+            session: widget.session,
+            embedded: true,
+          )
+        else
+          const SizedBox.shrink(),
+      ],
+    ),
+    bottomNavigationBar: NavigationBar(
+      selectedIndex: _selectedTab,
+      onDestinationSelected: _selectTab,
+      destinations: [
+        NavigationDestination(
+          icon: Icon(Icons.note_outlined),
+          selectedIcon: Icon(Icons.note),
+          label: tr(context, 'm0532'),
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.star_outline),
+          selectedIcon: Icon(Icons.star),
+          label: tr(context, 'm0533'),
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.share_outlined),
+          selectedIcon: Icon(Icons.share),
+          label: tr(context, 'm0534'),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildPersonalPage(BuildContext context) {
     if (_selectedNotebook != null ||
         _showingAll ||
         _selectedTag != null ||
@@ -2046,7 +2089,7 @@ class _WorkspacePageState extends State<WorkspacePage>
           final notebooks = snapshot.data!;
           final rows = NotebookTree(notebooks).visibleRows(_expandedNotebooks);
           return ListView.builder(
-            itemCount: rows.length + 3,
+            itemCount: rows.length + 2,
             itemBuilder: (context, index) {
               if (index == 0) {
                 return ListTile(
@@ -2056,13 +2099,6 @@ class _WorkspacePageState extends State<WorkspacePage>
                 );
               }
               if (index == 1) {
-                return ListTile(
-                  leading: const Icon(Icons.people_outline),
-                  title: Text(tr(context, 'm0376')),
-                  onTap: () => _openReceivedShares(),
-                );
-              }
-              if (index == 2) {
                 return ListTile(
                   leading: const Icon(Icons.share_outlined),
                   title: Text(tr(context, 'sharedByMe')),
@@ -2081,7 +2117,7 @@ class _WorkspacePageState extends State<WorkspacePage>
                   },
                 );
               }
-              final row = rows[index - 3];
+              final row = rows[index - 2];
               final notebook = row.notebook;
               return ListTile(
                 key: ValueKey(notebook.notebookId),
@@ -2218,58 +2254,35 @@ class _WorkspacePageState extends State<WorkspacePage>
               onPressed: _sync,
               child: _syncIcon(),
             ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: 0,
-        onDestinationSelected: (index) {
-          if (index == 1) {
-            _openStarred();
-          } else if (index == 2) {
-            _openReceivedShares();
-          }
-        },
-        destinations: [
-          NavigationDestination(
-            icon: Icon(Icons.note_outlined),
-            selectedIcon: Icon(Icons.note),
-            label: tr(context, 'm0532'),
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.star_outline),
-            selectedIcon: Icon(Icons.star),
-            label: tr(context, 'm0533'),
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.share_outlined),
-            selectedIcon: Icon(Icons.share),
-            label: tr(context, 'm0534'),
-          ),
-        ],
-      ),
     );
   }
 
   Widget _buildNoteList(BuildContext context) {
-    final sortedNotes = _noteSort.apply(_notes);
+    final sortedNotes = _noteSort.apply(
+      _showingStarred ? _starredNotes : _notes,
+    );
     return Scaffold(
       appBar: AppBar(
         bottom: _syncStatus,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => setState(() {
-            _selectedNotebook = null;
-            _selectedTag = null;
-            _showingStarred = false;
-            _showingTrash = false;
-            _showingAll = false;
-          }),
-        ),
+        automaticallyImplyLeading: false,
+        leading: _showingStarred
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => setState(() {
+                  _selectedNotebook = null;
+                  _selectedTag = null;
+                  _showingTrash = false;
+                  _showingAll = false;
+                }),
+              ),
         title: Text(
-          _showingAll
+          _showingStarred
+              ? trNow(context, 'm0533')
+              : _showingAll
               ? trNow(context, 'm0524')
               : _selectedTag ??
-                    (_showingStarred
-                        ? trNow(context, 'm0533')
-                        : _showingTrash
+                    (_showingTrash
                         ? trNow(context, 'm0520')
                         : _selectedNotebook!.title),
         ),
@@ -2324,10 +2337,10 @@ class _WorkspacePageState extends State<WorkspacePage>
               ),
             ),
           Expanded(
-            child: _notes.isEmpty
+            child: sortedNotes.isEmpty
                 ? _EmptyState(label: trNow(context, 'm0537'))
                 : ListView.separated(
-                    itemCount: _notes.length,
+                    itemCount: sortedNotes.length,
                     separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final note = sortedNotes[index];
