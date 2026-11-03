@@ -938,6 +938,8 @@ const messages = <String, (String, String)>{
   ),
   "sortUpdatedDescending": ("修改时间：新到旧", "Modified: newest first"),
   "sortUpdatedAscending": ("修改时间：旧到新", "Modified: oldest first"),
+  "sortCreatedDescending": ("创建时间：降序", "Created: newest first"),
+  "sortCreatedAscending": ("创建时间：升序", "Created: oldest first"),
   "sortTitleAscending": ("标题：升序", "Title: ascending"),
   "sortTitleDescending": ("标题：降序", "Title: descending"),
   "uploadPending": ("待上传", "Waiting to upload"),

@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+import 'package:gemsnote/l10n/app_strings.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gemsnote/domain/models/note.dart';
 import 'package:gemsnote/domain/models/note_sort.dart';
@@ -47,6 +49,55 @@ void main() {
       'c',
       'd',
     ]);
+  });
+  test('creation sorting uses creation dates, offsets, stable IDs and missing dates', () {
+    final notes = [
+      Note.fromJson({
+        'NoteId': 'b',
+        'CreatedTime': '2020-01-01T02:00:00Z',
+        'UpdatedTime': '2026-01-01',
+      }),
+      Note.fromJson({
+        'NoteId': 'c',
+        'CreatedTime': '2020-01-01T09:00:00+08:00',
+        'UpdatedTime': '2026-03-01',
+      }),
+      Note.fromJson({
+        'NoteId': 'a',
+        'CreatedTime': '2020-01-01T02:00:00Z',
+        'UpdatedTime': '2026-02-01',
+      }),
+      Note.fromJson({'NoteId': 'd', 'CreatedTime': ''}),
+      Note.fromJson({'NoteId': 'e', 'CreatedTime': 'bad-date'}),
+    ];
+    expect(NoteSort.createdAscending.apply(notes).map((n) => n.noteId), [
+      'c',
+      'a',
+      'b',
+      'd',
+      'e',
+    ]);
+    expect(NoteSort.createdDescending.apply(notes).map((n) => n.noteId), [
+      'a',
+      'b',
+      'c',
+      'd',
+      'e',
+    ]);
+    expect(
+      NoteSort.createdAscending.apply(notes.reversed).map((n) => n.noteId),
+      ['c', 'a', 'b', 'd', 'e'],
+    );
+    expect(notes.first.noteId, 'b');
+    const english = AppStrings(Locale('en'));
+    expect(
+      english.label(NoteSort.createdAscending.label),
+      'Created: oldest first',
+    );
+    expect(
+      english.label(NoteSort.createdDescending.label),
+      'Created: newest first',
+    );
   });
   test(
     'equal times have the same deterministic order after a shuffled sync',

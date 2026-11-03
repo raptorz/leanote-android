@@ -40,12 +40,14 @@ void main() {
               'NotebookId': 'missing',
               'Title': 'Alpha',
               'UpdatedTime': '2026-01-01',
+              'CreatedTime': '2020-02-01',
             }),
             Note.fromJson({
               'NoteId': 'b',
               'NotebookId': '',
               'Title': 'Beta',
               'UpdatedTime': '2026-02-01',
+              'CreatedTime': '2020-01-01',
             }),
             Note.fromJson({'NoteId': 'c', 'Title': 'Trash', 'IsTrash': true}),
           ],
@@ -87,6 +89,30 @@ void main() {
         tester.getTopLeft(find.text('Beta')).dy,
         lessThan(tester.getTopLeft(find.text('Alpha')).dy),
       );
+      for (final sort in [
+        NoteSort.createdDescending,
+        NoteSort.createdAscending,
+      ]) {
+        await tester.tap(find.byTooltip('笔记排序'));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.ancestor(
+            of: find.text(sort.label),
+            matching: find.byType(CheckedPopupMenuItem<NoteSort>),
+          ),
+        );
+        await settleDatabase();
+        final descending = sort == NoteSort.createdDescending;
+        expect(
+          tester.getTopLeft(find.text(descending ? 'Alpha' : 'Beta')).dy,
+          lessThan(
+            tester.getTopLeft(find.text(descending ? 'Beta' : 'Alpha')).dy,
+          ),
+        );
+        await tester.runAsync(() async {
+          expect(await db.noteSort(account.cacheKey), sort);
+        });
+      }
       await tester.tap(find.byTooltip('笔记排序'));
       await tester.pumpAndSettle();
       await tester.tap(

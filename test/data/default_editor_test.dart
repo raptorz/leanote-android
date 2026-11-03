@@ -129,6 +129,44 @@ void main() {
     },
   );
   test(
+    'v22 upgrade preserves cached work and enables creation sort preferences',
+    () async {
+      final note = await db.createLocalNote(
+        account: a,
+        notebookId: '',
+        isMarkdown: true,
+        content: 'unsynced',
+      );
+      await db.setDefaultEditor(a.cacheKey, DefaultEditor.markdown);
+      await db.raw.execute('DROP TABLE account_note_sort');
+      await db.raw.execute("""CREATE TABLE account_note_sort (
+      account_id TEXT PRIMARY KEY,
+      note_sort TEXT NOT NULL CHECK (note_sort IN (
+        'updatedDescending', 'updatedAscending', 'titleAscending', 'titleDescending'))
+    )""");
+      await db.setNoteSort(a.cacheKey, NoteSort.titleAscending);
+      await db.setNoteSort(b.cacheKey, NoteSort.updatedAscending);
+      await db.raw.setVersion(22);
+      await db.raw.close();
+      db = await AppDatabase.open(databasePath: path);
+      expect(await db.raw.getVersion(), AppDatabase.schemaVersion);
+      expect(await db.noteSort(a.cacheKey), NoteSort.titleAscending);
+      expect(await db.noteSort(b.cacheKey), NoteSort.updatedAscending);
+      expect(await db.defaultEditor(a.cacheKey), DefaultEditor.markdown);
+      expect(await db.pendingNoteIds(a.cacheKey), {note.noteId});
+      expect((await db.dirtyNotes(a.cacheKey)).single.content, 'unsynced');
+      expect(await db.lastSyncUsn(a.cacheKey), 3);
+      await db.setNoteSort(a.cacheKey, NoteSort.createdAscending);
+      await db.setNoteSort(b.cacheKey, NoteSort.createdDescending);
+      await db.raw.close();
+      db = await AppDatabase.open(databasePath: path);
+      expect(await db.noteSort(a.cacheKey), NoteSort.createdAscending);
+      expect(await db.noteSort(b.cacheKey), NoteSort.createdDescending);
+      expect(await db.pendingNoteIds(a.cacheKey), {note.noteId});
+    },
+  );
+
+  test(
     'cache opt-in persists across logout and reset and isolates accounts',
     () async {
       expect(await db.autoCacheFiles(a.cacheKey), false);

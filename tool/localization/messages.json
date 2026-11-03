@@ -2239,6 +2239,14 @@
     "zh": "修改时间：旧到新",
     "en": "Modified: oldest first"
   },
+  "sortCreatedDescending": {
+    "zh": "创建时间：降序",
+    "en": "Created: newest first"
+  },
+  "sortCreatedAscending": {
+    "zh": "创建时间：升序",
+    "en": "Created: oldest first"
+  },
   "sortTitleAscending": {
     "zh": "标题：升序",
     "en": "Title: ascending"

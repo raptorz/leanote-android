@@ -40,7 +40,7 @@ import '../../domain/models/shared_note.dart';
 class AppDatabase {
   AppDatabase._(this.raw);
 
-  static const schemaVersion = 22;
+  static const schemaVersion = 23;
   final Database raw;
 
   static Future<AppDatabase> open({String? databasePath}) async {
@@ -87,6 +87,18 @@ class AppDatabase {
         if (oldVersion < 5) await db.execute(_fileCacheSchema);
         if (oldVersion < 6) await db.execute(_preferencesSchema);
         if (oldVersion < 7) await db.execute(_sortPreferencesSchema);
+        // SQLite CHECK constraints require rebuilding this preferences table.
+        // Existing selections and account caches must survive the upgrade.
+        if (oldVersion >= 7 && oldVersion < 23) {
+          await db.execute(
+            'ALTER TABLE account_note_sort RENAME TO account_note_sort_previous',
+          );
+          await db.execute(_sortPreferencesSchema);
+          await db.execute(
+            'INSERT INTO account_note_sort SELECT account_id, note_sort FROM account_note_sort_previous',
+          );
+          await db.execute('DROP TABLE account_note_sort_previous');
+        }
         if (oldVersion < 8) await db.execute(_cachePreferencesSchema);
         if (oldVersion < 9) {
           final columns = await db.rawQuery('PRAGMA table_info(notebooks)');
@@ -2412,7 +2424,8 @@ class AppDatabase {
       """CREATE TABLE IF NOT EXISTS account_note_sort (
         account_id TEXT PRIMARY KEY,
         note_sort TEXT NOT NULL CHECK (note_sort IN (
-          'updatedDescending', 'updatedAscending', 'titleAscending', 'titleDescending'))
+          'updatedDescending', 'updatedAscending', 'createdDescending', 'createdAscending',
+          'titleAscending', 'titleDescending'))
       )""";
 
   static const _preferencesSchema =
