@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../domain/models/account.dart';
 import '../repositories/auth_repository.dart';
 import 'account_avatar.dart';
+import 'user_groups_page.dart';
 import 'email_verification.dart';
 import 'password_change_dialog.dart';
 import 'avatar_upload_dialog.dart';
@@ -70,7 +71,11 @@ class _AccountPageState extends State<AccountPage> {
             .showSnackBar(SnackBar(content: Text(tr(context, 'm0042'))));
       }
     } on Object catch (error) {
-      if (mounted) setState(() => _error = AppStrings.snapshot(context).errorMessage(error));
+      if (mounted) {
+        setState(
+          () => _error = AppStrings.snapshot(context).errorMessage(error),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -311,6 +316,22 @@ class _AccountPageState extends State<AccountPage> {
                   account: _account,
                 ),
                 _field(tr(context, 'm0045'), _account.userId),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.groups_outlined),
+                  title: Text(tr(context, 'userGroups')),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _busy
+                      ? null
+                      : () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => UserGroupsPage(
+                              repository: widget.repository,
+                              session: widget.session,
+                            ),
+                          ),
+                        ),
+                ),
                 if (widget.appLock case final lock?)
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,

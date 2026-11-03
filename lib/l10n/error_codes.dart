@@ -1,5 +1,8 @@
 // Stable error codes are translated at the presentation boundary.
 const errorMessageKeys = <String, String>{
+  "userExistsInGroup": "groupDuplicate",
+  "forbiddenNotMyGroup": "errorPermission",
+  "notMyGroup": "errorPermission",
   "snapshotExpired": "errorChanged",
   "syncCancelled": "errorCancelled",
   "wrongUsernameOrPassword": "errorCredentials",

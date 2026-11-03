@@ -3635,5 +3635,77 @@
   "errorDiskFull": {
     "zh": "存储空间不足，请释放空间后重试。",
     "en": "Storage is full. Free some space and retry."
+  },
+  "userGroups": {
+    "zh": "用户分组",
+    "en": "User groups"
+  },
+  "groupsDescription": {
+    "zh": "管理用于共享笔记和笔记本的用户分组，需要连接服务端。",
+    "en": "Manage user groups for sharing notes and notebooks. A server connection is required."
+  },
+  "groupCreate": {
+    "zh": "新建分组",
+    "en": "Create group"
+  },
+  "groupRename": {
+    "zh": "重命名分组",
+    "en": "Rename group"
+  },
+  "groupDelete": {
+    "zh": "删除分组",
+    "en": "Delete group"
+  },
+  "groupAddMember": {
+    "zh": "添加成员",
+    "en": "Add member"
+  },
+  "groupRemoveMember": {
+    "zh": "移除成员",
+    "en": "Remove member"
+  },
+  "groupName": {
+    "zh": "分组名称",
+    "en": "Group name"
+  },
+  "groupNameRequired": {
+    "zh": "请输入分组名称",
+    "en": "Enter a group name"
+  },
+  "groupDeleteConfirm": {
+    "zh": "确定删除分组“{0}”吗？通过此分组提供的共享也会取消。",
+    "en": "Delete group “{0}”? Sharing through this group will also be removed."
+  },
+  "groupRemoveConfirm": {
+    "zh": "确定将 {0} 移出此分组吗？",
+    "en": "Remove {0} from this group?"
+  },
+  "groupConfirm": {
+    "zh": "确定",
+    "en": "Confirm"
+  },
+  "groupsEmpty": {
+    "zh": "尚无分组",
+    "en": "No groups yet"
+  },
+  "groupMembersEmpty": {
+    "zh": "暂无成员",
+    "en": "No members yet"
+  },
+  "groupReadOnly": {
+    "zh": "他人创建的分组，仅创建者可以管理成员。",
+    "en": "Only the owner can manage members of this group."
+  },
+  "groupMemberCount": {
+    "zh": "{0} 位成员",
+    "en": "{0} members"
+  },
+  "groupUserMissing": {
+    "zh": "未找到该用户，请检查用户名或邮箱。",
+    "en": "User not found. Check the username or email."
+  },
+  "groupDuplicate": {
+    "zh": "该用户已在分组中。",
+    "en": "This user is already in the group."
   }
 }

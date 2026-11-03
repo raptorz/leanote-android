@@ -83,6 +83,156 @@ void main() {
     databaseFactory = databaseFactoryFfi;
   });
   test(
+    'real API2 groups accept usernames and email with ownership and duplicate checks',
+    () async {
+      final client = _Api2OnlyClient();
+      addTearDown(client.close);
+      final api = Api2Client(httpClient: client);
+      final server = Uri.parse('http://127.0.0.1:19090/');
+      final fixture = FixtureSession(client, server);
+      await fixture.login('admin', 'gemsnote');
+      // A hex-only username must not be interpreted as the target user's ID.
+      final name = DateTime.now().microsecondsSinceEpoch
+          .toRadixString(16)
+          .padLeft(24, 'a');
+      final email = 'group-$name@example.test';
+      final created = await fixture.request('/api2/web/adminRegister', {
+        'username': name,
+        'email': email,
+      });
+      expect(created['Ok'], true);
+      final userId = created['UserId'] as String;
+      expect(userId, isNot(name));
+      await fixture.request('/api2/web/adminResetPwd', {
+        'userId': userId,
+        'pwd': 'Group-test-Password12!',
+      });
+      final owner = await api.login(
+        server: server,
+        identity: 'admin',
+        password: 'gemsnote',
+      );
+      final reader = await api.login(
+        server: server,
+        identity: name,
+        password: 'Group-test-Password12!',
+      );
+      final title = 'Group $name';
+      await api.createGroup(server: server, token: owner.token, title: title);
+      final group = (await api.groups(
+        server: server,
+        token: owner.token,
+      )).singleWhere((g) => g.title == title);
+      await api.addGroupMember(
+        server: server,
+        token: owner.token,
+        groupId: group.groupId,
+        identity: '  ${name.toUpperCase()}  ',
+      );
+      var loaded = (await api.groups(
+        server: server,
+        token: owner.token,
+      )).singleWhere((g) => g.groupId == group.groupId);
+      expect(loaded.members.single.userId, userId);
+      await expectLater(
+        api.addGroupMember(
+          server: server,
+          token: owner.token,
+          groupId: group.groupId,
+          identity: email.toUpperCase(),
+        ),
+        throwsA(
+          isA<ApiException>().having(
+            (e) => e.code,
+            'duplicate',
+            'userExistsInGroup',
+          ),
+        ),
+      );
+      await expectLater(
+        api.addGroupMember(
+          server: server,
+          token: reader.token,
+          groupId: group.groupId,
+          identity: 'admin',
+        ),
+        throwsA(
+          isA<ApiException>().having(
+            (e) => e.code,
+            'ownership',
+            'forbiddenNotMyGroup',
+          ),
+        ),
+      );
+      await expectLater(
+        api.addGroupMember(
+          server: server,
+          token: owner.token,
+          groupId: group.groupId,
+          identity: 'missing-$name',
+        ),
+        throwsA(
+          isA<ApiException>().having((e) => e.code, 'missing', 'userNotExists'),
+        ),
+      );
+      await expectLater(
+        api.addGroupMember(
+          server: server,
+          token: owner.token,
+          groupId: group.groupId,
+          identity: '   ',
+        ),
+        throwsA(
+          isA<ApiException>().having(
+            (e) => e.code,
+            'empty identity',
+            'userNotExists',
+          ),
+        ),
+      );
+      await api.removeGroupMember(
+        server: server,
+        token: owner.token,
+        groupId: group.groupId,
+        userId: userId,
+      );
+      await api.addGroupMember(
+        server: server,
+        token: owner.token,
+        groupId: group.groupId,
+        identity: email.toUpperCase(),
+      );
+      await api.renameGroup(
+        server: server,
+        token: owner.token,
+        groupId: group.groupId,
+        title: '$title renamed',
+      );
+      loaded = (await api.groups(
+        server: server,
+        token: owner.token,
+      )).singleWhere((g) => g.groupId == group.groupId);
+      expect(loaded.members.single.userId, userId);
+      expect(loaded.title, '$title renamed');
+      await api.deleteGroup(
+        server: server,
+        token: owner.token,
+        groupId: group.groupId,
+      );
+      expect(
+        (await api.groups(
+          server: server,
+          token: owner.token,
+        )).any((g) => g.groupId == group.groupId),
+        false,
+      );
+    },
+    skip: enabled
+        ? false
+        : 'Requires an explicitly disposable local API2 server',
+  );
+
+  test(
     'real API2 creation receipts recover notebooks and safely clean unused images',
     () async {
       final client = _Api2OnlyClient();

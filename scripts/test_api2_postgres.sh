@@ -73,7 +73,7 @@ import sys
 root, work = map(Path, sys.argv[1:])
 server = work / "server"
 server.mkdir()
-for name in ("app", "conf", "messages", "database", "public", "go.mod", "go.sum"):
+for name in ("app", "internal", "conf", "messages", "database", "public", "go.mod", "go.sum"):
     source = root / name
     if source.is_dir():
         shutil.copytree(source, server / name, ignore=shutil.ignore_patterns(

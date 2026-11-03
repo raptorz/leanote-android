@@ -1,3 +1,5 @@
+import '../../domain/models/user_group.dart';
+
 import 'dart:convert';
 import 'dart:async';
 import 'dart:typed_data';
@@ -60,6 +62,75 @@ class Api2Client {
 
   Future<http.Response> _readResponse(http.StreamedResponse response) =>
       _wait(http.Response.fromStream(response));
+
+  Future<List<UserGroup>> groups({
+    required Uri server,
+    required String token,
+  }) async {
+    final rows = await _requestList(
+      server: server,
+      path: '/api2/groups',
+      token: token,
+    );
+    try {
+      return rows.map(UserGroup.fromJson).toList();
+    } on Object {
+      throw const ApiException('invalidResponse');
+    }
+  }
+
+  Future<void> _groupAction(
+    Uri server,
+    String token,
+    String action,
+    Map<String, String> fields,
+  ) async {
+    final result = await _requestFormJson(
+      server: server,
+      token: token,
+      path: '/api2/member/group/$action',
+      fields: fields,
+    );
+    if (result['Ok'] != true) throw const ApiException('invalidResponse');
+  }
+
+  Future<void> createGroup({
+    required Uri server,
+    required String token,
+    required String title,
+  }) => _groupAction(server, token, 'addGroup', {'title': title});
+  Future<void> renameGroup({
+    required Uri server,
+    required String token,
+    required String groupId,
+    required String title,
+  }) => _groupAction(server, token, 'updateGroupTitle', {
+    'groupId': groupId,
+    'title': title,
+  });
+  Future<void> deleteGroup({
+    required Uri server,
+    required String token,
+    required String groupId,
+  }) => _groupAction(server, token, 'deleteGroup', {'groupId': groupId});
+  Future<void> addGroupMember({
+    required Uri server,
+    required String token,
+    required String groupId,
+    required String identity,
+  }) => _groupAction(server, token, 'addUser', {
+    'groupId': groupId,
+    'email': identity.trim(),
+  });
+  Future<void> removeGroupMember({
+    required Uri server,
+    required String token,
+    required String groupId,
+    required String userId,
+  }) => _groupAction(server, token, 'deleteUser', {
+    'groupId': groupId,
+    'userId': userId,
+  });
 
   Future<void> updateUsername({
     required Uri server,

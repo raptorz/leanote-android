@@ -1,3 +1,5 @@
+import '../domain/models/user_group.dart';
+
 import 'dart:async';
 
 import '../data/database/session_transition.dart';
@@ -1014,6 +1016,51 @@ class AuthRepository {
   Future<bool> appLockEnabled() => _database.appLockEnabled();
   Future<void> setAppLockEnabled(bool value) =>
       _database.setAppLockEnabled(value);
+
+  Future<List<UserGroup>> groups(StoredSession session) =>
+      _api.groups(server: session.account.server, token: session.token);
+  Future<void> createGroup(StoredSession session, String title) =>
+      _api.createGroup(
+        server: session.account.server,
+        token: session.token,
+        title: title.trim(),
+      );
+  Future<void> renameGroup(
+    StoredSession session,
+    String groupId,
+    String title,
+  ) => _api.renameGroup(
+    server: session.account.server,
+    token: session.token,
+    groupId: groupId,
+    title: title.trim(),
+  );
+  Future<void> deleteGroup(StoredSession session, String groupId) =>
+      _api.deleteGroup(
+        server: session.account.server,
+        token: session.token,
+        groupId: groupId,
+      );
+  Future<void> addGroupMember(
+    StoredSession session,
+    String groupId,
+    String identity,
+  ) => _api.addGroupMember(
+    server: session.account.server,
+    token: session.token,
+    groupId: groupId,
+    identity: identity.trim(),
+  );
+  Future<void> removeGroupMember(
+    StoredSession session,
+    String groupId,
+    String userId,
+  ) => _api.removeGroupMember(
+    server: session.account.server,
+    token: session.token,
+    groupId: groupId,
+    userId: userId,
+  );
 
   Future<List<Account>> savedAccounts() async {
     final result = <Account>[];

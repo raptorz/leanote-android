@@ -55,6 +55,14 @@ API2 的 HTTP 请求在当前任务作用域内使用可中断请求，覆盖响
 
 错误码仅在 UI 层翻译，协议错误码保持不变。登录、同步、附件、共享、账号及系统操作错误遵循应用所选中文/英文；未知错误显示本地化提示，不展示包含 token 的网络地址或原生插件详情。
 
+## 用户分组
+
+账号页的“用户分组”入口提供在线分组列表、新建、重命名、删除和成员增删。自己创建的分组可管理，加入的他人分组仅查看；服务端再次校验创建者权限。成员输入支持用户名或邮箱，去除首尾空白，服务端统一解析用户 ID 并去重。
+
+读取使用 `GET /api2/groups`，写操作使用 `/api2/member/group/*` 与 Bearer token，沿用现有表单字段；`addUser` 的 `email` 字段承载用户名或邮箱。该目录为服务端在线数据，不加入笔记离线 dirty 队列；失败保留输入并显示所选语言的错误，可重试。
+
+验证：`flutter test test/user_groups_test.dart`；真实服务端专项使用 `scripts/test_api2_postgres.sh --plain-name 'real API2 groups accept usernames'`，只连接脚本建立的临时 PostgreSQL/API2 实例。
+
 ## 自动化验证
 
 ### 真实 API2 与 PostgreSQL 联调
