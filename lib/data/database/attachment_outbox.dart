@@ -1,3 +1,5 @@
+import 'large_values.dart';
+
 import '../../domain/models/note_bundle.dart';
 
 import 'dart:math';
@@ -171,7 +173,7 @@ class AttachmentOutbox {
     if (!{'attachment', 'image'}.contains(kind)) {
       throw StateError('invalidResourceKind');
     }
-    final owner = await txn.query(
+    final owner = await txn.queryLargeValues(
       'notes',
       columns: ['server_id'],
       where: 'account_id = ? AND server_id = ? AND owner_server_id = ? AND is_trash = 0 AND local_is_deleted = 0',
@@ -305,7 +307,7 @@ class AttachmentOutbox {
         !RegExp(r'^[0-9a-fA-F]{24}$').hasMatch(remoteId)) {
       throw StateError('图片上传结果尚未确认');
     }
-    final notes = await txn.query(
+    final notes = await txn.queryLargeValues(
       'notes',
       where: 'account_id = ? AND server_id = ? AND owner_server_id = ? AND is_trash = 0 AND local_is_deleted = 0',
       whereArgs: [account.cacheKey, task['note_id'], account.userId],

@@ -1,3 +1,5 @@
+import 'large_values.dart';
+
 import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart';
@@ -25,7 +27,7 @@ class NoteCreationJournal {
   Future<NoteCreationAttempt> prepare(Note local) => database.transaction((
     txn,
   ) async {
-    final current = await txn.query(
+    final current = await txn.queryLargeValues(
       'notes',
       columns: ['owner_server_id'],
       where: 'account_id = ? AND server_id = ? AND usn = 0 AND is_dirty = 1 AND local_is_deleted = 0',
@@ -34,7 +36,7 @@ class NoteCreationJournal {
     if (current.isEmpty || current.single['owner_server_id'] != local.userId) {
       throw StateError('localChangesDuringCreation');
     }
-    final existing = await txn.query(
+    final existing = await txn.queryLargeValues(
       'note_create_attempts',
       where: 'account_id = ? AND note_id = ?',
       whereArgs: [accountId, local.noteId],

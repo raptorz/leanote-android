@@ -36,17 +36,31 @@ class LoginResult {
 }
 
 class Api2Client {
-  Api2Client({http.Client? httpClient}) : _http = httpClient ?? http.Client();
+  Api2Client({
+    http.Client? httpClient,
+    this.requestTimeout = const Duration(seconds: 60),
+    this.noteContentTimeout = const Duration(minutes: 5),
+  }) : _http = httpClient ?? http.Client();
 
   static const clientVersion = '1.0.0';
+  static const syncNotePageSize = 10;
   final http.Client _http;
+  final Duration requestTimeout;
+  final Duration noteContentTimeout;
 
-  http.AbortableRequest _newRequest(String method, Uri uri) =>
-      http.AbortableRequest(
-        method,
-        uri,
-        abortTrigger: Cancellation.current?.whenCancelled,
-      );
+  http.AbortableRequest _newRequest(
+    String method,
+    Uri uri, {
+    Future<void>? abort,
+  }) => http.AbortableRequest(
+    method,
+    uri,
+    abortTrigger: abort == null
+        ? Cancellation.current?.whenCancelled
+        : Cancellation.current == null
+        ? abort
+        : Future.any([abort, Cancellation.current!.whenCancelled]),
+  );
   http.AbortableMultipartRequest _multipart(String method, Uri uri) =>
       http.AbortableMultipartRequest(
         method,
@@ -817,13 +831,14 @@ class Api2Client {
     required Uri server,
     required String token,
     required int afterUsn,
-    int maxEntry = 50,
+    int maxEntry = syncNotePageSize,
   }) async {
     final data = await _requestList(
       server: server,
       path: '/api2/note/getSyncNotesWithContent',
       token: token,
       query: {'afterUsn': '$afterUsn', 'maxEntry': '$maxEntry'},
+      timeout: noteContentTimeout,
     );
     return data.map(Note.fromJson).toList(growable: false);
   }
@@ -1525,6 +1540,7 @@ class Api2Client {
     required String path,
     required String token,
     Map<String, String> query = const {},
+    Duration? timeout,
   }) async {
     final value = await _request(
       server: server,
@@ -1532,6 +1548,7 @@ class Api2Client {
       method: 'GET',
       token: token,
       query: query,
+      timeout: timeout,
     );
     if (value is! List) throw const ApiException('invalidResponse');
     return value.map((item) => _map(item)).toList(growable: false);
@@ -1563,11 +1580,14 @@ class Api2Client {
     String? token,
     Map<String, String> query = const {},
     Object? body,
+    Duration? timeout,
   }) async {
     final uri = _uri(server, path, token: token, query: query);
     late http.Response response;
+    final abort = Completer<void>();
     try {
-      final request = _newRequest(method, uri)..followRedirects = false;
+      final request = _newRequest(method, uri, abort: abort.future)
+        ..followRedirects = false;
       if (token != null && token.isNotEmpty) {
         request.headers['Authorization'] = 'Bearer $token';
       }
@@ -1577,10 +1597,21 @@ class Api2Client {
       }
       response = await (() async => _readResponse(
         await _send(request),
-      ))().timeout(const Duration(seconds: 60));
+      ))().timeout(timeout ?? requestTimeout);
+    } on TimeoutException {
+      Cancellation.current?.check();
+      throw ApiException(
+        path == '/api2/note/getSyncNotesWithContent'
+            ? 'noteDownloadTimedOut'
+            : 'requestTimedOut',
+      );
     } on Exception {
       Cancellation.current?.check();
       throw const ApiException('networkUnavailable');
+    } finally {
+      // Future.timeout alone leaves the underlying HTTP request running. Abort
+      // this request without closing the shared client or another operation.
+      abort.complete();
     }
     return _decodeResponse(response);
   }

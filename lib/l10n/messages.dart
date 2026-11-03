@@ -1876,4 +1876,16 @@ const messages = <String, (String, String)>{
     "User not found. Check the username or email.",
   ),
   "groupDuplicate": ("该用户已在分组中。", "This user is already in the group."),
+  "errorRequestTimedOut": (
+    "服务器响应超时，请稍后重试。",
+    "The server response timed out. Please try again.",
+  ),
+  "errorNoteDownloadTimedOut": (
+    "笔记正文下载超时，本地数据未替换。请检查网络后重试；可取消同步，稍后继续。",
+    "Downloading note bodies timed out. Local data was not replaced. Check your connection and retry, or cancel sync and try later.",
+  ),
+  "loginSyncFailed": (
+    "账号验证成功，但登录后的同步未完成：{0}",
+    "Your account was verified, but the initial sync did not complete: {0}",
+  ),
 };

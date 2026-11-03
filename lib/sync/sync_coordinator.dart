@@ -745,7 +745,7 @@ class SyncCoordinator {
       );
       result.addAll(page);
       progress?.call(SyncProgress(SyncStage.notes, result.length));
-      if (page.isEmpty || page.length < 50) break;
+      if (page.isEmpty || page.length < Api2Client.syncNotePageSize) break;
       final next = page.fold<int>(
         cursor,
         (usn, item) => item.usn > usn ? item.usn : usn,

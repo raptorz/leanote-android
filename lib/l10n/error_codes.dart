@@ -115,6 +115,8 @@ const errorMessageKeys = <String, String>{
   "renderFailed": "errorNative",
   "disk full": "errorDiskFull",
   "networkUnavailable": "m0151",
+  "requestTimedOut": "errorRequestTimedOut",
+  "noteDownloadTimedOut": "errorNoteDownloadTimedOut",
   "serverMigrationRequired": "m0152",
   "clientUpgradeRequired": "m0153",
   "serverUpgradeRequired": "m0154",

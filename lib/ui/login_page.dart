@@ -51,12 +51,14 @@ class _LoginPageState extends State<LoginPage> {
       _busy = true;
       _error = null;
     });
+    var authenticated = false;
     try {
       final pending = await widget.repository.beginLogin(
         serverAddress: _server.text,
         identity: _identity.text,
         password: _password.text,
       );
+      authenticated = true;
       if (!mounted) return;
       final reset = pending.hasCache
           ? await chooseCachedLoginReset(context)
@@ -83,7 +85,13 @@ class _LoginPageState extends State<LoginPage> {
       }
       if (mounted) widget.onSignedIn(session);
     } on Object catch (error) {
-      if (mounted) setState(() => _error = _message(error));
+      if (mounted) {
+        setState(
+          () => _error = authenticated
+              ? trNow(context, 'loginSyncFailed', [_message(error)])
+              : _message(error),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

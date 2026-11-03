@@ -102,6 +102,61 @@ void main() {
     },
   );
 
+  test(
+    'smaller body pages continue by USN without truncating the snapshot',
+    () async {
+      final cursors = <int>[];
+      final received = <int>[];
+      final sync = SyncCoordinator(
+        Api2Client(
+          httpClient: MockClient((request) async {
+            if (request.url.path.endsWith('getSyncState')) {
+              return http.Response('{"LastSyncUsn":30}', 200);
+            }
+            if (!request.url.path.endsWith('getSyncNotesWithContent')) {
+              return http.Response('[]', 200);
+            }
+            expect(request.url.queryParameters['maxEntry'], '10');
+            final cursor = int.parse(request.url.queryParameters['afterUsn']!);
+            cursors.add(cursor);
+            return http.Response(
+              jsonEncode(
+                List.generate(
+                  cursor == 0 ? 10 : 1,
+                  (i) => {
+                    'NoteId': 'n${cursor + i + 1}',
+                    'UserId': account.userId,
+                    'Usn': cursor + i + 1,
+                    'Content': 'body ${cursor + i + 1}',
+                  },
+                ),
+              ),
+              200,
+            );
+          }),
+        ),
+        db,
+      );
+      await sync.downloadFreshSnapshot(
+        account: account,
+        token: 'test-token',
+        onProgress: (value) {
+          if (value.stage == SyncStage.notes) received.add(value.completed);
+        },
+      );
+      expect(cursors, [0, 10]);
+      expect(received, [0, 10, 11]);
+      expect(await db.notes(account.cacheKey), hasLength(11));
+      expect(
+        (await db.notes(account.cacheKey))
+            .firstWhere((n) => n.noteId == 'n11')
+            .content,
+        'body 11',
+      );
+      expect(await db.lastSyncUsn(account.cacheKey), 30);
+    },
+  );
+
   for (final endpoint in [
     'getSyncNotebooks',
     'getSyncNotesWithContent',
@@ -120,7 +175,9 @@ void main() {
                 return http.Response(
                   jsonEncode(
                     List.generate(
-                      endpoint == 'getSyncNotesWithContent' ? 50 : 100,
+                      endpoint == 'getSyncNotesWithContent'
+                          ? Api2Client.syncNotePageSize
+                          : 100,
                       (i) => {
                         'Usn': 5,
                         'NoteId': 'n$i',

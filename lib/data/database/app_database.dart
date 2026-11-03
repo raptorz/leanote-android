@@ -1,3 +1,5 @@
+import 'large_values.dart';
+
 import '../../domain/models/note_bundle.dart';
 import '../../domain/models/note_creation_review.dart';
 import '../../domain/models/notebook_conflict.dart';
@@ -311,7 +313,7 @@ class AppDatabase {
     String accountId,
     List<SharedNote> notes,
   ) => raw.transaction((txn) async {
-    final previous = await txn.query(
+    final previous = await txn.queryLargeValues(
       'shared_notes',
       where: 'account_id = ?',
       whereArgs: [accountId],
@@ -364,7 +366,7 @@ class AppDatabase {
   });
 
   Future<List<SharedNote>> cachedSharedNotes(String accountId) async {
-    final rows = await raw.query(
+    final rows = await raw.queryLargeValues(
       'shared_notes',
       where: 'account_id = ?',
       whereArgs: [accountId],
@@ -403,7 +405,7 @@ class AppDatabase {
   }
 
   Future<Note> cachedSharedContent(String accountId, SharedNote note) async {
-    final rows = await raw.query(
+    final rows = await raw.queryLargeValues(
       'shared_notes',
       where: 'account_id = ? AND note_id = ? AND owner_id = ? AND version = ?',
       whereArgs: [accountId, note.note.noteId, note.note.userId, note.version],
@@ -783,7 +785,7 @@ class AppDatabase {
     String accountId,
   ) async => jsonEncode([
     for (final table in ['notes', 'notebooks'])
-      await db.query(
+      await db.queryLargeValues(
         table,
         where: 'account_id = ?',
         whereArgs: [accountId],
@@ -801,7 +803,7 @@ class AppDatabase {
   }) async {
     await raw.transaction((txn) async {
       Cancellation.current?.check();
-      final pending = await txn.query(
+      final pending = await txn.queryLargeValues(
         'notes',
         columns: ['server_id'],
         where: 'account_id = ? AND is_dirty = 1',
@@ -910,7 +912,7 @@ class AppDatabase {
       // New edits may have been saved while the network requests were running.
       // Keep the cursor unchanged so this remote page is retried next time.
       for (final note in notes) {
-        final pending = await txn.query(
+        final pending = await txn.queryLargeValues(
           'notes',
           columns: ['server_id'],
           where: 'account_id = ? AND server_id = ? AND is_dirty = 1',
@@ -1278,7 +1280,7 @@ class AppDatabase {
   }
 
   Future<bool> hasTagReferences(String accountId, String name) async {
-    final rows = await raw.query(
+    final rows = await raw.queryLargeValues(
       'notes',
       columns: ['tags_json'],
       where: 'account_id = ? AND local_is_deleted = 0',
@@ -1294,7 +1296,7 @@ class AppDatabase {
     String oldName,
     String newName,
   ) => raw.transaction((txn) async {
-    final rows = await txn.query(
+    final rows = await txn.queryLargeValues(
       'notes',
       columns: ['server_id', 'tags_json'],
       where: 'account_id = ? AND local_is_deleted = 0',
@@ -1326,7 +1328,7 @@ class AppDatabase {
     String accountId, {
     bool includeUnused = false,
   }) async {
-    final rows = await raw.query(
+    final rows = await raw.queryLargeValues(
       'notes',
       columns: ['tags_json'],
       where: 'account_id = ? AND is_trash = 0 AND local_is_deleted = 0',
@@ -1388,7 +1390,7 @@ class AppDatabase {
       );
     }
     if (starredOnly) clauses.add('is_starred = 1');
-    final rows = await raw.query(
+    final rows = await raw.queryLargeValues(
       'notes',
       where: clauses.join(' AND '),
       whereArgs: arguments,
@@ -1430,7 +1432,7 @@ class AppDatabase {
 
   /// Re-read one result when it is opened, including concurrent local changes.
   Future<Note?> searchableNote(String accountId, String noteId) async {
-    final rows = await raw.query(
+    final rows = await raw.queryLargeValues(
       'notes',
       where: 'account_id = ? AND server_id = ? AND is_trash = 0 AND local_is_deleted = 0',
       whereArgs: [accountId, noteId],
@@ -1451,7 +1453,7 @@ class AppDatabase {
         .replaceAll('%', r'\%')
         .replaceAll('_', r'\_');
     final pattern = '%$escaped%';
-    return raw.query(
+    return raw.queryLargeValues(
       'notes',
       columns: columns,
       where: '''account_id = ? AND is_trash = 0 AND local_is_deleted = 0
@@ -1517,7 +1519,7 @@ class AppDatabase {
     if (!RegExp(r'^[0-9a-f]{24}$').hasMatch(shareId)) {
       throw const FormatException('invalidShareId');
     }
-    final existing = await txn.query(
+    final existing = await txn.queryLargeValues(
       'notes',
       where: 'account_id = ? AND server_id = ?',
       whereArgs: [account.cacheKey, shareId],
@@ -1569,7 +1571,7 @@ class AppDatabase {
     NoteBundle? bundle,
     String? expectedResources,
   }) => raw.transaction((txn) async {
-    final rows = await txn.query(
+    final rows = await txn.queryLargeValues(
       'notes',
       where: 'account_id = ? AND server_id = ? AND local_is_deleted = 0',
       whereArgs: [account.cacheKey, source.noteId],
@@ -1704,7 +1706,7 @@ class AppDatabase {
         .where((tag) => tag.isNotEmpty)
         .toSet()
         .toList();
-    final rows = await txn.query(
+    final rows = await txn.queryLargeValues(
       'notes',
       where: 'account_id = ? AND server_id = ? AND local_is_deleted = 0',
       whereArgs: [accountId, noteId],
@@ -1734,7 +1736,7 @@ class AppDatabase {
     String title,
     String content,
   ) => raw.transaction((txn) async {
-    final rows = await txn.query(
+    final rows = await txn.queryLargeValues(
       'notes',
       columns: ['title', 'content'],
       where: 'account_id = ? AND server_id = ? AND local_is_deleted = 0',
@@ -1799,7 +1801,7 @@ class AppDatabase {
     String noteId,
     Uint8List bytes,
   ) => raw.transaction((txn) async {
-    final local = await txn.query(
+    final local = await txn.queryLargeValues(
       'notes',
       columns: ['is_markdown'],
       where: 'account_id = ? AND server_id = ? AND owner_server_id = ? AND is_trash = 0 AND local_is_deleted = 0',
@@ -1888,7 +1890,7 @@ class AppDatabase {
         remote.usn <= local.usn) {
       throw StateError('unresolvedNoteDeletion');
     }
-    final rows = await txn.query(
+    final rows = await txn.queryLargeValues(
       'notes',
       where: 'account_id = ? AND server_id = ? AND is_dirty = 1',
       whereArgs: [accountId, local.noteId],
@@ -1909,7 +1911,7 @@ class AppDatabase {
     String accountId,
     String noteId,
   ) async {
-    final rows = await db.query(
+    final rows = await db.queryLargeValues(
       'notes',
       columns: ['server_id'],
       where: 'account_id = ? AND server_id = ? AND local_is_deleted = 0',
@@ -1924,7 +1926,7 @@ class AppDatabase {
     List<NoteHistory> histories,
   ) => raw.transaction((txn) async {
     await _requireLiveNote(txn, accountId, noteId);
-    final old = await txn.query(
+    final old = await txn.queryLargeValues(
       'note_histories',
       where: 'account_id = ? AND note_id = ?',
       whereArgs: [accountId, noteId],
@@ -1981,7 +1983,7 @@ class AppDatabase {
   Future<List<NoteHistory>> cachedHistories(String accountId, String noteId) =>
       raw.transaction((txn) async {
         await _requireLiveNote(txn, accountId, noteId);
-        final rows = await txn.query(
+        final rows = await txn.queryLargeValues(
           'note_histories',
           where: 'account_id = ? AND note_id = ?',
           whereArgs: [accountId, noteId],
@@ -2006,7 +2008,7 @@ class AppDatabase {
     String content,
   ) => raw.transaction((txn) async {
     await _requireLiveNote(txn, accountId, noteId);
-    final previous = await txn.query(
+    final previous = await txn.queryLargeValues(
       'note_histories',
       columns: ['content'],
       where: 'account_id = ? AND note_id = ? AND history_id = ?',
@@ -2035,7 +2037,7 @@ class AppDatabase {
     String historyId,
   ) => raw.transaction((txn) async {
     await _requireLiveNote(txn, accountId, noteId);
-    final rows = await txn.query(
+    final rows = await txn.queryLargeValues(
       'note_histories',
       columns: ['content'],
       where: 'account_id = ? AND note_id = ? AND history_id = ?',
@@ -2070,7 +2072,7 @@ class AppDatabase {
   }
 
   Future<Set<String>> pendingNoteIds(String accountId) async {
-    final rows = await raw.query(
+    final rows = await raw.queryLargeValues(
       'notes',
       columns: ['server_id'],
       where: 'account_id = ? AND is_dirty = 1',
@@ -2080,7 +2082,7 @@ class AppDatabase {
   }
 
   Future<List<Note>> dirtyNotes(String accountId) async {
-    final rows = await raw.query(
+    final rows = await raw.queryLargeValues(
       'notes',
       where: 'account_id = ? AND is_dirty = 1',
       whereArgs: [accountId],
@@ -2106,7 +2108,7 @@ class AppDatabase {
         review.local.isTrash) {
       throw StateError('noteCreationUnavailable');
     }
-    final rows = await txn.query(
+    final rows = await txn.queryLargeValues(
       'notes',
       where: 'account_id = ? AND server_id = ? AND is_dirty = 1 AND local_is_deleted = 0',
       whereArgs: [accountId, review.local.noteId],
@@ -2152,7 +2154,7 @@ class AppDatabase {
         (!remote.isDeleted && remote.isTrash != local.isTrash)) {
       throw StateError('unresolvedNoteConflict');
     }
-    final rows = await txn.query(
+    final rows = await txn.queryLargeValues(
       'notes',
       where: 'account_id = ? AND server_id = ? AND is_dirty = 1',
       whereArgs: [accountId, local.noteId],
@@ -2274,7 +2276,7 @@ class AppDatabase {
       throw StateError('invalidUploadResponse');
     }
     await raw.transaction((txn) async {
-      final rows = await txn.query(
+      final rows = await txn.queryLargeValues(
         'notes',
         where: 'account_id = ? AND server_id = ?',
         whereArgs: [accountId, local.noteId],
