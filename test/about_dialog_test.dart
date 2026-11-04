@@ -50,6 +50,9 @@ void main() {
       expect(find.textContaining('构建号：57'), findsOneWidget);
       expect(find.text('API2 协议版本：1.0.0'), findsOneWidget);
       expect(find.text('退出'), findsNothing);
+      expect(find.textContaining('基于 Leanote'), findsNothing);
+      expect(find.text('Gemsnote Mobile'), findsOneWidget);
+      expect(find.text('日积字句，终得珠玑。'), findsOneWidget);
       expect(
         find.descendant(
           of: find.byType(MobileAboutDialog),

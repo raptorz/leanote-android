@@ -73,8 +73,6 @@ class _MobileAboutDialogState extends State<MobileAboutDialog> {
             },
           ),
           Text(tr(context, 'm0008', [Api2Client.clientVersion])),
-          const SizedBox(height: 16),
-          Text(tr(context, 'm0009')),
         ],
       ),
     ),
