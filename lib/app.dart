@@ -8,6 +8,7 @@ import 'dart:async';
 
 import 'repositories/auth_repository.dart';
 import 'ui/login_page.dart';
+import 'ui/startup_page.dart';
 import 'ui/workspace_page.dart';
 import 'services/home_widget.dart';
 import 'services/native_language.dart';
@@ -103,19 +104,26 @@ class _GemsnoteAppState extends State<GemsnoteApp> {
             ),
           ],
         ),
-        home: _language.ready
-            ? _RootGate(repository: widget.repository, appLock: _appLock)
-            : const Scaffold(body: Center(child: CircularProgressIndicator())),
+        home: _RootGate(
+          repository: widget.repository,
+          appLock: _appLock,
+          languageReady: _language.ready,
+        ),
       ),
     ),
   );
 }
 
 class _RootGate extends StatefulWidget {
-  const _RootGate({required this.repository, required this.appLock});
+  const _RootGate({
+    required this.repository,
+    required this.appLock,
+    required this.languageReady,
+  });
 
   final AuthRepository repository;
   final AppLockController appLock;
+  final bool languageReady;
 
   @override
   State<_RootGate> createState() => _RootGateState();
@@ -126,6 +134,8 @@ class _RootGateState extends State<_RootGate> {
   final _deepLinks = DeepLinkController();
   StoredSession? _session;
   var _ready = false;
+  bool _restoreFailed = false;
+  bool _restoring = false;
   bool _freshLogin = false;
   int _sessionGeneration = 0;
 
@@ -137,13 +147,22 @@ class _RootGateState extends State<_RootGate> {
   }
 
   Future<void> _restore() async {
-    final session = await widget.repository.restore();
-    if (mounted) {
-      _bindWidget(session);
-      setState(() {
-        _session = session;
-        _ready = true;
-      });
+    if (_restoring) return;
+    _restoring = true;
+    if (mounted) setState(() => _restoreFailed = false);
+    try {
+      final session = await widget.repository.restore();
+      if (mounted) {
+        _bindWidget(session);
+        setState(() {
+          _session = session;
+          _ready = true;
+        });
+      }
+    } on Object {
+      if (mounted) setState(() => _restoreFailed = true);
+    } finally {
+      _restoring = false;
     }
   }
 
@@ -167,8 +186,13 @@ class _RootGateState extends State<_RootGate> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_ready) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (!widget.languageReady || !_ready) {
+      return StartupPage(
+        errorKey: widget.languageReady && _restoreFailed
+            ? 'startupSessionFailed'
+            : null,
+        onRetry: _restore,
+      );
     }
     if (_session == null) {
       return LoginPage(

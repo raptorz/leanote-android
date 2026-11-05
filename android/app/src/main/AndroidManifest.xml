@@ -29,10 +29,10 @@
             android:permission="android.permission.BIND_REMOTEVIEWS" />
         <activity
             android:name=".MainActivity"
-            android:exported="true"
+            android:exported="false"
             android:launchMode="singleTask"
             android:taskAffinity=""
-            android:theme="@style/LaunchTheme"
+            android:theme="@style/FlutterHostTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
@@ -47,8 +47,16 @@
                  to determine the Window background behind the Flutter UI. -->
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
-              android:resource="@style/NormalTheme"
+              android:resource="@style/FlutterHostTheme"
               />
+        </activity>
+        <activity
+            android:name=".LaunchActivity"
+            android:exported="true"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:hardwareAccelerated="true"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <action android:name="android.intent.action.SEND_MULTIPLE" />

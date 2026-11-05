@@ -1,5 +1,14 @@
 // Generated from tool/localization/messages.json.
 const messages = <String, (String, String)>{
+  "startupLoading": ("正在启动…", "Starting…"),
+  "startupFailed": (
+    "无法初始化应用，请重试。不会清除本地数据。",
+    "Could not initialize the app. Retry without clearing local data.",
+  ),
+  "startupSessionFailed": (
+    "无法读取本地登录状态，请重试。",
+    "Could not read the saved session. Please retry.",
+  ),
   "m0001": ("未知", "Unknown"),
   "m0002": ("关于珠玑笔记", "About Gemsnote"),
   "m0003": ("日积字句，终得珠玑。", "Collect your words, discover your gems."),

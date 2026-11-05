@@ -97,7 +97,7 @@ class NoteWidget : AppWidgetProvider() {
             val enabled = account.isNotEmpty() && p.getBoolean("enabled:$account", false)
             for (id in ids) {
                 fun launch(action: String, mutable: Boolean = false): PendingIntent {
-                    val intent = Intent(context, MainActivity::class.java).apply {
+                    val intent = Intent(context, LaunchActivity::class.java).apply {
                         this.action = NoteWidgetStore.ACTION
                         data = Uri.Builder().scheme("gemsnote-widget").authority("action").appendPath("$id").appendPath(epoch).appendPath(action).build()
                         putExtra("account", account); putExtra("epoch", epoch); putExtra("widgetAction", action)

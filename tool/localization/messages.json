@@ -1,4 +1,16 @@
 {
+  "startupLoading": {
+    "zh": "正在启动…",
+    "en": "Starting…"
+  },
+  "startupFailed": {
+    "zh": "无法初始化应用，请重试。不会清除本地数据。",
+    "en": "Could not initialize the app. Retry without clearing local data."
+  },
+  "startupSessionFailed": {
+    "zh": "无法读取本地登录状态，请重试。",
+    "en": "Could not read the saved session. Please retry."
+  },
   "m0001": {
     "zh": "未知",
     "en": "Unknown"

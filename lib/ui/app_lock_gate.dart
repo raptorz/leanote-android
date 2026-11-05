@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_strings.dart';
 import '../services/app_lock.dart';
+import 'startup_page.dart';
 
 class AppLockGate extends StatefulWidget {
   const AppLockGate({required this.controller, required this.child, super.key});
@@ -107,7 +108,7 @@ class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
 
   Widget _lockedScreen(BuildContext context) {
     if (!widget.controller.ready) {
-      return const Scaffold(body: Center(child: Icon(Icons.lock_outline)));
+      return const StartupPage();
     }
     return Scaffold(
       body: SafeArea(

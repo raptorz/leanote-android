@@ -2,6 +2,10 @@ package com.github.gemsnote
 
 import android.content.Intent
 import android.os.Bundle
+import android.graphics.drawable.Animatable
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.core.content.IntentCompat
@@ -13,20 +17,26 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import android.widget.Toast
+import android.widget.ImageView
 import io.flutter.embedding.android.FlutterFragmentActivity
+import io.flutter.embedding.android.FlutterFragment
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.renderer.FlutterUiDisplayListener
 import io.flutter.plugin.common.MethodChannel
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 import java.io.File
 
-class MainActivity : FlutterFragmentActivity() {
+class MainActivity : FlutterFragmentActivity(), FlutterUiDisplayListener {
     companion object {
         private val readers = Executors.newFixedThreadPool(2)
         private val timeouts = Executors.newSingleThreadScheduledExecutor()
         private val activeReaders = AtomicInteger(0)
         private var activeActivity = WeakReference<MainActivity>(null)
+        fun hasRunningFlutterUi(): Boolean = activeActivity.get()?.let {
+            it.flutterDisplayed && !it.isFinishing && !it.isDestroyed
+        } ?: false
         private val textTypes = setOf("text/plain", "text/markdown")
         private var resourceStore: SharedResourceStore? = null
     }
@@ -37,6 +47,27 @@ class MainActivity : FlutterFragmentActivity() {
     private var shareChannel: MethodChannel? = null
     private var widgetChannel: MethodChannel? = null
     private var cameraChannel: MethodChannel? = null
+    private var startupLoading: View? = null
+    private var flutterDisplayed = false
+
+    override fun createFlutterFragment(): FlutterFragment = StartupFlutterFragment().apply {
+        // Retain Flutter's entrypoint, engine, route and back-navigation options.
+        arguments = this@MainActivity.defaultFragmentArguments()
+    }
+
+    private fun defaultFragmentArguments(): Bundle? = super.createFlutterFragment().arguments
+
+    override fun onFlutterUiDisplayed() {
+        flutterDisplayed = true
+        (startupLoading?.findViewById<ImageView>(R.id.startup_spinner)?.drawable as? Animatable)?.stop()
+        startupLoading?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        startupLoading = null
+        LaunchActivity.finishPending()
+    }
+
+    override fun onFlutterUiNoLongerDisplayed() {
+        // Returning from background must not cover an existing Flutter session.
+    }
     private val avatarCamera by lazy { AvatarCamera(this) }
     private val prefs by lazy { getSharedPreferences("shared_text_inbox", MODE_PRIVATE) }
     private fun resources(): SharedResourceStore = synchronized(MainActivity::class.java) {
@@ -159,12 +190,27 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!flutterDisplayed) {
+            startupLoading = LayoutInflater.from(NativeLanguage.localized(this))
+                .inflate(R.layout.startup_loading, null)
+            addContentView(startupLoading, ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            (startupLoading?.findViewById<ImageView>(R.id.startup_spinner)?.drawable as? Animatable)?.start()
+        }
         if (savedInstanceState == null) receiveWidget(intent)
         if (savedInstanceState == null) receiveText(intent)
     }
 
+    override fun onDestroy() {
+        (startupLoading?.findViewById<ImageView>(R.id.startup_spinner)?.drawable as? Animatable)?.stop()
+        startupLoading?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        startupLoading = null
+        super.onDestroy()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (flutterDisplayed) LaunchActivity.finishPending()
         receiveWidget(intent)
         receiveText(intent)
     }

@@ -31,6 +31,22 @@ iOS 工程只能在 macOS 上构建：
 flutter build ios
 ```
 
+## 启动流程与性能
+
+Android 启动阶段使用深绿色背景与应用图标：Android 12 及以上通过系统 SplashScreen 主题配置，较早版本使用 `launch_background.xml`。Flutter 首帧显示同配色的品牌启动页，再并行初始化 SQLite 和后台任务调度器；随后并行恢复语言偏好与本地登录状态。启动页不设最短展示时间，也不等待服务端登录验证或同步请求。
+
+Android 外部入口统一由轻量的 `LaunchActivity` 接收，先绘制带转圈及“正在启动…”的原生窗口，再调用 `FlutterLoader.ensureInitializationCompleteAsync` 加载 Flutter。转圈使用原生 AnimatedVectorDrawable，Android 7.1+ 在 RenderThread 上播放；引擎就绪后转交 `MainActivity`，完整保留 Intent 的数据、MIME、ClipData、参数及 URI 授权。启动窗口在 Flutter 显示后退出，不留在返回栈；加载中切到后台不会主动拉回应用。进程建立前的系统启动画面仍是静态图标，不人为添加展示时长。
+
+`MainActivity` 等待 Flutter 首帧时继续显示相同加载层；`StartupFlutterFragment` 关闭默认的首帧前 Android 绘制阻塞，保留 surface 渲染。收到 `onFlutterUiDisplayed` 后移除原生加载层，由 Flutter 启动页接续。只把转圈放在 MainActivity 中不能覆盖此前的引擎初始化阶段。
+
+数据库或后台调度初始化失败会显示重试入口；读取已保存的登录状态失败时也可重试，不会自动清除账号或缓存。应用锁初始化期间只显示启动页，解锁前仍遮挡账号内容。相关实现为 `lib/app_bootstrap.dart`、`lib/services/app_startup.dart` 和 `lib/ui/startup_page.dart`。
+
+日常 debug 包包含调试开销，不适合用来衡量正式版启动速度。性能分析使用专用真机上的 `flutter run --profile`，发布体验使用 release 包；不要为测试启动速度卸载正在使用的客户端或清除数据。回归命令：
+
+```sh
+flutter test test/startup_test.dart test/app_lock_gate_test.dart test/account_switcher_page_test.dart test/localization_test.dart
+```
+
 ## 应用版本信息
 
 安装包版本由 `pubspec.yaml` 的 `version` 定义，构建时可用 Flutter 的
@@ -118,7 +134,7 @@ python3 scripts/test_android_home_widget.py emulator-5554 --workspace
 ```sh
 flutter build apk --debug --no-pub
 adb -s emulator-5554 install -r build/app/outputs/flutter-apk/app-debug.apk
-adb -s emulator-5554 shell am start -n com.github.gemsnote/.MainActivity
+adb -s emulator-5554 shell am start -n com.github.gemsnote/.LaunchActivity
 ```
 
 默认模式验证原生桌面行为，不代表 Flutter 工作区完整笔记导航、真实账号登录/同步、

@@ -1,6 +1,6 @@
 # Android 分享接收
 
-`MainActivity` 接收 `ACTION_SEND` / `ACTION_SEND_MULTIPLE` 的文本、图片和附件（通配 MIME）。支持 `EXTRA_TEXT` 单项/列表，以及 `EXTRA_STREAM` 或 ClipData 中的文件 URI。纯文本和 Markdown 文件严格按 UTF-8 解码；其余内容按二进制原件保存。
+`LaunchActivity` 接收外部入口，完成引擎准备后将原始 Intent（含 MIME、ClipData、extras 与 URI 授权标志）转交 `MainActivity`。后者处理 `ACTION_SEND` / `ACTION_SEND_MULTIPLE` 的文本、图片和附件（通配 MIME）。支持 `EXTRA_TEXT` 单项/列表，以及 `EXTRA_STREAM` 或 ClipData 中的文件 URI。纯文本和 Markdown 文件严格按 UTF-8 解码；其余内容按二进制原件保存。
 
 - 每批最多 8 项，持久收件箱总容量也是 8 项，文本单项最多 256 KiB UTF-8，二进制单文件最多 32 MiB。私有分享暂存目录总量最多 96 MiB（含正在读取的文件），超限拒绝，不淘汰待导入原件。
 - 文件只从 `content://` URI 读取；Android 检查来源授予的 URI 读取权限。
